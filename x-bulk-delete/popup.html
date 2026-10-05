@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>X Bulk Delete</h1>
+  <p id="account" class="muted">Open x.com to start.</p>
+
+  <div class="nav">
+    <button id="goPosts" class="link">Go to my Posts</button>
+    <button id="goReplies" class="link">Go to my Replies</button>
+  </div>
+
+  <fieldset>
+    <legend>What to remove</legend>
+    <label><input type="checkbox" id="deletePosts" checked> Delete my posts and replies</label>
+    <label><input type="checkbox" id="undoReposts" checked> Undo my reposts</label>
+    <label><input type="checkbox" id="keepPinned" checked> Keep my pinned post</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Filters (optional)</legend>
+    <label class="row">Only posted after <input type="date" id="after"></label>
+    <label class="row">Only posted before <input type="date" id="before"></label>
+    <label class="row">Containing any of <input type="text" id="keyword" placeholder="word1, word2"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Pace</legend>
+    <label class="row">Stop after <input type="number" id="limit" min="0" placeholder="no limit"></label>
+    <label class="row">Delay between deletes (ms) <input type="number" id="delayMs" min="500" value="1500"></label>
+    <label><input type="checkbox" id="dryRun"> Dry run (highlight only, delete nothing)</label>
+  </fieldset>
+
+  <div class="actions">
+    <button id="start" class="primary">Start</button>
+    <button id="stop" class="danger">Stop</button>
+  </div>
+
+  <div id="status" class="status">Idle</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

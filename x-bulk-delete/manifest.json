@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "X Bulk Delete",
+  "version": "1.0.0",
+  "description": "Bulk delete your own posts and replies, and undo your reposts, on x.com. Runs locally in your browser.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["https://x.com/*", "https://twitter.com/*"],
+  "action": {
+    "default_title": "X Bulk Delete",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
