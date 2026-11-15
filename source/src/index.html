@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="robots" content="noindex">
+<title>GazeCal · معايرة النظر</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <button id="back" type="button" data-gaze="ignore" hidden>رجوع</button>
+    <h1 id="title">معايرة النظر</h1>
+    <div id="chip" class="chip">…</div>
+  </header>
+  <main id="stage"></main>
+</div>
+<div id="cursor" hidden aria-hidden="true"></div>
+<video id="cam" playsinline muted autoplay aria-hidden="true"></video>
+<div id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">هذه الصفحة تحتاج JavaScript.</p></noscript>
+<script type="module">
+/*__JS__*/
+</script>
+</body>
+</html>
