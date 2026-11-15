@@ -790,14 +790,22 @@ export class Calibrator {
 }
 
 // Steady while the eyes rest, quick when they jump.
-// Points near the current resting place are averaged; a point far away has to be
-// confirmed by the next one before the estimate moves there, so a single bad
-// frame cannot throw the cursor across the screen.
+//  - While the eyes rest, every new frame joins the average, so the estimate gets calmer the
+//    longer they stay (up to maxMs).
+//  - A point far away has to be confirmed by the next one before the estimate moves there, so a
+//    single bad frame cannot throw the cursor across the screen.
+//  - A small move inside the radius (the next key, the next word) shows up as the newest few
+//    frames disagreeing with the older ones; then the older ones are dropped.
+//  - The result passes through a One Euro filter, which removes the last frame-to-frame tremor
+//    and steps aside when the estimate really moves.
 export class FixationSmoother {
-  constructor({ radius = 90, maxMs = 450, confirm = 2 } = {}) {
+  constructor({ radius = 90, maxMs = 1500, confirm = 2, drift = 0.5, ease = [2, 0.02] } = {}) {
     this.radius = radius;
     this.maxMs = maxMs;
     this.confirm = confirm;
+    this.drift = drift; // share of the radius that counts as a small move
+    this.fx = ease ? new OneEuro(ease[0], ease[1]) : null;
+    this.fy = ease ? new OneEuro(ease[0], ease[1]) : null;
     this.reset();
   }
 
@@ -806,6 +814,10 @@ export class FixationSmoother {
     this.pending = [];
     this.x = NaN;
     this.y = NaN;
+    if (this.fx) {
+      this.fx.reset();
+      this.fy.reset();
+    }
   }
 
   static mean(pts) {
@@ -818,13 +830,18 @@ export class FixationSmoother {
     return [x / pts.length, y / pts.length];
   }
 
+  out(t, moved) {
+    if (!this.fx) return { x: this.x, y: this.y, moved };
+    return { x: this.fx.filter(this.x, t / 1000), y: this.fy.filter(this.y, t / 1000), moved };
+  }
+
   push(x, y, t) {
     const p = { x, y, t };
     if (!this.pts.length) {
       this.pts = [p];
       this.x = x;
       this.y = y;
-      return { x, y, moved: true };
+      return this.out(t, true);
     }
     let moved = false;
     if (Math.hypot(x - this.x, y - this.y) <= this.radius) {
@@ -844,8 +861,17 @@ export class FixationSmoother {
       }
     }
     while (this.pts.length > 1 && t - this.pts[0].t > this.maxMs) this.pts.shift();
+    if (this.pts.length >= 8) {
+      const fresh = this.pts.slice(-4);
+      const [nx, ny] = FixationSmoother.mean(fresh);
+      const [ox, oy] = FixationSmoother.mean(this.pts.slice(0, -4));
+      if (Math.hypot(nx - ox, ny - oy) > this.drift * this.radius) {
+        this.pts = fresh;
+        moved = true;
+      }
+    }
     [this.x, this.y] = FixationSmoother.mean(this.pts);
-    return { x: this.x, y: this.y, moved };
+    return this.out(t, moved);
   }
 }
 

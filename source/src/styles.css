@@ -871,3 +871,7 @@ body {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
+
+/* 0.3.1: the cursor glides between camera frames instead of stepping at 30 per second */
+#cursor { transition: transform 90ms linear; }
+@media (prefers-reduced-motion: reduce) { #cursor { transition: none; } }

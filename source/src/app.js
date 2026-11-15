@@ -8,7 +8,7 @@ import {
 } from './features.js';
 import { SimUser, mulberry32 } from './sim.js';
 
-const VERSION = '0.3';
+const VERSION = '0.3.1';
 // Frames and touches are timed with performance.now(); stored samples carry wall-clock time.
 // Converted at the moment of use: the page clock stops while the browser is in the background.
 const wall = (tPerf) => Date.now() - (performance.now() - tPerf);
@@ -79,6 +79,8 @@ const S = {
   looPx: NaN,
   motion: 0,
   motionT: -1e9,
+  rot: [0, 0, 0, 1], // how the phone has turned since the page opened (quaternion), summed from the gyroscope
+  grav: null, // gravity as the phone feels it: how the phone is held
   screen: null,
   cleanup: null,
   onGaze: null,
@@ -169,6 +171,7 @@ function onFrame(f, t) {
     S.fps = S.fps ? S.fps + 0.1 * (inst - S.fps) : inst;
   }
   S.lastFrameT = t;
+  f.device = t - S.motionT < 400 ? { rot: S.rot.map((v) => Math.round(v * 1e4) / 1e4), grav: S.grav ? S.grav.map((v) => Math.round(v * 100) / 100) : null } : null;
   S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: t - S.motionT < 400 ? S.motion : 0, hi: f.hi || null });
   if (S.face) S.cal.setPose(f.phi);
 
@@ -237,6 +240,10 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
   if (sum.phi.length >= OFF_PIX + N_PIX) rec.pix = packInt8(sum.phi.subarray(OFF_PIX, OFF_PIX + N_PIX));
   const eye = meanEyes(frames);
   if (eye) rec.eye = eye;
+  if (performance.now() - S.motionT < 400) {
+    rec.rot = S.rot.map((v) => Math.round(v * 1e4) / 1e4);
+    if (S.grav) rec.grav = S.grav.map((v) => Math.round(v * 100) / 100);
+  }
   if (rec.err != null) S.errMap.add(target[0] / S.W, target[1] / S.H, rec.err);
   S.log.push(rec);
   if (S.log.length > 3000) S.log.shift();
@@ -449,17 +456,43 @@ function loop() {
   onFrame(f, t);
 }
 
+let motionOn = false;
+
 function enableMotion() {
   // Must run inside a tap: iOS only shows the motion permission prompt then.
   try {
     const DM = window.DeviceMotionEvent;
     if (!DM) return Promise.resolve(false);
     const listen = () => {
+      if (motionOn) return true; // one listener only: a second one would sum every turn twice
+      motionOn = true;
       window.addEventListener('devicemotion', (e) => {
         const r = e.rotationRate;
         if (!r) return;
+        const now = performance.now();
+        const dt = Math.min(0.1, Math.max(0, (now - S.motionT) / 1000));
         S.motion = Math.hypot(r.alpha || 0, r.beta || 0, r.gamma || 0);
-        S.motionT = performance.now();
+        S.motionT = now;
+        // Sum the turn: rates are in degrees per second around the phone's own x (beta), y (gamma), z (alpha).
+        const k = Math.PI / 180;
+        const wx = (r.beta || 0) * k;
+        const wy = (r.gamma || 0) * k;
+        const wz = (r.alpha || 0) * k;
+        const w = Math.hypot(wx, wy, wz);
+        if (w > 1e-6 && dt > 0) {
+          const h = (w * dt) / 2;
+          const sn = Math.sin(h) / w;
+          const [qx, qy, qz, qw] = S.rot;
+          const dx = wx * sn;
+          const dy = wy * sn;
+          const dz = wz * sn;
+          const dw = Math.cos(h);
+          const n = [qw * dx + qx * dw + qy * dz - qz * dy, qw * dy - qx * dz + qy * dw + qz * dx, qw * dz + qx * dy - qy * dx + qz * dw, qw * dw - qx * dx - qy * dy - qz * dz];
+          const len = Math.hypot(n[0], n[1], n[2], n[3]) || 1;
+          S.rot = n.map((v) => v / len);
+        }
+        const g = e.accelerationIncludingGravity;
+        if (g && g.x != null) S.grav = [g.x, g.y, g.z];
       });
       return true;
     };
@@ -881,6 +914,8 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
       t: Math.round(f.t),
       k: Math.round(f.blink * 100) / 100,
       m: Math.round(f.motion || 0),
+      g: f.device ? f.device.rot : null, // the phone's turn (quaternion x, y, z, w) from the gyroscope
+      a: f.device ? f.device.grav : null, // gravity in the phone's own axes, m/s²
       b: f.phi ? Array.from(f.phi.subarray(0, N_BASE), r5) : null,
       q: f.phi && f.phi.length >= OFF_PIX + N_PIX ? packInt8(f.phi.subarray(OFF_PIX, OFF_PIX + N_PIX)) : null,
       e: f.hi && i % 2 === 0 ? b64(f.hi) : null,
@@ -980,7 +1015,7 @@ function pursue(move = false) {
       if (move) S.simUser.startWobble(tStart);
     }
     S.onFrame = (f, t) => {
-      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0 });
+      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0, device: f.device });
     };
     raf = requestAnimationFrame(step);
   });

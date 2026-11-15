@@ -63,6 +63,11 @@ await page.route('https://storage.googleapis.com/**', (route) => {
 });
 
 const sleep = (ms) => page.waitForTimeout(ms);
+// headless Chrome refuses the motion-sensor permission; behave like a phone that granted it
+await page.addInitScript(() => {
+  window.__dmPermission = typeof DeviceMotionEvent.requestPermission;
+  DeviceMotionEvent.requestPermission = () => Promise.resolve('granted');
+});
 await page.goto(`http://localhost:${port}/`);
 await page.waitForSelector('#start-go');
 await page.screenshot({ path: `${SHOTS}/20-real-start.png` });
@@ -70,6 +75,11 @@ await page.locator('#start-go').tap();
 await sleep(600);
 await page.screenshot({ path: `${SHOTS}/21-real-loading.png` });
 await page.waitForSelector('[data-go="pursue"]', { timeout: 60000 });
+// a synthetic gyroscope: the phone turns steadily at 5°/s about its x axis
+await page.evaluate(() => {
+  window.__t0 = performance.now();
+  setInterval(() => window.dispatchEvent(new DeviceMotionEvent('devicemotion', { rotationRate: { alpha: 0, beta: 5, gamma: 0 }, accelerationIncludingGravity: { x: 0, y: -9.5, z: -2.4 }, interval: 16 })), 16);
+});
 await sleep(2500);
 await page.screenshot({ path: `${SHOTS}/22-real-home.png` });
 
@@ -171,6 +181,15 @@ await sleep(300);
   const withEye = d.pursuit[0].frames.filter((f) => f.e).length;
   console.log(`export: ${(statSync(file).size / 1024).toFixed(0)} KB · video ${JSON.stringify(d.video)} · log ${d.log.length} (eye ${d.log[0].eye ? d.log[0].eye.length : 0} chars) · pursuit ${d.pursuit[0].frames.length} frames, ${withEye} with eye pictures · lag ${d.pursuit[0].lagMs} (${d.pursuit[0].lagSure ? 'found' : 'default'})`);
   if (!d.log[0].eye || d.log[0].eye.length !== 3072 || !withEye) problems.push('export has no eye pictures');
+  const gy = await page.evaluate(() => {
+    const { S } = window.__gazecal;
+    return { dm: window.__dmPermission, setting: S.settings.motion, el: (performance.now() - window.__t0) / 1000, ang: (2 * Math.acos(Math.min(1, Math.abs(S.rot[3]))) * 180) / Math.PI, rot: S.rot.map((v) => +v.toFixed(3)), grav: S.grav };
+  });
+  let want = (5 * gy.el) % 360;
+  if (want > 180) want = 360 - want;
+  const withTurn = d.pursuit[0].frames.filter((f) => f.g && f.a).length;
+  console.log(`(browser's own requestPermission: ${gy.dm}; motion setting ${gy.setting}) gyroscope: after ${gy.el.toFixed(1)} s at 5°/s the summed turn is ${gy.ang.toFixed(1)}° (expected ${want.toFixed(1)}°), rot ${JSON.stringify(gy.rot)}, gravity ${JSON.stringify(gy.grav)}; pursuit frames carrying it: ${withTurn}/${d.pursuit[0].frames.length}; sample: ${JSON.stringify(d.log[0].rot)}`);
+  if (Math.abs(gy.ang - want) > 8 || withTurn < 500 || !d.log[0].rot || Math.abs(gy.rot[1]) > 0.02 || Math.abs(gy.rot[2]) > 0.02) problems.push('gyroscope turn is not summed or not logged correctly');
 }
 
 // the stored profile must come back after a reload

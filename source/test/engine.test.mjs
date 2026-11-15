@@ -206,7 +206,22 @@ test('FixationSmoother: steady at rest, fast on a jump, deaf to one bad frame', 
     t += 33;
     o = fs.push(320 + i, 700, t); // a real jump: the eyes stay at the new place
   }
-  assert.ok(Math.abs(o.x - 321) < 5 && Math.abs(o.y - 700) < 5, `after 100 ms: ${o.x.toFixed(0)}, ${o.y.toFixed(0)}`);
+  assert.ok(Math.abs(o.x - 321) < 30 && Math.abs(o.y - 700) < 30, `after 100 ms: ${o.x.toFixed(0)}, ${o.y.toFixed(0)}`);
+  for (let i = 0; i < 4; i++) {
+    t += 33;
+    o = fs.push(321, 700, t);
+  }
+  assert.ok(Math.abs(o.x - 321) < 6 && Math.abs(o.y - 700) < 6, `after 230 ms: ${o.x.toFixed(0)}, ${o.y.toFixed(0)}`);
+  // at rest the cursor should hardly move from one frame to the next
+  const calm = new FixationSmoother();
+  const steps = [];
+  let prev = null;
+  for (let i = 0; i < 90; i++) {
+    const q = calm.push(200 + (rand() - 0.5) * 50, 300 + (rand() - 0.5) * 50, i * 33);
+    if (prev && i > 30) steps.push(Math.hypot(q.x - prev.x, q.y - prev.y));
+    prev = q;
+  }
+  assert.ok(median(steps) < 1, `frame-to-frame move at rest ${median(steps).toFixed(2)} px (the input moves about 20)`);
 });
 
 test('TargetSelector accumulates evidence under noise', () => {
