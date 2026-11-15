@@ -44,6 +44,68 @@ export function solveLinear(A, B) {
   return M.map((row) => row.slice(n));
 }
 
+// Solves A·X = B for a symmetric positive definite A by Cholesky factorisation.
+// A: flat n×n, row-major, only the lower triangle is read. B: flat n×m.
+// Both are overwritten (B ends up holding X). Returns false when A is not positive definite.
+export function solveSPD(A, B, n, m) {
+  for (let j = 0; j < n; j++) {
+    const rj = j * n;
+    let d = A[rj + j];
+    for (let k = 0; k < j; k++) d -= A[rj + k] * A[rj + k];
+    if (!(d > 1e-12)) return false;
+    d = Math.sqrt(d);
+    A[rj + j] = d;
+    for (let i = j + 1; i < n; i++) {
+      const ri = i * n;
+      let v = A[ri + j];
+      for (let k = 0; k < j; k++) v -= A[ri + k] * A[rj + k];
+      A[ri + j] = v / d;
+    }
+  }
+  for (let c = 0; c < m; c++) {
+    for (let i = 0; i < n; i++) {
+      const ri = i * n;
+      let v = B[i * m + c];
+      for (let k = 0; k < i; k++) v -= A[ri + k] * B[k * m + c];
+      B[i * m + c] = v / A[ri + i];
+    }
+    for (let i = n - 1; i >= 0; i--) {
+      let v = B[i * m + c];
+      for (let k = i + 1; k < n; k++) v -= A[k * n + i] * B[k * m + c];
+      B[i * m + c] = v / A[i * n + i];
+    }
+  }
+  return true;
+}
+
+// Adds one weighted row z (with target y) to the normal equations. Lower triangle only.
+function accumulate(A, B, z, w, y, m) {
+  for (let r = 0; r < m; r++) {
+    const wz = w * z[r];
+    const row = r * m;
+    for (let c = 0; c <= r; c++) A[row + c] += wz * z[c];
+    B[r * 2] += wz * y[0];
+    B[r * 2 + 1] += wz * y[1];
+  }
+}
+
+// Small numbers (unit-variance pixel values) packed one byte each, for compact storage.
+const PACK_SCALE = 32;
+export function packInt8(values) {
+  let s = '';
+  for (let i = 0; i < values.length; i++) s += String.fromCharCode(clamp(Math.round(values[i] * PACK_SCALE), -127, 127) & 255);
+  return btoa(s);
+}
+
+export function unpackInt8(b64, out, offset = 0) {
+  const s = atob(b64);
+  for (let i = 0; i < s.length; i++) {
+    const v = s.charCodeAt(i);
+    out[offset + i] = (v > 127 ? v - 256 : v) / PACK_SCALE;
+  }
+  return s.length;
+}
+
 // One Euro filter (Casiez et al.): low jitter while still, low lag while moving.
 export class OneEuro {
   constructor(minCutoff = 0.8, beta = 0.004, dCutoff = 1.0) {
@@ -148,59 +210,64 @@ export class RidgeMap {
     return this.beta !== null;
   }
 
-  fit(samples, weights) {
+  // Weighted mean and (floored) spread of every feature.
+  stats(samples, weights) {
     const n = this.n;
     const N = samples.length;
-    let sw = 0;
-    for (let i = 0; i < N; i++) sw += weights[i];
-    if (N < 3 || !(sw > 0)) {
-      this.beta = null;
-      return false;
-    }
     const mu = new Float64Array(n);
     const sd = new Float64Array(n);
+    let sw = 0;
     for (let i = 0; i < N; i++) {
-      for (let j = 0; j < n; j++) mu[j] += weights[i] * samples[i].phi[j];
+      const w = weights[i];
+      const p = samples[i].phi;
+      sw += w;
+      for (let j = 0; j < n; j++) mu[j] += w * p[j];
     }
+    if (!(sw > 0)) return null;
     for (let j = 0; j < n; j++) mu[j] /= sw;
     for (let i = 0; i < N; i++) {
+      const w = weights[i];
+      const p = samples[i].phi;
       for (let j = 0; j < n; j++) {
-        const d = samples[i].phi[j] - mu[j];
-        sd[j] += weights[i] * d * d;
+        const d = p[j] - mu[j];
+        sd[j] += w * d * d;
       }
     }
     for (let j = 0; j < n; j++) sd[j] = Math.max(Math.sqrt(sd[j] / sw), this.stdFloor[j]);
+    return { mu, sd, sw };
+  }
 
+  fit(samples, weights) {
+    const n = this.n;
+    const N = samples.length;
     const m = n + 1;
-    const A = Array.from({ length: m }, () => new Array(m).fill(0));
-    const B = Array.from({ length: m }, () => [0, 0]);
+    const st = N >= 3 ? this.stats(samples, weights) : null;
+    if (!st) {
+      this.beta = null;
+      return false;
+    }
+    const { mu, sd, sw } = st;
+    const A = new Float64Array(m * m);
+    const B = new Float64Array(m * 2);
     const z = new Float64Array(m);
+    z[0] = 1;
     const scale = N / sw; // mean weight becomes 1, so lambda keeps one meaning
     for (let i = 0; i < N; i++) {
       const w = weights[i] * scale;
       if (!(w > 0)) continue;
-      z[0] = 1;
-      for (let j = 0; j < n; j++) z[j + 1] = (samples[i].phi[j] - mu[j]) / sd[j];
-      for (let r = 0; r < m; r++) {
-        const wz = w * z[r];
-        for (let c = r; c < m; c++) A[r][c] += wz * z[c];
-        B[r][0] += wz * samples[i].y[0];
-        B[r][1] += wz * samples[i].y[1];
-      }
+      const p = samples[i].phi;
+      for (let j = 0; j < n; j++) z[j + 1] = (p[j] - mu[j]) / sd[j];
+      accumulate(A, B, z, w, samples[i].y, m);
     }
-    for (let r = 0; r < m; r++) {
-      for (let c = 0; c < r; c++) A[r][c] = A[c][r];
-    }
-    for (let j = 1; j < m; j++) A[j][j] += this.lambda;
-    A[0][0] += 1e-9;
-    const X = solveLinear(A, B);
-    if (!X) {
+    A[0] += 1e-9;
+    for (let j = 1; j < m; j++) A[j * m + j] += this.lambda;
+    if (!solveSPD(A, B, m, 2)) {
       this.beta = null;
       return false;
     }
     this.mu = mu;
     this.sd = sd;
-    this.beta = X;
+    this.beta = Array.from({ length: m }, (_, r) => [B[r * 2], B[r * 2 + 1]]);
     return true;
   }
 
@@ -208,6 +275,7 @@ export class RidgeMap {
   // fit and loses most of its vote. Kept soft on purpose (no hard cut-off), so
   // samples from a new posture can still pull the model toward them.
   fitRobust(samples, weights, { iters = 3, k = 1.5, scaleFloor = 20 } = {}) {
+    this.trust = null;
     if (!this.fit(samples, weights)) return false;
     let w = weights;
     for (let it = 0; it < iters; it++) {
@@ -219,7 +287,76 @@ export class RidgeMap {
       w = weights.map((w0, i) => (res[i] <= k * s ? w0 : (w0 * k * s) / res[i]));
       if (!this.fit(samples, w)) return false;
     }
+    // how much each sample was trusted, for models that are too wide to run this loop themselves
+    this.trust = Float64Array.from(weights, (w0, i) => (w0 > 0 ? w[i] / w0 : 1));
     return true;
+  }
+
+  // Picks lambda by cross-validation over contiguous blocks of samples (blocks,
+  // because neighbouring frames of a recording are near-copies of each other),
+  // then fits on everything. Prefers the strongest regularisation that is
+  // within 2% of the best score.
+  fitCV(samples, weights, { lambdas = [0.1, 0.3, 1, 3, 10, 30, 100], folds = 6, cap = 400, robust = true } = {}) {
+    const fitAll = () => (robust ? this.fitRobust(samples, weights) : this.fit(samples, weights));
+    const n = this.n;
+    const N = samples.length;
+    const m = n + 1;
+    const st = N >= 4 * folds ? this.stats(samples, weights) : null;
+    if (!st) return fitAll();
+    const { mu, sd, sw } = st;
+    const scale = N / sw;
+    const foldOf = (i) => Math.min(folds - 1, Math.floor((i * folds) / N));
+    const G = Array.from({ length: folds }, () => new Float64Array(m * m));
+    const B = Array.from({ length: folds }, () => new Float64Array(m * 2));
+    const Z = new Float64Array(N * m);
+    for (let i = 0; i < N; i++) {
+      const z = Z.subarray(i * m, (i + 1) * m);
+      const p = samples[i].phi;
+      z[0] = 1;
+      for (let j = 0; j < n; j++) z[j + 1] = (p[j] - mu[j]) / sd[j];
+      const w = weights[i] * scale;
+      if (w > 0) accumulate(G[foldOf(i)], B[foldOf(i)], z, w, samples[i].y, m);
+    }
+    const GT = new Float64Array(m * m);
+    const BT = new Float64Array(m * 2);
+    for (let k = 0; k < folds; k++) {
+      for (let q = 0; q < m * m; q++) GT[q] += G[k][q];
+      for (let q = 0; q < m * 2; q++) BT[q] += B[k][q];
+    }
+    const A = new Float64Array(m * m);
+    const X = new Float64Array(m * 2);
+    const scores = lambdas.map((lam) => {
+      let err = 0;
+      let wsum = 0;
+      for (let k = 0; k < folds; k++) {
+        for (let q = 0; q < m * m; q++) A[q] = GT[q] - G[k][q];
+        for (let q = 0; q < m * 2; q++) X[q] = BT[q] - B[k][q];
+        A[0] += 1e-9;
+        for (let j = 1; j < m; j++) A[j * m + j] += lam;
+        if (!solveSPD(A, X, m, 2)) return Infinity;
+        for (let i = 0; i < N; i++) {
+          if (foldOf(i) !== k) continue;
+          const o = i * m;
+          let px = 0;
+          let py = 0;
+          for (let r = 0; r < m; r++) {
+            px += X[r * 2] * Z[o + r];
+            py += X[r * 2 + 1] * Z[o + r];
+          }
+          err += weights[i] * Math.min(cap, Math.hypot(px - samples[i].y[0], py - samples[i].y[1]));
+          wsum += weights[i];
+        }
+      }
+      return wsum > 0 ? err / wsum : Infinity;
+    });
+    const best = Math.min(...scores);
+    let pick = lambdas[scores.indexOf(best)];
+    for (let i = 0; i < lambdas.length; i++) if (scores[i] <= best * 1.02) pick = lambdas[i];
+    if (Number.isFinite(best)) {
+      this.lambda = pick;
+      this.cvScore = best;
+    }
+    return fitAll();
   }
 
   predict(phi) {
@@ -255,113 +392,496 @@ export class RidgeMap {
   }
 }
 
-// Owns the sample buffer and the live model.
-// Every incoming sample is scored BEFORE it is learned from (test-then-train),
-// so the running error is an honest out-of-sample number.
-export class Calibrator {
-  constructor({ nFeat, stdFloor = null, lambda = 1, maxSamples = 300, halfLife = 120, minFit = 5 } = {}) {
-    this.nFeat = nFeat;
-    this.stdFloor = stdFloor;
-    this.lambda = lambda;
-    this.maxSamples = maxSamples;
-    this.halfLife = halfLife;
+// One candidate mapping from the full feature vector to the screen.
+// Candidates differ in which features they use (expand) and how they are tuned.
+export class GazeModel {
+  constructor({ name, label = name, expand, nFeat, stdFloor, lambda = 1, lambdas = undefined, autoLambda = false, poseLocal = false, centered = false, robust = true, borrow = null, minFit = 6, needs = 0 }) {
+    this.name = name;
+    this.borrow = borrow; // name of a robust model whose outlier verdicts this one reuses
+    this.robust = robust; // false = one pass, for wide models where refits must stay cheap
+    this.lambdas = lambdas;
+    this.needs = needs; // minimum length of the full feature vector this model can read
+    this.label = label;
+    this.expand = expand; // (phiFull, center) -> Float64Array(nFeat)
+    this.autoLambda = autoLambda;
+    this.poseLocal = poseLocal;
+    this.centered = centered; // expansion uses the running mean of the base features
     this.minFit = minFit;
-    this.samples = [];
-    this.model = new RidgeMap(nFeat, { lambda, stdFloor });
-    this.frozen = null;
-    this.learning = true;
+    this.center = null;
+    this.map = new RidgeMap(nFeat, { lambda, stdFloor });
   }
 
   get ready() {
-    return this.model.ready;
+    return this.map.ready;
+  }
+
+  fit(samples, weights, { cv = false } = {}) {
+    if (samples.length < this.minFit || samples[0].phi.length < this.needs) {
+      this.map.beta = null;
+      return false;
+    }
+    if (this.centered) {
+      const n = samples[0].phi.length;
+      const c = new Float64Array(n);
+      let sw = 0;
+      for (let i = 0; i < samples.length; i++) {
+        sw += weights[i];
+        for (let j = 0; j < n; j++) c[j] += weights[i] * samples[i].phi[j];
+      }
+      if (!(sw > 0)) return false;
+      for (let j = 0; j < n; j++) c[j] /= sw;
+      this.center = c;
+    }
+    const rows = samples.map((s) => ({ phi: this.expand(s.phi, this.center), y: s.y }));
+    if (cv && this.autoLambda) return this.map.fitCV(rows, weights, { lambdas: this.lambdas, robust: this.robust });
+    return this.robust ? this.map.fitRobust(rows, weights) : this.map.fit(rows, weights);
   }
 
   predict(phi) {
-    return this.model.predict(phi);
+    return this.map.ready && phi.length >= this.needs ? this.map.predict(this.expand(phi, this.center)) : null;
   }
 
-  // sample: { phi, y: [x, y], w, src, t }. force = learn even when learning is off.
+  // A frozen copy that keeps predicting the same way while the original learns on.
+  snapshot() {
+    const map = this.map.clone();
+    const center = this.center ? Float64Array.from(this.center) : null;
+    const expand = this.expand;
+    return {
+      name: this.name,
+      ready: map.ready,
+      predict: (phi) => (map.ready && phi.length >= this.needs ? map.predict(expand(phi, center)) : null),
+      toJSON: () => ({ name: this.name, map: map.toJSON(), center: center ? Array.from(center) : null }),
+    };
+  }
+}
+
+// Owns the sample memory and a set of competing models.
+//  - Every incoming sample is scored by every model BEFORE anyone learns from it
+//    (test-then-train), so the running errors are honest out-of-sample numbers.
+//  - The model with the lowest recent error drives the prediction.
+//  - Samples taken in a head pose close to the current one count for more, so the
+//    memory of an old posture is kept and comes back when the user returns to it.
+export class Calibrator {
+  constructor({
+    models, poseIdx = [], poseSigma = [], defaultModel = null,
+    maxSamples = 900, halfLifeMs = 20 * 60000, recencyFloor = 0.25, poseFloor = 0.2,
+    window = 30, minScored = 8, cvEvery = 12, deferCv = false,
+  }) {
+    this.models = models;
+    this.poseIdx = poseIdx;
+    this.poseSigma = poseSigma;
+    this.defaultModel = defaultModel || models[models.length - 1].name;
+    this.maxSamples = maxSamples;
+    this.halfLifeMs = halfLifeMs;
+    this.recencyFloor = recencyFloor;
+    this.poseFloor = poseFloor;
+    this.window = window;
+    this.minScored = minScored;
+    this.cvEvery = cvEvery;
+    this.deferCv = deferCv; // true: the lambda search runs from tick(), never inside addSample()
+    this.learning = true;
+    this.reset();
+  }
+
+  reset() {
+    this.samples = [];
+    this.scores = {};
+    for (const m of this.models) {
+      this.scores[m.name] = [];
+      m.map.beta = null;
+      m.center = null;
+    }
+    this.active = this.defaultModel;
+    this.frozen = null;
+    this.pose = null;
+    this.fitPose = null;
+    this.lastFitT = -Infinity;
+    this.sinceCv = 0;
+  }
+
+  model(name) {
+    return this.models.find((m) => m.name === name) || null;
+  }
+
+  // The leading model, or the richest one that is ready while the leader is not.
+  activeModel() {
+    const m = this.model(this.active);
+    if (m && m.ready) return m;
+    for (let i = this.models.length - 1; i >= 0; i--) if (this.models[i].ready) return this.models[i];
+    return null;
+  }
+
+  get ready() {
+    return this.activeModel() !== null;
+  }
+
+  predict(phi) {
+    const m = this.activeModel();
+    return m ? m.predict(phi) : null;
+  }
+
+  // Smoothed current head pose, taken from the live feature vector.
+  setPose(phi) {
+    if (!this.poseIdx.length) return;
+    if (!this.pose) {
+      this.pose = Float64Array.from(this.poseIdx, (i) => phi[i]);
+      return;
+    }
+    for (let k = 0; k < this.poseIdx.length; k++) this.pose[k] += 0.2 * (phi[this.poseIdx[k]] - this.pose[k]);
+  }
+
+  poseDistance2(phi, pose) {
+    let d2 = 0;
+    for (let k = 0; k < this.poseIdx.length; k++) {
+      const d = (phi[this.poseIdx[k]] - pose[k]) / this.poseSigma[k];
+      d2 += d * d;
+    }
+    return d2;
+  }
+
+  weightsFor(model, nowT) {
+    const local = model.poseLocal && this.pose;
+    return this.samples.map((s) => {
+      let w = s.w * Math.max(this.recencyFloor, Math.pow(0.5, Math.max(0, nowT - s.t) / this.halfLifeMs));
+      if (local) w *= this.poseFloor + (1 - this.poseFloor) * Math.exp(-0.5 * this.poseDistance2(s.phi, this.pose));
+      return w;
+    });
+  }
+
+  refit({ cv = false, nowT = Date.now(), only = null } = {}) {
+    for (const m of this.models) {
+      if (only && !only(m)) continue;
+      let w = this.weightsFor(m, nowT);
+      const trust = m.borrow && this.model(m.borrow) && this.model(m.borrow).map.trust;
+      if (trust && trust.length === w.length) w = w.map((v, i) => v * trust[i]);
+      m.fit(this.samples, w, { cv });
+    }
+    this.fitPose = this.pose ? Float64Array.from(this.pose) : null;
+    this.lastFitT = nowT;
+    if (cv) this.sinceCv = 0;
+  }
+
+  // Call a few times a second: runs a pending lambda search, and refits the pose-aware models once the head has moved.
+  tick(nowT = Date.now()) {
+    if (this.deferCv && this.sinceCv >= this.cvEvery && this.samples.length) {
+      this.refit({ cv: true, nowT });
+      return true;
+    }
+    if (!this.pose || !this.fitPose || nowT - this.lastFitT < 400 || !this.samples.length) return false;
+    let d2 = 0;
+    for (let k = 0; k < this.pose.length; k++) {
+      const d = (this.pose[k] - this.fitPose[k]) / this.poseSigma[k];
+      d2 += d * d;
+    }
+    if (d2 < 0.35 * 0.35) return false;
+    this.refit({ nowT, only: (m) => m.poseLocal });
+    return true;
+  }
+
+  trim() {
+    while (this.samples.length > this.maxSamples) {
+      const count = {};
+      for (const s of this.samples) count[s.src] = (count[s.src] || 0) + 1;
+      let top = null;
+      for (const k in count) if (top === null || count[k] > count[top]) top = k;
+      this.samples.splice(this.samples.findIndex((s) => s.src === top), 1);
+    }
+  }
+
+  // sample: { phi, y: [x, y], w, src, t (ms, wall clock) }. force = learn even when learning is off.
   addSample(sample, { force = false } = {}) {
-    const pred = this.model.predict(sample.phi);
+    const dist = (p) => (p ? Math.hypot(p[0] - sample.y[0], p[1] - sample.y[1]) : null);
+    const lead = this.activeModel();
+    const pred = lead ? lead.predict(sample.phi) : null;
     const fpred = this.frozen ? this.frozen.predict(sample.phi) : null;
+    const errs = {};
+    for (const m of this.models) {
+      const e = dist(m.predict(sample.phi));
+      errs[m.name] = e;
+      if (e != null) {
+        this.scores[m.name].push(e);
+        if (this.scores[m.name].length > 200) this.scores[m.name].shift();
+      }
+    }
     const rec = {
       t: sample.t,
       src: sample.src,
       target: [sample.y[0], sample.y[1]],
       w: sample.w,
+      model: lead ? lead.name : null,
       pred,
-      err: pred ? Math.hypot(pred[0] - sample.y[0], pred[1] - sample.y[1]) : null,
+      err: dist(pred),
+      errs,
       frozenPred: fpred,
-      frozenErr: fpred ? Math.hypot(fpred[0] - sample.y[0], fpred[1] - sample.y[1]) : null,
+      frozenErr: dist(fpred),
       learned: false,
     };
+    this.pickActive();
     if (this.learning || force) {
       this.samples.push({ phi: Float64Array.from(sample.phi), y: [sample.y[0], sample.y[1]], w: sample.w, src: sample.src, t: sample.t });
-      if (this.samples.length > this.maxSamples) this.samples.splice(0, this.samples.length - this.maxSamples);
-      this.refit();
+      this.trim();
+      this.sinceCv++;
+      this.refit({ cv: !this.deferCv && this.sinceCv >= this.cvEvery, nowT: sample.t });
       rec.learned = true;
     }
     return rec;
   }
 
-  recencyWeights() {
-    const N = this.samples.length;
-    return this.samples.map((s, i) => s.w * Math.pow(0.5, (N - 1 - i) / this.halfLife));
-  }
-
-  refit() {
-    if (this.samples.length < this.minFit) {
-      this.model.beta = null;
-      return false;
+  // Many labelled frames at once (the follow-the-dot calibration). Not scored.
+  addBatch(samples, { nowT = Date.now() } = {}) {
+    for (const s of samples) {
+      this.samples.push({ phi: Float64Array.from(s.phi), y: [s.y[0], s.y[1]], w: s.w, src: s.src, t: s.t });
     }
-    return this.model.fitRobust(this.samples, this.recencyWeights());
+    this.trim();
+    this.refit({ cv: true, nowT });
   }
 
-  // Keep a copy of the current model as the "no further learning" baseline.
+  pickActive() {
+    let best = null;
+    for (const m of this.models) {
+      const a = this.scores[m.name];
+      if (!m.ready || a.length < this.minScored) continue;
+      const med = median(a.slice(-this.window));
+      if (!best || med < best.med) best = { name: m.name, med };
+    }
+    if (!best || best.name === this.active) return;
+    const cur = this.scores[this.active];
+    const curMed = cur.length >= this.minScored ? median(cur.slice(-this.window)) : Infinity;
+    if (best.med < curMed * 0.93) this.active = best.name; // needs a clear lead to take over
+  }
+
+  leaderboard() {
+    return this.models.map((m) => {
+      const a = this.scores[m.name];
+      return {
+        name: m.name,
+        label: m.label,
+        active: this.activeModel() === m,
+        ready: m.ready,
+        n: a.length,
+        med: a.length ? median(a.slice(-this.window)) : NaN,
+        lambda: m.map.lambda,
+      };
+    });
+  }
+
+  // Keep a copy of the current leader as the "no further learning" baseline.
   freeze() {
-    this.frozen = this.model.ready ? this.model.clone() : null;
+    const m = this.activeModel();
+    this.frozen = m ? m.snapshot() : null;
   }
 
-  // Leave-one-out error of the current buffer: an honest first error estimate
-  // right after the 9-point calibration, before any test has been run.
-  looErrors(maxN = 40) {
+  // Leave-one-out error of a small buffer: an honest first estimate right after
+  // a 9-point calibration, before any test has been run.
+  looErrors(maxN = 40, nowT = Date.now()) {
+    const lead = this.activeModel();
     const N = this.samples.length;
-    if (N < this.minFit + 1 || N > maxN) return [];
-    const weights = this.recencyWeights();
+    if (!lead || N < lead.minFit + 1 || N > maxN) return [];
+    const weights = this.weightsFor(lead, nowT);
+    const probe = new GazeModel({
+      name: 'loo', expand: lead.expand, nFeat: lead.map.n, stdFloor: lead.map.stdFloor,
+      lambda: lead.map.lambda, centered: lead.centered, minFit: lead.minFit,
+    });
     const out = [];
     for (let i = 0; i < N; i++) {
       const rest = this.samples.filter((_, k) => k !== i);
       const w = weights.filter((_, k) => k !== i);
-      const m = new RidgeMap(this.nFeat, { lambda: this.lambda, stdFloor: this.stdFloor });
-      if (!m.fit(rest, w)) continue;
-      const p = m.predict(this.samples[i].phi);
+      if (!probe.fit(rest, w)) continue;
+      const p = probe.predict(this.samples[i].phi);
       out.push(Math.hypot(p[0] - this.samples[i].y[0], p[1] - this.samples[i].y[1]));
     }
     return out;
   }
 
-  reset() {
-    this.samples = [];
-    this.model.beta = null;
-    this.frozen = null;
-  }
-
-  toJSON() {
+  // nBase: the first nBase features are stored as numbers, the rest (pixels) one byte each.
+  toJSON({ nBase = Infinity } = {}) {
+    const r5 = (v) => Math.round(v * 1e5) / 1e5;
+    const nFeat = this.samples.length ? this.samples[0].phi.length : 0;
+    const nb = Math.min(nFeat, nBase);
     return {
-      v: 1,
-      nFeat: this.nFeat,
-      samples: this.samples.map((s) => ({ p: Array.from(s.phi), y: s.y, w: s.w, s: s.src, t: s.t })),
+      v: 3,
+      nFeat,
+      nBase: nb,
+      samples: this.samples.map((s) => {
+        const o = { p: Array.from(s.phi.subarray(0, nb), r5), y: [Math.round(s.y[0]), Math.round(s.y[1])], w: +s.w.toFixed(3), s: s.src, t: s.t };
+        if (nFeat > nb) o.q = packInt8(s.phi.subarray(nb));
+        return o;
+      }),
+      active: this.active,
+      scores: Object.fromEntries(this.models.map((m) => [m.name, this.scores[m.name].slice(-60).map((e) => Math.round(e))])),
       frozen: this.frozen ? this.frozen.toJSON() : null,
     };
   }
 
-  load(o) {
-    if (!o || o.v !== 1 || o.nFeat !== this.nFeat || !Array.isArray(o.samples)) return false;
-    this.samples = o.samples.map((s) => ({ phi: Float64Array.from(s.p), y: [s.y[0], s.y[1]], w: s.w, src: s.s, t: s.t }));
-    this.frozen = o.frozen && o.frozen.beta ? RidgeMap.fromJSON(o.frozen, this.stdFloor) : null;
-    this.refit();
+  load(o, { nFeat, nowT = Date.now() } = {}) {
+    if (!o || o.v !== 3 || !Array.isArray(o.samples) || (o.samples.length && o.nFeat !== nFeat)) return false;
+    this.reset();
+    this.samples = o.samples.map((s) => {
+      const phi = new Float64Array(o.nFeat);
+      phi.set(s.p);
+      if (s.q) unpackInt8(s.q, phi, o.nBase);
+      return { phi, y: [s.y[0], s.y[1]], w: s.w, src: s.s, t: s.t };
+    });
+    for (const m of this.models) if (o.scores && Array.isArray(o.scores[m.name])) this.scores[m.name] = o.scores[m.name].slice();
+    if (o.active && this.model(o.active)) this.active = o.active;
+    this.refit({ cv: true, nowT });
+    if (o.frozen && o.frozen.map && o.frozen.map.beta) {
+      const src = this.model(o.frozen.name);
+      if (src) {
+        const map = RidgeMap.fromJSON(o.frozen.map, src.map.stdFloor);
+        const center = o.frozen.center ? Float64Array.from(o.frozen.center) : null;
+        const frozenJson = o.frozen;
+        this.frozen = { name: src.name, ready: true, predict: (phi) => map.predict(src.expand(phi, center)), toJSON: () => frozenJson };
+      }
+    }
     return true;
   }
+}
+
+// Steady while the eyes rest, quick when they jump.
+// Points near the current resting place are averaged; a point far away has to be
+// confirmed by the next one before the estimate moves there, so a single bad
+// frame cannot throw the cursor across the screen.
+export class FixationSmoother {
+  constructor({ radius = 90, maxMs = 450, confirm = 2 } = {}) {
+    this.radius = radius;
+    this.maxMs = maxMs;
+    this.confirm = confirm;
+    this.reset();
+  }
+
+  reset() {
+    this.pts = [];
+    this.pending = [];
+    this.x = NaN;
+    this.y = NaN;
+  }
+
+  static mean(pts) {
+    let x = 0;
+    let y = 0;
+    for (const p of pts) {
+      x += p.x;
+      y += p.y;
+    }
+    return [x / pts.length, y / pts.length];
+  }
+
+  push(x, y, t) {
+    const p = { x, y, t };
+    if (!this.pts.length) {
+      this.pts = [p];
+      this.x = x;
+      this.y = y;
+      return { x, y, moved: true };
+    }
+    let moved = false;
+    if (Math.hypot(x - this.x, y - this.y) <= this.radius) {
+      this.pts.push(p);
+      this.pending.length = 0;
+    } else {
+      this.pending.push(p);
+      if (this.pending.length >= this.confirm) {
+        const [mx, my] = FixationSmoother.mean(this.pending);
+        const tight = this.pending.every((q) => Math.hypot(q.x - mx, q.y - my) <= this.radius);
+        if (tight || this.pending.length >= this.confirm + 2) {
+          // a real jump (or sustained motion): restart from the new place
+          this.pts = this.pending.slice(tight ? 0 : -this.confirm);
+          this.pending = [];
+          moved = true;
+        }
+      }
+    }
+    while (this.pts.length > 1 && t - this.pts[0].t > this.maxMs) this.pts.shift();
+    [this.x, this.y] = FixationSmoother.mean(this.pts);
+    return { x: this.x, y: this.y, moved };
+  }
+}
+
+// The moving target of the follow-the-dot calibration: one smooth closed curve
+// that reaches every edge, slow enough for the eyes to follow without jumping.
+export function pursuitPath(W, H, { durationMs = 20000, marginX = 0.1, marginY = 0.08, cyclesX = 5, cyclesY = 2 } = {}) {
+  const ax = W * (0.5 - marginX);
+  const ay = H * (0.5 - marginY);
+  return (tMs) => {
+    const u = clamp(tMs / durationMs, 0, 1);
+    return [W / 2 + ax * Math.sin(2 * Math.PI * cyclesX * u), H / 2 + ay * Math.cos(2 * Math.PI * cyclesY * u)];
+  };
+}
+
+// Eyes trail a moving target by a fraction of a second, and the camera adds its own delay.
+// Tries several delays and keeps the one under which the features predict the target best on
+// held-out stretches of the recording. When the recording cannot tell the delays apart, a
+// typical value is used instead: a wrong delay costs little, an invented one could cost more.
+// frames: [{ t (ms since the target started moving), phi }]
+export function bestLag(frames, pathFn, {
+  expand, nFeat, stdFloor, lambda = 3, lags = [0, 50, 100, 150, 200, 250, 300], fallbackMs = 100, minGain = 0.03,
+}) {
+  const weights = frames.map(() => 1);
+  const feats = frames.map((f) => expand(f.phi, null));
+  const curve = lags.map((lagMs) => {
+    const rows = frames.map((f, i) => ({ phi: feats[i], y: pathFn(f.t - lagMs) }));
+    const map = new RidgeMap(nFeat, { lambda, stdFloor });
+    map.cvScore = Infinity;
+    map.fitCV(rows, weights, { lambdas: [lambda], robust: false });
+    return map.cvScore;
+  });
+  let k = 0;
+  for (let i = 1; i < lags.length; i++) if (curve[i] < curve[k]) k = i;
+  if (!Number.isFinite(curve[k])) return { lagMs: fallbackMs, residual: Infinity, sure: false, curve };
+  let lagMs = lags[k];
+  const inner = k > 0 && k < lags.length - 1;
+  if (inner) {
+    const bend = curve[k - 1] - 2 * curve[k] + curve[k + 1];
+    if (bend > 0) lagMs += (0.5 * (curve[k - 1] - curve[k + 1]) / bend) * (lags[k + 1] - lags[k]);
+  }
+  const sure = inner && (Math.max(...curve) - curve[k]) / curve[k] >= minGain;
+  return { lagMs: sure ? Math.round(lagMs) : fallbackMs, residual: curve[k], sure, curve };
+}
+
+// Runs bestLag with each candidate feature set and keeps the answer of the set that predicts best.
+export function estimateLag(frames, pathFn, specs, opts = {}) {
+  let best = null;
+  for (const sp of specs) {
+    if (!frames.length || frames[0].phi.length < (sp.needs || 0)) continue;
+    const r = bestLag(frames, pathFn, { expand: sp.expand, nFeat: sp.nFeat, stdFloor: sp.stdFloor, lambda: sp.lambda, ...opts });
+    r.model = sp.name;
+    if (!best || r.residual < best.residual) best = r;
+  }
+  return best || { lagMs: opts.fallbackMs ?? 100, residual: Infinity, sure: false, curve: [], model: null };
+}
+
+// Turns the frames recorded while the eyes followed the moving target into training samples.
+// Each sample averages a few neighbouring frames (the target barely moves in that time), which
+// removes frame-to-frame noise that would otherwise make the fitted map too timid.
+// frames: [{ t (ms since the target started moving), face, phi, blink }]
+export function pursuitSamples(frames, pathFn, {
+  lagMs = 0, half = 2, step = 2, skipMs = 800, blinkMax = 0.5, maxGapMs = 120, w = 0.35, src = 'pursuit', wallT0 = 0,
+} = {}) {
+  const out = [];
+  const cnt = 2 * half + 1;
+  for (let i = half; i < frames.length - half; i += step) {
+    if (frames[i].t < skipMs) continue;
+    let ok = true;
+    for (let k = i - half; k <= i + half && ok; k++) {
+      const f = frames[k];
+      if (!f.face || !f.phi || f.blink > blinkMax) ok = false;
+      else if (k > i - half && f.t - frames[k - 1].t > maxGapMs) ok = false;
+    }
+    if (!ok) continue;
+    const n = frames[i].phi.length;
+    const phi = new Float64Array(n);
+    let tc = 0;
+    for (let k = i - half; k <= i + half; k++) {
+      const p = frames[k].phi;
+      for (let j = 0; j < n; j++) phi[j] += p[j];
+      tc += frames[k].t;
+    }
+    for (let j = 0; j < n; j++) phi[j] /= cnt;
+    tc /= cnt;
+    out.push({ phi, y: pathFn(tc - lagMs), w, src, t: wallT0 + tc });
+  }
+  return out;
 }
 
 // Error per screen region. Drives the heat map and the minimum target size.

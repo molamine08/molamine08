@@ -820,3 +820,45 @@ body {
 }
 
 #toast.show { opacity: 1; }
+
+/* ---- 0.2: follow-the-dot calibration, eye pictures, model board ---- */
+.dot.moving { pointer-events: none; }
+.dot.moving::after { display: none; }
+.pbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--ok);
+  opacity: 0.7;
+  z-index: 4;
+}
+.hud.hint small {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.status .row > .eyes {
+  flex: none;
+  line-height: 0;
+  overflow: visible;
+}
+.eyes canvas {
+  display: block;
+  width: 96px;
+  height: 24px;
+  border-radius: 6px;
+  background: #1c232d;
+}
+.tag {
+  font-style: normal;
+  font-size: 12px;
+  color: #0b3d1e;
+  background: var(--ok);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-inline-start: 6px;
+  white-space: nowrap;
+}

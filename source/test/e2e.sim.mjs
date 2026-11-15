@@ -1,7 +1,7 @@
 // Drives the built page in headless Chrome, in simulation mode, through every screen.
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, statSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('/opt/npm-tools/node_modules/playwright');
@@ -22,6 +22,7 @@ const ctx = await browser.newContext({
   isMobile: true,
   hasTouch: true,
   locale: 'ar',
+  acceptDownloads: true,
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
 });
 const page = await ctx.newPage();
@@ -56,7 +57,7 @@ await page.goto(`http://localhost:${port}/?sim=1`);
 await page.waitForSelector('#start-go');
 await shot('01-start');
 await tapSel('#start-go');
-await page.waitForSelector('[data-go="boot"]');
+await page.waitForSelector('[data-go="pursue"]');
 await sleep(400);
 await shot('02-home-empty');
 
@@ -68,6 +69,28 @@ await tapDots(9);
 await page.waitForSelector('.sheet');
 await shot('04-boot-done');
 console.log('boot sheet:', (await page.locator('.sheet').innerText()).replace(/\n+/g, ' | '));
+
+// follow-the-dot calibration
+await tapSel('.sheet [data-go="pursue"]');
+await sleep(300);
+await shot('04b-pursue-hint');
+{
+  const dot = page.locator('.dot[data-gaze="dot"]');
+  const b = await dot.boundingBox();
+  await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+  await sleep(4000);
+  await shot('04c-pursue-moving');
+  await page.waitForSelector('.sheet h2', { timeout: 30000 });
+  await sleep(150);
+  await shot('04d-pursue-done');
+  console.log('pursuit sheet:', (await page.locator('.sheet').innerText()).replace(/\n+/g, ' | '));
+  const st = await page.evaluate(() => {
+    const { S } = window.__gazecal;
+    const run = S.pursuitLog[S.pursuitLog.length - 1];
+    return { samples: S.cal.samples.length, lag: run.lagMs, sure: run.lagSure, via: run.lagModel, curve: run.lagCurve, frames: run.frames.length, board: S.cal.leaderboard().map((m) => `${m.name}:${m.ready ? 'ready' : 'no'} λ${m.lambda}`) };
+  });
+  console.log('pursuit state:', JSON.stringify(st));
+}
 
 // accuracy test
 await tapSel('.sheet [data-go="test"]');
@@ -143,6 +166,18 @@ await page.evaluate(() => { document.querySelector('.screen').scrollTop = 5000; 
 await sleep(150);
 await shot('16-stats-bottom');
 console.log('\n' + await page.evaluate(() => window.__gazecal.summaryText()));
+
+// export
+{
+  const [dl] = await Promise.all([page.waitForEvent('download'), tapSel('#s-dl')]);
+  const file = `${SHOTS}/export-sim.json`;
+  await dl.saveAs(file);
+  const d = JSON.parse(readFileSync(file, 'utf8'));
+  const rec = d.log[d.log.length - 1];
+  console.log(`\nexport: ${(statSync(file).size / 1024).toFixed(0)} KB · app ${d.app} · format ${d.format} · log ${d.log.length} · pursuit runs ${d.pursuit.length} (${d.pursuit[0].frames.length} frames)` +
+    ` · calibration v${d.calibration.v} with ${d.calibration.samples.length} samples of ${d.calibration.nFeat} features · last rec errs ${JSON.stringify(rec.errs)} pix ${rec.pix ? rec.pix.length : 0} chars`);
+  if (d.format !== 2 || d.calibration.v !== 3 || !d.pursuit[0].frames[30].q || !rec.pix) problems.push('export is missing 0.2 fields');
+}
 
 // reset flow
 await tapSel('#s-reset');

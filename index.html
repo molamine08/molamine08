@@ -832,6 +832,48 @@ body {
 
 #toast.show { opacity: 1; }
 
+/* ---- 0.2: follow-the-dot calibration, eye pictures, model board ---- */
+.dot.moving { pointer-events: none; }
+.dot.moving::after { display: none; }
+.pbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--ok);
+  opacity: 0.7;
+  z-index: 4;
+}
+.hud.hint small {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.status .row > .eyes {
+  flex: none;
+  line-height: 0;
+  overflow: visible;
+}
+.eyes canvas {
+  display: block;
+  width: 96px;
+  height: 24px;
+  border-radius: 6px;
+  background: #1c232d;
+}
+.tag {
+  font-style: normal;
+  font-size: 12px;
+  color: #0b3d1e;
+  background: var(--ok);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-inline-start: 6px;
+  white-space: nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -864,60 +906,59 @@ function percentile(values, p) {
   const hi = Math.ceil(idx);
   return a[lo] + (a[hi] - a[lo]) * (idx - lo);
 }
-function solveLinear(A, B) {
-  const n = A.length;
-  const m = B[0].length;
-  const M = A.map((row, i) => [...row, ...B[i]]);
-  for (let c = 0; c < n; c++) {
-    let p = c;
-    for (let r = c + 1; r < n; r++) {
-      if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
-    }
-    if (Math.abs(M[p][c]) < 1e-12) return null;
-    if (p !== c) [M[p], M[c]] = [M[c], M[p]];
-    const d = M[c][c];
-    for (let k = c; k < n + m; k++) M[c][k] /= d;
-    for (let r = 0; r < n; r++) {
-      if (r === c) continue;
-      const f = M[r][c];
-      if (f === 0) continue;
-      for (let k = c; k < n + m; k++) M[r][k] -= f * M[c][k];
+function solveSPD(A, B, n, m) {
+  for (let j = 0; j < n; j++) {
+    const rj = j * n;
+    let d = A[rj + j];
+    for (let k = 0; k < j; k++) d -= A[rj + k] * A[rj + k];
+    if (!(d > 1e-12)) return false;
+    d = Math.sqrt(d);
+    A[rj + j] = d;
+    for (let i = j + 1; i < n; i++) {
+      const ri = i * n;
+      let v = A[ri + j];
+      for (let k = 0; k < j; k++) v -= A[ri + k] * A[rj + k];
+      A[ri + j] = v / d;
     }
   }
-  return M.map((row) => row.slice(n));
+  for (let c = 0; c < m; c++) {
+    for (let i = 0; i < n; i++) {
+      const ri = i * n;
+      let v = B[i * m + c];
+      for (let k = 0; k < i; k++) v -= A[ri + k] * B[k * m + c];
+      B[i * m + c] = v / A[ri + i];
+    }
+    for (let i = n - 1; i >= 0; i--) {
+      let v = B[i * m + c];
+      for (let k = i + 1; k < n; k++) v -= A[k * n + i] * B[k * m + c];
+      B[i * m + c] = v / A[i * n + i];
+    }
+  }
+  return true;
 }
-var OneEuro = class _OneEuro {
-  constructor(minCutoff = 0.8, beta = 4e-3, dCutoff = 1) {
-    this.minCutoff = minCutoff;
-    this.beta = beta;
-    this.dCutoff = dCutoff;
-    this.reset();
+function accumulate(A, B, z, w, y, m) {
+  for (let r = 0; r < m; r++) {
+    const wz = w * z[r];
+    const row = r * m;
+    for (let c = 0; c <= r; c++) A[row + c] += wz * z[c];
+    B[r * 2] += wz * y[0];
+    B[r * 2 + 1] += wz * y[1];
   }
-  static alpha(cutoff, dt) {
-    const tau = 1 / (2 * Math.PI * cutoff);
-    return 1 / (1 + tau / dt);
+}
+var PACK_SCALE = 32;
+function packInt8(values) {
+  let s = "";
+  for (let i = 0; i < values.length; i++) s += String.fromCharCode(clamp(Math.round(values[i] * PACK_SCALE), -127, 127) & 255);
+  return btoa(s);
+}
+function unpackInt8(b642, out, offset = 0) {
+  const s = atob(b642);
+  for (let i = 0; i < s.length; i++) {
+    const v = s.charCodeAt(i);
+    out[offset + i] = (v > 127 ? v - 256 : v) / PACK_SCALE;
   }
-  reset() {
-    this.x = null;
-    this.dx = 0;
-    this.t = null;
-  }
-  filter(x, tSec) {
-    if (this.t === null) {
-      this.x = x;
-      this.dx = 0;
-      this.t = tSec;
-      return x;
-    }
-    const dt = Math.max(1e-3, tSec - this.t);
-    const dx = (x - this.x) / dt;
-    this.dx += _OneEuro.alpha(this.dCutoff, dt) * (dx - this.dx);
-    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
-    this.x += _OneEuro.alpha(cutoff, dt) * (x - this.x);
-    this.t = tSec;
-    return this.x;
-  }
-};
+  return s.length;
+}
 var FrameRing = class {
   constructor(maxAgeMs = 2500) {
     this.maxAgeMs = maxAgeMs;
@@ -970,64 +1011,70 @@ var RidgeMap = class _RidgeMap {
   get ready() {
     return this.beta !== null;
   }
-  fit(samples, weights) {
+  // Weighted mean and (floored) spread of every feature.
+  stats(samples, weights) {
     const n = this.n;
     const N = samples.length;
-    let sw = 0;
-    for (let i = 0; i < N; i++) sw += weights[i];
-    if (N < 3 || !(sw > 0)) {
-      this.beta = null;
-      return false;
-    }
     const mu = new Float64Array(n);
     const sd = new Float64Array(n);
+    let sw = 0;
     for (let i = 0; i < N; i++) {
-      for (let j = 0; j < n; j++) mu[j] += weights[i] * samples[i].phi[j];
+      const w = weights[i];
+      const p = samples[i].phi;
+      sw += w;
+      for (let j = 0; j < n; j++) mu[j] += w * p[j];
     }
+    if (!(sw > 0)) return null;
     for (let j = 0; j < n; j++) mu[j] /= sw;
     for (let i = 0; i < N; i++) {
+      const w = weights[i];
+      const p = samples[i].phi;
       for (let j = 0; j < n; j++) {
-        const d = samples[i].phi[j] - mu[j];
-        sd[j] += weights[i] * d * d;
+        const d = p[j] - mu[j];
+        sd[j] += w * d * d;
       }
     }
     for (let j = 0; j < n; j++) sd[j] = Math.max(Math.sqrt(sd[j] / sw), this.stdFloor[j]);
+    return { mu, sd, sw };
+  }
+  fit(samples, weights) {
+    const n = this.n;
+    const N = samples.length;
     const m = n + 1;
-    const A = Array.from({ length: m }, () => new Array(m).fill(0));
-    const B = Array.from({ length: m }, () => [0, 0]);
+    const st = N >= 3 ? this.stats(samples, weights) : null;
+    if (!st) {
+      this.beta = null;
+      return false;
+    }
+    const { mu, sd, sw } = st;
+    const A = new Float64Array(m * m);
+    const B = new Float64Array(m * 2);
     const z = new Float64Array(m);
+    z[0] = 1;
     const scale = N / sw;
     for (let i = 0; i < N; i++) {
       const w = weights[i] * scale;
       if (!(w > 0)) continue;
-      z[0] = 1;
-      for (let j = 0; j < n; j++) z[j + 1] = (samples[i].phi[j] - mu[j]) / sd[j];
-      for (let r = 0; r < m; r++) {
-        const wz = w * z[r];
-        for (let c = r; c < m; c++) A[r][c] += wz * z[c];
-        B[r][0] += wz * samples[i].y[0];
-        B[r][1] += wz * samples[i].y[1];
-      }
+      const p = samples[i].phi;
+      for (let j = 0; j < n; j++) z[j + 1] = (p[j] - mu[j]) / sd[j];
+      accumulate(A, B, z, w, samples[i].y, m);
     }
-    for (let r = 0; r < m; r++) {
-      for (let c = 0; c < r; c++) A[r][c] = A[c][r];
-    }
-    for (let j = 1; j < m; j++) A[j][j] += this.lambda;
-    A[0][0] += 1e-9;
-    const X = solveLinear(A, B);
-    if (!X) {
+    A[0] += 1e-9;
+    for (let j = 1; j < m; j++) A[j * m + j] += this.lambda;
+    if (!solveSPD(A, B, m, 2)) {
       this.beta = null;
       return false;
     }
     this.mu = mu;
     this.sd = sd;
-    this.beta = X;
+    this.beta = Array.from({ length: m }, (_, r) => [B[r * 2], B[r * 2 + 1]]);
     return true;
   }
   // Huber reweighting: a touch the user was not looking at ends up far from the
   // fit and loses most of its vote. Kept soft on purpose (no hard cut-off), so
   // samples from a new posture can still pull the model toward them.
   fitRobust(samples, weights, { iters = 3, k = 1.5, scaleFloor = 20 } = {}) {
+    this.trust = null;
     if (!this.fit(samples, weights)) return false;
     let w = weights;
     for (let it = 0; it < iters; it++) {
@@ -1039,7 +1086,74 @@ var RidgeMap = class _RidgeMap {
       w = weights.map((w0, i) => res[i] <= k * s ? w0 : w0 * k * s / res[i]);
       if (!this.fit(samples, w)) return false;
     }
+    this.trust = Float64Array.from(weights, (w0, i) => w0 > 0 ? w[i] / w0 : 1);
     return true;
+  }
+  // Picks lambda by cross-validation over contiguous blocks of samples (blocks,
+  // because neighbouring frames of a recording are near-copies of each other),
+  // then fits on everything. Prefers the strongest regularisation that is
+  // within 2% of the best score.
+  fitCV(samples, weights, { lambdas = [0.1, 0.3, 1, 3, 10, 30, 100], folds = 6, cap = 400, robust = true } = {}) {
+    const fitAll = () => robust ? this.fitRobust(samples, weights) : this.fit(samples, weights);
+    const n = this.n;
+    const N = samples.length;
+    const m = n + 1;
+    const st = N >= 4 * folds ? this.stats(samples, weights) : null;
+    if (!st) return fitAll();
+    const { mu, sd, sw } = st;
+    const scale = N / sw;
+    const foldOf = (i) => Math.min(folds - 1, Math.floor(i * folds / N));
+    const G = Array.from({ length: folds }, () => new Float64Array(m * m));
+    const B = Array.from({ length: folds }, () => new Float64Array(m * 2));
+    const Z = new Float64Array(N * m);
+    for (let i = 0; i < N; i++) {
+      const z = Z.subarray(i * m, (i + 1) * m);
+      const p = samples[i].phi;
+      z[0] = 1;
+      for (let j = 0; j < n; j++) z[j + 1] = (p[j] - mu[j]) / sd[j];
+      const w = weights[i] * scale;
+      if (w > 0) accumulate(G[foldOf(i)], B[foldOf(i)], z, w, samples[i].y, m);
+    }
+    const GT = new Float64Array(m * m);
+    const BT = new Float64Array(m * 2);
+    for (let k = 0; k < folds; k++) {
+      for (let q = 0; q < m * m; q++) GT[q] += G[k][q];
+      for (let q = 0; q < m * 2; q++) BT[q] += B[k][q];
+    }
+    const A = new Float64Array(m * m);
+    const X = new Float64Array(m * 2);
+    const scores = lambdas.map((lam) => {
+      let err = 0;
+      let wsum = 0;
+      for (let k = 0; k < folds; k++) {
+        for (let q = 0; q < m * m; q++) A[q] = GT[q] - G[k][q];
+        for (let q = 0; q < m * 2; q++) X[q] = BT[q] - B[k][q];
+        A[0] += 1e-9;
+        for (let j = 1; j < m; j++) A[j * m + j] += lam;
+        if (!solveSPD(A, X, m, 2)) return Infinity;
+        for (let i = 0; i < N; i++) {
+          if (foldOf(i) !== k) continue;
+          const o = i * m;
+          let px = 0;
+          let py = 0;
+          for (let r = 0; r < m; r++) {
+            px += X[r * 2] * Z[o + r];
+            py += X[r * 2 + 1] * Z[o + r];
+          }
+          err += weights[i] * Math.min(cap, Math.hypot(px - samples[i].y[0], py - samples[i].y[1]));
+          wsum += weights[i];
+        }
+      }
+      return wsum > 0 ? err / wsum : Infinity;
+    });
+    const best = Math.min(...scores);
+    let pick2 = lambdas[scores.indexOf(best)];
+    for (let i = 0; i < lambdas.length; i++) if (scores[i] <= best * 1.02) pick2 = lambdas[i];
+    if (Number.isFinite(best)) {
+      this.lambda = pick2;
+      this.cvScore = best;
+    }
+    return fitAll();
   }
   predict(phi) {
     if (!this.beta) return null;
@@ -1070,101 +1184,468 @@ var RidgeMap = class _RidgeMap {
     return m;
   }
 };
-var Calibrator = class {
-  constructor({ nFeat, stdFloor = null, lambda = 1, maxSamples = 300, halfLife = 120, minFit = 5 } = {}) {
-    this.nFeat = nFeat;
-    this.stdFloor = stdFloor;
-    this.lambda = lambda;
-    this.maxSamples = maxSamples;
-    this.halfLife = halfLife;
+var GazeModel = class {
+  constructor({ name, label = name, expand, nFeat, stdFloor, lambda = 1, lambdas = void 0, autoLambda = false, poseLocal = false, centered = false, robust = true, borrow = null, minFit = 6, needs = 0 }) {
+    this.name = name;
+    this.borrow = borrow;
+    this.robust = robust;
+    this.lambdas = lambdas;
+    this.needs = needs;
+    this.label = label;
+    this.expand = expand;
+    this.autoLambda = autoLambda;
+    this.poseLocal = poseLocal;
+    this.centered = centered;
     this.minFit = minFit;
-    this.samples = [];
-    this.model = new RidgeMap(nFeat, { lambda, stdFloor });
-    this.frozen = null;
-    this.learning = true;
+    this.center = null;
+    this.map = new RidgeMap(nFeat, { lambda, stdFloor });
   }
   get ready() {
-    return this.model.ready;
+    return this.map.ready;
+  }
+  fit(samples, weights, { cv = false } = {}) {
+    if (samples.length < this.minFit || samples[0].phi.length < this.needs) {
+      this.map.beta = null;
+      return false;
+    }
+    if (this.centered) {
+      const n = samples[0].phi.length;
+      const c = new Float64Array(n);
+      let sw = 0;
+      for (let i = 0; i < samples.length; i++) {
+        sw += weights[i];
+        for (let j = 0; j < n; j++) c[j] += weights[i] * samples[i].phi[j];
+      }
+      if (!(sw > 0)) return false;
+      for (let j = 0; j < n; j++) c[j] /= sw;
+      this.center = c;
+    }
+    const rows = samples.map((s) => ({ phi: this.expand(s.phi, this.center), y: s.y }));
+    if (cv && this.autoLambda) return this.map.fitCV(rows, weights, { lambdas: this.lambdas, robust: this.robust });
+    return this.robust ? this.map.fitRobust(rows, weights) : this.map.fit(rows, weights);
   }
   predict(phi) {
-    return this.model.predict(phi);
+    return this.map.ready && phi.length >= this.needs ? this.map.predict(this.expand(phi, this.center)) : null;
   }
-  // sample: { phi, y: [x, y], w, src, t }. force = learn even when learning is off.
+  // A frozen copy that keeps predicting the same way while the original learns on.
+  snapshot() {
+    const map = this.map.clone();
+    const center = this.center ? Float64Array.from(this.center) : null;
+    const expand = this.expand;
+    return {
+      name: this.name,
+      ready: map.ready,
+      predict: (phi) => map.ready && phi.length >= this.needs ? map.predict(expand(phi, center)) : null,
+      toJSON: () => ({ name: this.name, map: map.toJSON(), center: center ? Array.from(center) : null })
+    };
+  }
+};
+var Calibrator = class {
+  constructor({
+    models,
+    poseIdx = [],
+    poseSigma = [],
+    defaultModel = null,
+    maxSamples = 900,
+    halfLifeMs = 20 * 6e4,
+    recencyFloor = 0.25,
+    poseFloor = 0.2,
+    window: window2 = 30,
+    minScored = 8,
+    cvEvery = 12,
+    deferCv = false
+  }) {
+    this.models = models;
+    this.poseIdx = poseIdx;
+    this.poseSigma = poseSigma;
+    this.defaultModel = defaultModel || models[models.length - 1].name;
+    this.maxSamples = maxSamples;
+    this.halfLifeMs = halfLifeMs;
+    this.recencyFloor = recencyFloor;
+    this.poseFloor = poseFloor;
+    this.window = window2;
+    this.minScored = minScored;
+    this.cvEvery = cvEvery;
+    this.deferCv = deferCv;
+    this.learning = true;
+    this.reset();
+  }
+  reset() {
+    this.samples = [];
+    this.scores = {};
+    for (const m of this.models) {
+      this.scores[m.name] = [];
+      m.map.beta = null;
+      m.center = null;
+    }
+    this.active = this.defaultModel;
+    this.frozen = null;
+    this.pose = null;
+    this.fitPose = null;
+    this.lastFitT = -Infinity;
+    this.sinceCv = 0;
+  }
+  model(name) {
+    return this.models.find((m) => m.name === name) || null;
+  }
+  // The leading model, or the richest one that is ready while the leader is not.
+  activeModel() {
+    const m = this.model(this.active);
+    if (m && m.ready) return m;
+    for (let i = this.models.length - 1; i >= 0; i--) if (this.models[i].ready) return this.models[i];
+    return null;
+  }
+  get ready() {
+    return this.activeModel() !== null;
+  }
+  predict(phi) {
+    const m = this.activeModel();
+    return m ? m.predict(phi) : null;
+  }
+  // Smoothed current head pose, taken from the live feature vector.
+  setPose(phi) {
+    if (!this.poseIdx.length) return;
+    if (!this.pose) {
+      this.pose = Float64Array.from(this.poseIdx, (i) => phi[i]);
+      return;
+    }
+    for (let k = 0; k < this.poseIdx.length; k++) this.pose[k] += 0.2 * (phi[this.poseIdx[k]] - this.pose[k]);
+  }
+  poseDistance2(phi, pose) {
+    let d2 = 0;
+    for (let k = 0; k < this.poseIdx.length; k++) {
+      const d = (phi[this.poseIdx[k]] - pose[k]) / this.poseSigma[k];
+      d2 += d * d;
+    }
+    return d2;
+  }
+  weightsFor(model, nowT) {
+    const local = model.poseLocal && this.pose;
+    return this.samples.map((s) => {
+      let w = s.w * Math.max(this.recencyFloor, Math.pow(0.5, Math.max(0, nowT - s.t) / this.halfLifeMs));
+      if (local) w *= this.poseFloor + (1 - this.poseFloor) * Math.exp(-0.5 * this.poseDistance2(s.phi, this.pose));
+      return w;
+    });
+  }
+  refit({ cv = false, nowT = Date.now(), only = null } = {}) {
+    for (const m of this.models) {
+      if (only && !only(m)) continue;
+      let w = this.weightsFor(m, nowT);
+      const trust = m.borrow && this.model(m.borrow) && this.model(m.borrow).map.trust;
+      if (trust && trust.length === w.length) w = w.map((v, i) => v * trust[i]);
+      m.fit(this.samples, w, { cv });
+    }
+    this.fitPose = this.pose ? Float64Array.from(this.pose) : null;
+    this.lastFitT = nowT;
+    if (cv) this.sinceCv = 0;
+  }
+  // Call a few times a second: runs a pending lambda search, and refits the pose-aware models once the head has moved.
+  tick(nowT = Date.now()) {
+    if (this.deferCv && this.sinceCv >= this.cvEvery && this.samples.length) {
+      this.refit({ cv: true, nowT });
+      return true;
+    }
+    if (!this.pose || !this.fitPose || nowT - this.lastFitT < 400 || !this.samples.length) return false;
+    let d2 = 0;
+    for (let k = 0; k < this.pose.length; k++) {
+      const d = (this.pose[k] - this.fitPose[k]) / this.poseSigma[k];
+      d2 += d * d;
+    }
+    if (d2 < 0.35 * 0.35) return false;
+    this.refit({ nowT, only: (m) => m.poseLocal });
+    return true;
+  }
+  trim() {
+    while (this.samples.length > this.maxSamples) {
+      const count = {};
+      for (const s of this.samples) count[s.src] = (count[s.src] || 0) + 1;
+      let top = null;
+      for (const k in count) if (top === null || count[k] > count[top]) top = k;
+      this.samples.splice(this.samples.findIndex((s) => s.src === top), 1);
+    }
+  }
+  // sample: { phi, y: [x, y], w, src, t (ms, wall clock) }. force = learn even when learning is off.
   addSample(sample, { force = false } = {}) {
-    const pred = this.model.predict(sample.phi);
+    const dist = (p) => p ? Math.hypot(p[0] - sample.y[0], p[1] - sample.y[1]) : null;
+    const lead = this.activeModel();
+    const pred = lead ? lead.predict(sample.phi) : null;
     const fpred = this.frozen ? this.frozen.predict(sample.phi) : null;
+    const errs = {};
+    for (const m of this.models) {
+      const e = dist(m.predict(sample.phi));
+      errs[m.name] = e;
+      if (e != null) {
+        this.scores[m.name].push(e);
+        if (this.scores[m.name].length > 200) this.scores[m.name].shift();
+      }
+    }
     const rec = {
       t: sample.t,
       src: sample.src,
       target: [sample.y[0], sample.y[1]],
       w: sample.w,
+      model: lead ? lead.name : null,
       pred,
-      err: pred ? Math.hypot(pred[0] - sample.y[0], pred[1] - sample.y[1]) : null,
+      err: dist(pred),
+      errs,
       frozenPred: fpred,
-      frozenErr: fpred ? Math.hypot(fpred[0] - sample.y[0], fpred[1] - sample.y[1]) : null,
+      frozenErr: dist(fpred),
       learned: false
     };
+    this.pickActive();
     if (this.learning || force) {
       this.samples.push({ phi: Float64Array.from(sample.phi), y: [sample.y[0], sample.y[1]], w: sample.w, src: sample.src, t: sample.t });
-      if (this.samples.length > this.maxSamples) this.samples.splice(0, this.samples.length - this.maxSamples);
-      this.refit();
+      this.trim();
+      this.sinceCv++;
+      this.refit({ cv: !this.deferCv && this.sinceCv >= this.cvEvery, nowT: sample.t });
       rec.learned = true;
     }
     return rec;
   }
-  recencyWeights() {
-    const N = this.samples.length;
-    return this.samples.map((s, i) => s.w * Math.pow(0.5, (N - 1 - i) / this.halfLife));
-  }
-  refit() {
-    if (this.samples.length < this.minFit) {
-      this.model.beta = null;
-      return false;
+  // Many labelled frames at once (the follow-the-dot calibration). Not scored.
+  addBatch(samples, { nowT = Date.now() } = {}) {
+    for (const s of samples) {
+      this.samples.push({ phi: Float64Array.from(s.phi), y: [s.y[0], s.y[1]], w: s.w, src: s.src, t: s.t });
     }
-    return this.model.fitRobust(this.samples, this.recencyWeights());
+    this.trim();
+    this.refit({ cv: true, nowT });
   }
-  // Keep a copy of the current model as the "no further learning" baseline.
+  pickActive() {
+    let best = null;
+    for (const m of this.models) {
+      const a = this.scores[m.name];
+      if (!m.ready || a.length < this.minScored) continue;
+      const med = median(a.slice(-this.window));
+      if (!best || med < best.med) best = { name: m.name, med };
+    }
+    if (!best || best.name === this.active) return;
+    const cur = this.scores[this.active];
+    const curMed = cur.length >= this.minScored ? median(cur.slice(-this.window)) : Infinity;
+    if (best.med < curMed * 0.93) this.active = best.name;
+  }
+  leaderboard() {
+    return this.models.map((m) => {
+      const a = this.scores[m.name];
+      return {
+        name: m.name,
+        label: m.label,
+        active: this.activeModel() === m,
+        ready: m.ready,
+        n: a.length,
+        med: a.length ? median(a.slice(-this.window)) : NaN,
+        lambda: m.map.lambda
+      };
+    });
+  }
+  // Keep a copy of the current leader as the "no further learning" baseline.
   freeze() {
-    this.frozen = this.model.ready ? this.model.clone() : null;
+    const m = this.activeModel();
+    this.frozen = m ? m.snapshot() : null;
   }
-  // Leave-one-out error of the current buffer: an honest first error estimate
-  // right after the 9-point calibration, before any test has been run.
-  looErrors(maxN = 40) {
+  // Leave-one-out error of a small buffer: an honest first estimate right after
+  // a 9-point calibration, before any test has been run.
+  looErrors(maxN = 40, nowT = Date.now()) {
+    const lead = this.activeModel();
     const N = this.samples.length;
-    if (N < this.minFit + 1 || N > maxN) return [];
-    const weights = this.recencyWeights();
+    if (!lead || N < lead.minFit + 1 || N > maxN) return [];
+    const weights = this.weightsFor(lead, nowT);
+    const probe = new GazeModel({
+      name: "loo",
+      expand: lead.expand,
+      nFeat: lead.map.n,
+      stdFloor: lead.map.stdFloor,
+      lambda: lead.map.lambda,
+      centered: lead.centered,
+      minFit: lead.minFit
+    });
     const out = [];
     for (let i = 0; i < N; i++) {
       const rest = this.samples.filter((_, k) => k !== i);
       const w = weights.filter((_, k) => k !== i);
-      const m = new RidgeMap(this.nFeat, { lambda: this.lambda, stdFloor: this.stdFloor });
-      if (!m.fit(rest, w)) continue;
-      const p = m.predict(this.samples[i].phi);
+      if (!probe.fit(rest, w)) continue;
+      const p = probe.predict(this.samples[i].phi);
       out.push(Math.hypot(p[0] - this.samples[i].y[0], p[1] - this.samples[i].y[1]));
     }
     return out;
   }
-  reset() {
-    this.samples = [];
-    this.model.beta = null;
-    this.frozen = null;
-  }
-  toJSON() {
+  // nBase: the first nBase features are stored as numbers, the rest (pixels) one byte each.
+  toJSON({ nBase = Infinity } = {}) {
+    const r52 = (v) => Math.round(v * 1e5) / 1e5;
+    const nFeat = this.samples.length ? this.samples[0].phi.length : 0;
+    const nb = Math.min(nFeat, nBase);
     return {
-      v: 1,
-      nFeat: this.nFeat,
-      samples: this.samples.map((s) => ({ p: Array.from(s.phi), y: s.y, w: s.w, s: s.src, t: s.t })),
+      v: 3,
+      nFeat,
+      nBase: nb,
+      samples: this.samples.map((s) => {
+        const o = { p: Array.from(s.phi.subarray(0, nb), r52), y: [Math.round(s.y[0]), Math.round(s.y[1])], w: +s.w.toFixed(3), s: s.src, t: s.t };
+        if (nFeat > nb) o.q = packInt8(s.phi.subarray(nb));
+        return o;
+      }),
+      active: this.active,
+      scores: Object.fromEntries(this.models.map((m) => [m.name, this.scores[m.name].slice(-60).map((e) => Math.round(e))])),
       frozen: this.frozen ? this.frozen.toJSON() : null
     };
   }
-  load(o) {
-    if (!o || o.v !== 1 || o.nFeat !== this.nFeat || !Array.isArray(o.samples)) return false;
-    this.samples = o.samples.map((s) => ({ phi: Float64Array.from(s.p), y: [s.y[0], s.y[1]], w: s.w, src: s.s, t: s.t }));
-    this.frozen = o.frozen && o.frozen.beta ? RidgeMap.fromJSON(o.frozen, this.stdFloor) : null;
-    this.refit();
+  load(o, { nFeat, nowT = Date.now() } = {}) {
+    if (!o || o.v !== 3 || !Array.isArray(o.samples) || o.samples.length && o.nFeat !== nFeat) return false;
+    this.reset();
+    this.samples = o.samples.map((s) => {
+      const phi = new Float64Array(o.nFeat);
+      phi.set(s.p);
+      if (s.q) unpackInt8(s.q, phi, o.nBase);
+      return { phi, y: [s.y[0], s.y[1]], w: s.w, src: s.s, t: s.t };
+    });
+    for (const m of this.models) if (o.scores && Array.isArray(o.scores[m.name])) this.scores[m.name] = o.scores[m.name].slice();
+    if (o.active && this.model(o.active)) this.active = o.active;
+    this.refit({ cv: true, nowT });
+    if (o.frozen && o.frozen.map && o.frozen.map.beta) {
+      const src = this.model(o.frozen.name);
+      if (src) {
+        const map = RidgeMap.fromJSON(o.frozen.map, src.map.stdFloor);
+        const center = o.frozen.center ? Float64Array.from(o.frozen.center) : null;
+        const frozenJson = o.frozen;
+        this.frozen = { name: src.name, ready: true, predict: (phi) => map.predict(src.expand(phi, center)), toJSON: () => frozenJson };
+      }
+    }
     return true;
   }
 };
+var FixationSmoother = class _FixationSmoother {
+  constructor({ radius = 90, maxMs = 450, confirm = 2 } = {}) {
+    this.radius = radius;
+    this.maxMs = maxMs;
+    this.confirm = confirm;
+    this.reset();
+  }
+  reset() {
+    this.pts = [];
+    this.pending = [];
+    this.x = NaN;
+    this.y = NaN;
+  }
+  static mean(pts) {
+    let x = 0;
+    let y = 0;
+    for (const p of pts) {
+      x += p.x;
+      y += p.y;
+    }
+    return [x / pts.length, y / pts.length];
+  }
+  push(x, y, t) {
+    const p = { x, y, t };
+    if (!this.pts.length) {
+      this.pts = [p];
+      this.x = x;
+      this.y = y;
+      return { x, y, moved: true };
+    }
+    let moved = false;
+    if (Math.hypot(x - this.x, y - this.y) <= this.radius) {
+      this.pts.push(p);
+      this.pending.length = 0;
+    } else {
+      this.pending.push(p);
+      if (this.pending.length >= this.confirm) {
+        const [mx, my] = _FixationSmoother.mean(this.pending);
+        const tight = this.pending.every((q) => Math.hypot(q.x - mx, q.y - my) <= this.radius);
+        if (tight || this.pending.length >= this.confirm + 2) {
+          this.pts = this.pending.slice(tight ? 0 : -this.confirm);
+          this.pending = [];
+          moved = true;
+        }
+      }
+    }
+    while (this.pts.length > 1 && t - this.pts[0].t > this.maxMs) this.pts.shift();
+    [this.x, this.y] = _FixationSmoother.mean(this.pts);
+    return { x: this.x, y: this.y, moved };
+  }
+};
+function pursuitPath(W, H, { durationMs = 2e4, marginX = 0.1, marginY = 0.08, cyclesX = 5, cyclesY = 2 } = {}) {
+  const ax = W * (0.5 - marginX);
+  const ay = H * (0.5 - marginY);
+  return (tMs) => {
+    const u = clamp(tMs / durationMs, 0, 1);
+    return [W / 2 + ax * Math.sin(2 * Math.PI * cyclesX * u), H / 2 + ay * Math.cos(2 * Math.PI * cyclesY * u)];
+  };
+}
+function bestLag(frames, pathFn, {
+  expand,
+  nFeat,
+  stdFloor,
+  lambda = 3,
+  lags = [0, 50, 100, 150, 200, 250, 300],
+  fallbackMs = 100,
+  minGain = 0.03
+}) {
+  const weights = frames.map(() => 1);
+  const feats = frames.map((f) => expand(f.phi, null));
+  const curve = lags.map((lagMs2) => {
+    const rows = frames.map((f, i) => ({ phi: feats[i], y: pathFn(f.t - lagMs2) }));
+    const map = new RidgeMap(nFeat, { lambda, stdFloor });
+    map.cvScore = Infinity;
+    map.fitCV(rows, weights, { lambdas: [lambda], robust: false });
+    return map.cvScore;
+  });
+  let k = 0;
+  for (let i = 1; i < lags.length; i++) if (curve[i] < curve[k]) k = i;
+  if (!Number.isFinite(curve[k])) return { lagMs: fallbackMs, residual: Infinity, sure: false, curve };
+  let lagMs = lags[k];
+  const inner = k > 0 && k < lags.length - 1;
+  if (inner) {
+    const bend = curve[k - 1] - 2 * curve[k] + curve[k + 1];
+    if (bend > 0) lagMs += 0.5 * (curve[k - 1] - curve[k + 1]) / bend * (lags[k + 1] - lags[k]);
+  }
+  const sure = inner && (Math.max(...curve) - curve[k]) / curve[k] >= minGain;
+  return { lagMs: sure ? Math.round(lagMs) : fallbackMs, residual: curve[k], sure, curve };
+}
+function estimateLag(frames, pathFn, specs, opts = {}) {
+  let best = null;
+  for (const sp of specs) {
+    if (!frames.length || frames[0].phi.length < (sp.needs || 0)) continue;
+    const r = bestLag(frames, pathFn, { expand: sp.expand, nFeat: sp.nFeat, stdFloor: sp.stdFloor, lambda: sp.lambda, ...opts });
+    r.model = sp.name;
+    if (!best || r.residual < best.residual) best = r;
+  }
+  return best || { lagMs: opts.fallbackMs ?? 100, residual: Infinity, sure: false, curve: [], model: null };
+}
+function pursuitSamples(frames, pathFn, {
+  lagMs = 0,
+  half = 2,
+  step = 2,
+  skipMs = 800,
+  blinkMax = 0.5,
+  maxGapMs = 120,
+  w = 0.35,
+  src = "pursuit",
+  wallT0 = 0
+} = {}) {
+  const out = [];
+  const cnt = 2 * half + 1;
+  for (let i = half; i < frames.length - half; i += step) {
+    if (frames[i].t < skipMs) continue;
+    let ok = true;
+    for (let k = i - half; k <= i + half && ok; k++) {
+      const f = frames[k];
+      if (!f.face || !f.phi || f.blink > blinkMax) ok = false;
+      else if (k > i - half && f.t - frames[k - 1].t > maxGapMs) ok = false;
+    }
+    if (!ok) continue;
+    const n = frames[i].phi.length;
+    const phi = new Float64Array(n);
+    let tc = 0;
+    for (let k = i - half; k <= i + half; k++) {
+      const p = frames[k].phi;
+      for (let j = 0; j < n; j++) phi[j] += p[j];
+      tc += frames[k].t;
+    }
+    for (let j = 0; j < n; j++) phi[j] /= cnt;
+    tc /= cnt;
+    out.push({ phi, y: pathFn(tc - lagMs), w, src, t: wallT0 + tc });
+  }
+  return out;
+}
 var ErrorMap = class {
   constructor(cols = 3, rows = 4, keep = 12) {
     this.cols = cols;
@@ -1240,8 +1721,112 @@ var TargetSelector = class {
 };
 
 // src/features.js
-var FEATURE_NAMES = ["h", "v", "lookH", "lookV", "yaw", "pitch", "roll", "cx", "cy", "scale"];
-var STD_FLOOR = [6e-3, 8e-3, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02, 0.02, 0.01];
+var FEATURE_NAMES = [
+  "hR",
+  "vR",
+  "hL",
+  "vL",
+  // iris position inside each eye, along / across the corner line
+  "upR",
+  "loR",
+  "upL",
+  "loL",
+  // iris to upper lid, lower lid to iris (eyelids follow vertical gaze)
+  "inL",
+  "outL",
+  "upLb",
+  "dnLb",
+  "inR",
+  "outR",
+  "upRb",
+  "dnRb",
+  // gaze blendshapes
+  "yaw",
+  "pitch",
+  "roll",
+  "cx",
+  "cy",
+  "scale"
+  // head pose and where the face sits in the frame
+];
+var N_BASE = FEATURE_NAMES.length;
+var PIX_W = 12;
+var PIX_H = 6;
+var N_PIX = 2 * PIX_W * PIX_H;
+var N_FULL = N_BASE + N_PIX;
+var STD_FLOOR = [
+  6e-3,
+  8e-3,
+  6e-3,
+  8e-3,
+  0.01,
+  0.01,
+  0.01,
+  0.01,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.03,
+  0.02,
+  0.02,
+  0.01
+];
+var POSE_IDX = [16, 17, 18, 19, 20, 21];
+var POSE_SIGMA = [0.1, 0.1, 0.08, 0.06, 0.06, 0.03];
+var EYE_REF = [6e-3, 8e-3, 6e-3, 8e-3];
+var FLOOR_A = [6e-3, 8e-3, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02, 0.02, 0.01];
+var lookH = (p) => (p[9] - p[8] + p[12] - p[13]) / 2;
+var lookV = (p) => (p[10] - p[11] + p[14] - p[15]) / 2;
+function expandA(p) {
+  return Float64Array.of((p[0] + p[2]) / 2, (p[1] + p[3]) / 2, lookH(p), lookV(p), p[16], p[17], p[18], p[19], p[20], p[21]);
+}
+var expandB = (p) => p.length === N_BASE ? p : p.subarray(0, N_BASE);
+var FLOOR_Q = [2e-4, 3e-4, 2e-4, 3e-4, 3e-4, 3e-4, 3e-4];
+function expandC(p, c) {
+  const out = new Float64Array(N_BASE + 7);
+  out.set(p.length === N_BASE ? p : p.subarray(0, N_BASE));
+  const h = (p[0] + p[2]) / 2 - (c ? (c[0] + c[2]) / 2 : 0.5);
+  const v = (p[1] + p[3]) / 2 - (c ? (c[1] + c[3]) / 2 : 0);
+  const yaw = p[16] - (c ? c[16] : 0);
+  const pitch = p[17] - (c ? c[17] : 0);
+  const sc = p[21] - (c ? c[21] : 0.17);
+  out[N_BASE] = h * h;
+  out[N_BASE + 1] = v * v;
+  out[N_BASE + 2] = h * v;
+  out[N_BASE + 3] = h * yaw;
+  out[N_BASE + 4] = v * pitch;
+  out[N_BASE + 5] = h * sc;
+  out[N_BASE + 6] = v * sc;
+  return out;
+}
+var DEFAULT_MODEL = "B";
+var MODEL_SPECS = [
+  { name: "A", label: "أساسي (0.1)", expand: expandA, nFeat: 10, stdFloor: FLOOR_A, lambda: 1, minFit: 5 },
+  { name: "B", label: "خصائص غنية", expand: expandB, nFeat: N_BASE, stdFloor: STD_FLOOR, lambda: 3, autoLambda: true, poseLocal: true, minFit: 8 },
+  { name: "C", label: "غنية + غير خطي", expand: expandC, nFeat: N_BASE + 7, stdFloor: [...STD_FLOOR, ...FLOOR_Q], lambda: 3, autoLambda: true, poseLocal: true, centered: true, minFit: 8 },
+  {
+    name: "D",
+    label: "صورة العين + الخصائص",
+    expand: (p) => p,
+    nFeat: N_FULL,
+    needs: N_FULL,
+    stdFloor: [...STD_FLOOR, ...new Array(N_PIX).fill(0.08)],
+    lambda: 30,
+    lambdas: [3, 10, 30, 100, 300, 1e3],
+    autoLambda: true,
+    poseLocal: true,
+    robust: false,
+    borrow: "B",
+    minFit: 30
+  }
+];
 var R_OUTER = 33;
 var R_INNER = 133;
 var R_UPPER = 159;
@@ -1253,7 +1838,7 @@ var L_UPPER = 386;
 var L_LOWER = 374;
 var L_IRIS = 473;
 var NOSE_TIP = 1;
-function eyeRatios(lm, a, b, iris, upper, lower, W, H) {
+function eyeMeasure(lm, a, b, iris, upper, lower, W, H) {
   const ax = lm[a].x * W;
   const ay = lm[a].y * H;
   const ex = lm[b].x * W - ax;
@@ -1262,14 +1847,19 @@ function eyeRatios(lm, a, b, iris, upper, lower, W, H) {
   if (!(len > 1e-6)) return null;
   const ux = ex / len;
   const uy = ey / len;
+  const across = (i) => ((lm[i].x * W - ax) * -uy + (lm[i].y * H - ay) * ux) / len;
   const ix = lm[iris].x * W - ax;
   const iy = lm[iris].y * H - ay;
+  const v = (ix * -uy + iy * ux) / len;
   return {
     h: (ix * ux + iy * uy) / len,
-    v: (ix * -uy + iy * ux) / len,
-    open: Math.hypot((lm[upper].x - lm[lower].x) * W, (lm[upper].y - lm[lower].y) * H) / len,
+    v,
+    up: v - across(upper),
+    lo: across(lower) - v,
     cx: ax + ex / 2,
-    cy: ay + ey / 2
+    cy: ay + ey / 2,
+    len,
+    angle: Math.atan2(ey, ex)
   };
 }
 function blendshapeScores(result) {
@@ -1282,24 +1872,14 @@ function blendshapeScores(result) {
 function extractFeatures(result, imgW, imgH) {
   const lm = result && result.faceLandmarks && result.faceLandmarks[0];
   if (!lm || lm.length < 478) return { face: false };
-  const right = eyeRatios(lm, R_OUTER, R_INNER, R_IRIS, R_UPPER, R_LOWER, imgW, imgH);
-  const left = eyeRatios(lm, L_INNER, L_OUTER, L_IRIS, L_UPPER, L_LOWER, imgW, imgH);
-  if (!right || !left) return { face: false };
-  const h = (right.h + left.h) / 2;
-  const v = (right.v + left.v) / 2;
-  const ipd = Math.hypot(left.cx - right.cx, left.cy - right.cy);
-  const cx = (left.cx + right.cx) / 2 / imgW;
-  const cy = (left.cy + right.cy) / 2 / imgH;
+  const R = eyeMeasure(lm, R_OUTER, R_INNER, R_IRIS, R_UPPER, R_LOWER, imgW, imgH);
+  const L = eyeMeasure(lm, L_INNER, L_OUTER, L_IRIS, L_UPPER, L_LOWER, imgW, imgH);
+  if (!R || !L) return { face: false };
+  const ipd = Math.hypot(L.cx - R.cx, L.cy - R.cy);
   const scale = ipd / imgW;
-  let lookH = 0;
-  let lookV = 0;
-  let blink = Math.max(0, 1 - (right.open + left.open) / 0.5);
-  const bs = blendshapeScores(result);
-  if (bs) {
-    lookH = ((bs.eyeLookOutLeft || 0) - (bs.eyeLookInLeft || 0) + (bs.eyeLookInRight || 0) - (bs.eyeLookOutRight || 0)) / 2;
-    lookV = ((bs.eyeLookUpLeft || 0) - (bs.eyeLookDownLeft || 0) + (bs.eyeLookUpRight || 0) - (bs.eyeLookDownRight || 0)) / 2;
-    blink = Math.max(bs.eyeBlinkLeft || 0, bs.eyeBlinkRight || 0);
-  }
+  const bs = blendshapeScores(result) || {};
+  const g = (k) => bs[k] || 0;
+  const blink = bs.eyeBlinkLeft !== void 0 ? Math.max(g("eyeBlinkLeft"), g("eyeBlinkRight")) : Math.max(0, 1 - (R.up + R.lo + L.up + L.lo) / 0.5);
   let yaw;
   let pitch;
   let roll;
@@ -1310,18 +1890,44 @@ function extractFeatures(result, imgW, imgH) {
     pitch = Math.asin(Math.max(-1, Math.min(1, -d[9])));
     roll = Math.atan2(d[1], d[5]);
   } else {
-    roll = Math.atan2(left.cy - right.cy, left.cx - right.cx);
-    const midX = (left.cx + right.cx) / 2;
-    const midY = (left.cy + right.cy) / 2;
-    yaw = (lm[NOSE_TIP].x * imgW - midX) / ipd;
-    pitch = (lm[NOSE_TIP].y * imgH - midY) / ipd;
+    roll = Math.atan2(L.cy - R.cy, L.cx - R.cx);
+    yaw = (lm[NOSE_TIP].x * imgW - (L.cx + R.cx) / 2) / ipd;
+    pitch = (lm[NOSE_TIP].y * imgH - (L.cy + R.cy) / 2) / ipd;
   }
   return {
     face: true,
-    phi: Float64Array.of(h, v, lookH, lookV, yaw, pitch, roll, cx, cy, scale),
+    phi: Float64Array.of(
+      R.h,
+      R.v,
+      L.h,
+      L.v,
+      R.up,
+      R.lo,
+      L.up,
+      L.lo,
+      g("eyeLookInLeft"),
+      g("eyeLookOutLeft"),
+      g("eyeLookUpLeft"),
+      g("eyeLookDownLeft"),
+      g("eyeLookInRight"),
+      g("eyeLookOutRight"),
+      g("eyeLookUpRight"),
+      g("eyeLookDownRight"),
+      yaw,
+      pitch,
+      roll,
+      (L.cx + R.cx) / 2 / imgW,
+      (L.cy + R.cy) / 2 / imgH,
+      scale
+    ),
     blink,
     // Rough viewing distance, assuming a 63 mm eye spacing and a ~58° wide lens.
-    distCm: scale > 0 ? 5.67 / scale : NaN
+    distCm: scale > 0 ? 5.67 / scale : NaN,
+    // Where each eye sits in the frame, for cutting out the eye images.
+    eyes: [
+      { cx: R.cx, cy: R.cy, len: R.len, angle: R.angle },
+      { cx: L.cx, cy: L.cy, len: L.len, angle: L.angle }
+    ]
   };
 }
 
@@ -1337,7 +1943,11 @@ function mulberry32(seed) {
   };
 }
 var SimUser = class {
-  constructor({ W, H, pxPerCm = 60, seed = 7, noise = 1 } = {}) {
+  // pixels: 'good' (eye images carry the gaze), 'noise' (they carry nothing), 'none' (no eye images at all)
+  // pixelJitter: how badly the eye cut-outs are aligned, relative to the default assumption
+  constructor({ W, H, pxPerCm = 60, seed = 7, noise = 1, pixels = "good", pixelJitter = 1 } = {}) {
+    this.pixels = pixels;
+    this.pixelJitter = pixelJitter;
     this.W = W;
     this.H = H;
     this.ppc = pxPerCm;
@@ -1349,12 +1959,15 @@ var SimUser = class {
     this.ty = H / 2;
     this.tChange = -1e9;
     this.latencyMs = 180;
+    this.pursuit = null;
     this.head = { yaw: 0.02, pitch: -0.05, roll: 0.01, x: 0, y: 0, d: 32 };
     this.user = { kappaH: 0.03, kappaV: -0.02, gainH: 0.42, gainV: 0.34, headShare: 0.15 };
     this.blinkFrom = -1;
     this.blinkUntil = -1;
     this.nextBlink = 2500;
-    this.slow = { h: 0, v: 0, t: null };
+    this.slow = { hR: 0, hL: 0, vR: 0, vL: 0, t: null };
+    this.lm = { h: 0, v: 0 };
+    this.cropSlow = [0, 0, 0, 0];
   }
   gauss() {
     const u = Math.max(1e-12, this.rand());
@@ -1363,10 +1976,15 @@ var SimUser = class {
   }
   // The eyes land on the new point after a normal saccade latency.
   lookAt(x, y, tMs) {
+    this.pursuit = null;
     if (x === this.tx && y === this.ty) return;
     this.tx = x;
     this.ty = y;
     this.tChange = tMs;
+  }
+  // The eyes follow a moving target, a little behind it.
+  follow(fn, lagMs = 120) {
+    this.pursuit = { fn, lagMs };
   }
   // The user shifts how they hold the phone.
   shiftPosture(amount = 1) {
@@ -1379,7 +1997,11 @@ var SimUser = class {
     this.head.d = Math.min(45, Math.max(24, this.head.d + 3 * g()));
   }
   frame(tMs) {
-    if (tMs - this.tChange >= this.latencyMs) {
+    if (this.pursuit) {
+      [this.gx, this.gy] = this.pursuit.fn(tMs - this.pursuit.lagMs);
+      this.tx = this.gx;
+      this.ty = this.gy;
+    } else if (tMs - this.tChange >= this.latencyMs) {
       this.gx = this.tx;
       this.gy = this.ty;
     }
@@ -1390,11 +2012,16 @@ var SimUser = class {
     }
     const blinking = tMs >= this.blinkFrom && tMs < this.blinkUntil;
     const n = (s) => this.gauss() * s * this.noise;
+    const relu = (v) => v > 0 ? v : 0;
     const dt = this.slow.t === null ? 33 : Math.min(500, Math.max(1, tMs - this.slow.t));
     const rho = Math.exp(-dt / 1500);
     const kick = Math.sqrt(1 - rho * rho);
-    this.slow.h = rho * this.slow.h + kick * n(6e-3);
-    this.slow.v = rho * this.slow.v + kick * n(0.01);
+    for (const k of ["hR", "hL"]) this.slow[k] = rho * this.slow[k] + kick * n(2e-3);
+    for (const k of ["vR", "vL"]) this.slow[k] = rho * this.slow[k] + kick * n(3e-3);
+    const rhoLm = Math.exp(-dt / 800);
+    const kickLm = Math.sqrt(1 - rhoLm * rhoLm);
+    this.lm.h = rhoLm * this.lm.h + kickLm * n(0.017);
+    this.lm.v = rhoLm * this.lm.v + kickLm * n(0.035);
     this.slow.t = tMs;
     const hd = this.head;
     const us = this.user;
@@ -1406,11 +2033,26 @@ var SimUser = class {
     const headPitch = hd.pitch + us.headShare * aV;
     const eH = aH - headYaw + us.kappaH;
     const eV = aV - headPitch + us.kappaV;
-    const phi = Float64Array.of(
-      0.5 - us.gainH * Math.sin(eH) + this.slow.h + n(8e-3),
-      0.03 + us.gainV * Math.sin(eV) + this.slow.v + n(0.012),
-      -1.6 * eH + n(0.03),
-      0.1 - 1.2 * eV + n(0.04),
+    const lH = eH + this.lm.h;
+    const lV = eV + this.lm.v;
+    const lid = blinking ? -0.12 : 0;
+    const base = Float64Array.of(
+      0.5 - us.gainH * Math.sin(lH) + this.slow.hR + n(8e-3),
+      0.03 + us.gainV * Math.sin(lV) + this.slow.vR + n(0.012) + (blinking ? 0.08 : 0),
+      0.52 - us.gainH * Math.sin(lH + 0.01) + this.slow.hL + n(8e-3),
+      0.03 + us.gainV * Math.sin(lV) + this.slow.vL + n(0.012) + (blinking ? 0.08 : 0),
+      0.16 - 0.1 * lV + lid + n(0.01),
+      0.15 - 0.06 * lV + n(0.01),
+      0.16 - 0.1 * lV + lid + n(0.01),
+      0.15 - 0.06 * lV + n(0.01),
+      relu(1.6 * lH) + Math.abs(n(0.03)),
+      relu(-1.6 * lH) + Math.abs(n(0.03)),
+      relu(0.1 - 1.2 * lV) + Math.abs(n(0.04)),
+      relu(1.2 * lV - 0.1) + Math.abs(n(0.04)) + (blinking ? 0.3 : 0),
+      relu(-1.6 * lH) + Math.abs(n(0.03)),
+      relu(1.6 * lH) + Math.abs(n(0.03)),
+      relu(0.1 - 1.2 * lV) + Math.abs(n(0.04)),
+      relu(1.2 * lV - 0.1) + Math.abs(n(0.04)) + (blinking ? 0.3 : 0),
       headYaw + n(0.01),
       headPitch + n(0.012),
       hd.roll + n(8e-3),
@@ -1418,16 +2060,54 @@ var SimUser = class {
       0.45 + hd.y / (1.5 * hd.d) + n(3e-3),
       5.67 / hd.d + n(2e-3)
     );
-    if (blinking) {
-      phi[1] += 0.08;
-      phi[3] -= 0.3;
+    let phi = base;
+    if (this.pixels !== "none") {
+      phi = new Float64Array(N_FULL);
+      phi.set(base);
+      for (let e = 0; e < 2; e++) {
+        const pj = this.pixelJitter;
+        for (let k = 0; k < 2; k++) this.cropSlow[e * 2 + k] = rho * this.cropSlow[e * 2 + k] + kick * n((k ? 45e-4 : 3e-3) * pj);
+        const x0 = -us.gainH * Math.sin(eH + (e ? 0.01 : 0)) + (e ? 0.02 : 0) + this.cropSlow[e * 2] + n(4e-3 * pj);
+        const y0 = us.gainV * Math.sin(eV) + this.cropSlow[e * 2 + 1] + n(4e-3 * pj);
+        this.eyeImage(phi, N_BASE + e * PIX_W * PIX_H, x0, y0, blinking ? 0.3 : -0.2 + 0.25 * eV, n);
+      }
     }
-    return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d };
+    return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null };
+  }
+  // A tiny picture of one eye: bright sclera, dark iris at (x0, y0), darker above the upper lid.
+  // Coordinates are in eye widths from the middle of the eye, like the real cut-out.
+  eyeImage(out, o, x0, y0, lidY, n) {
+    const N = PIX_W * PIX_H;
+    let mean = 0;
+    for (let r = 0; r < PIX_H; r++) {
+      const y = ((r + 0.5) / PIX_H - 0.5) * 0.75;
+      for (let c = 0; c < PIX_W; c++) {
+        const x = ((c + 0.5) / PIX_W - 0.5) * 1.5;
+        let v;
+        if (this.pixels === "noise") {
+          v = n(1);
+        } else {
+          const d2 = (x - x0) * (x - x0) + (y - y0) * (y - y0);
+          v = 1 - 0.75 * Math.exp(-d2 / (2 * 0.13 * 0.13));
+          v *= 1 - 0.5 / (1 + Math.exp((y - lidY) / 0.04));
+          v += n(0.03);
+        }
+        out[o + r * PIX_W + c] = v;
+        mean += v;
+      }
+    }
+    mean /= N;
+    let sd = 0;
+    for (let i = 0; i < N; i++) sd += (out[o + i] - mean) * (out[o + i] - mean);
+    sd = Math.sqrt(sd / N) || 1;
+    for (let i = 0; i < N; i++) out[o + i] = (out[o + i] - mean) / sd;
   }
 };
 
 // src/app.js
-var VERSION = "0.1";
+var VERSION = "0.2";
+var T0 = Date.now() - performance.now();
+var PURSUIT_MS = 2e4;
 var MP_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3";
 var MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 var SIM_URL = /\bsim\b/.test(location.search + location.hash);
@@ -1438,8 +2118,17 @@ var EMBEDDED = (() => {
     return true;
   }
 })() || !/^https?:$/.test(location.protocol);
-var TITLES = { home: "معايرة النظر", boot: "معايرة أولية", test: "قياس الدقة", free: "استخدام حر", pick: "نظر + لمس", stats: "النتائج" };
-var IMMERSIVE = { boot: true, test: true, pick: true };
+var TITLES = { home: "معايرة النظر", boot: "معايرة 9 نقاط", pursue: "معايرة بالتتبّع", test: "قياس الدقة", free: "استخدام حر", pick: "نظر + لمس", stats: "النتائج" };
+var IMMERSIVE = { boot: true, pursue: true, test: true, pick: true };
+var makeCal = () => new Calibrator({
+  models: MODEL_SPECS.map((spec) => new GazeModel(spec)),
+  poseIdx: POSE_IDX,
+  poseSigma: POSE_SIGMA,
+  defaultModel: DEFAULT_MODEL,
+  cvEvery: 24,
+  deferCv: true
+  // the slow part of learning waits for the idle timer instead of delaying a touch
+});
 function guessPxPerCm() {
   const ua = navigator.userAgent;
   const dpr = window.devicePixelRatio || 1;
@@ -1460,12 +2149,14 @@ var S = {
   lastFrameT: 0,
   distCm: NaN,
   delegate: SIM_URL ? "sim" : "CPU",
-  cal: new Calibrator({ nFeat: FEATURE_NAMES.length, stdFloor: STD_FLOOR }),
+  cal: makeCal(),
   ring: new FrameRing(),
   errMap: new ErrorMap(3, 4),
-  fx: new OneEuro(),
-  fy: new OneEuro(),
+  smooth: new FixationSmoother(),
   gaze: null,
+  video: null,
+  pursuitLog: [],
+  onFrame: null,
   settings: { cursor: true, learn: true, preview: true, gpu: false, motion: false },
   log: [],
   picks: [],
@@ -1511,13 +2202,13 @@ function shuffle(a, rand = Math.random) {
   }
   return a;
 }
-var profileKey = () => `gazecal:v1:${S.W}:${S.H >= S.W ? "p" : "l"}`;
+var profileKey = () => `gazecal:v2:${S.W}:${S.H >= S.W ? "p" : "l"}`;
 var saveTimer = 0;
 function save() {
   if (S.sim) return;
   try {
     localStorage.setItem("gazecal:settings", JSON.stringify(S.settings));
-    localStorage.setItem(profileKey(), JSON.stringify({ cal: S.cal.toJSON(), loo: S.looPx }));
+    localStorage.setItem(profileKey(), JSON.stringify({ cal: S.cal.toJSON({ nBase: N_BASE }), loo: S.looPx }));
   } catch (e) {
   }
 }
@@ -1531,7 +2222,7 @@ function load() {
     const s = JSON.parse(localStorage.getItem("gazecal:settings") || "null");
     if (s) Object.assign(S.settings, s);
     const p = JSON.parse(localStorage.getItem(profileKey()) || "null");
-    if (p && p.cal && S.cal.load(p.cal)) S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
+    if (p && p.cal && S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
   } catch (e) {
   }
   S.settings.motion = false;
@@ -1546,18 +2237,23 @@ function onFrame(f, t) {
     S.fps = S.fps ? S.fps + 0.1 * (inst - S.fps) : inst;
   }
   S.lastFrameT = t;
-  S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: t - S.motionT < 400 ? S.motion : 0 });
+  S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: t - S.motionT < 400 ? S.motion : 0, hi: f.hi || null });
+  if (S.face) S.cal.setPose(f.phi);
   if (!S.face) {
     S.gaze = null;
-    S.fx.reset();
-    S.fy.reset();
+    S.smooth.reset();
   } else if (S.cal.ready && !(f.blink > 0.5)) {
     const p = S.cal.predict(f.phi);
-    S.gaze = { x: clamp(S.fx.filter(p[0], t / 1e3), 0, S.W), y: clamp(S.fy.filter(p[1], t / 1e3), 0, S.H), t };
-    if (S.selector) S.selector.update(S.gaze.x, S.gaze.y, sigmaPx(), t);
+    if (p) {
+      S.smooth.radius = clamp(sigmaPx(), 70, 160);
+      const q = S.smooth.push(p[0], p[1], t);
+      S.gaze = { x: clamp(q.x, 0, S.W), y: clamp(q.y, 0, S.H), t };
+      if (S.selector) S.selector.update(S.gaze.x, S.gaze.y, sigmaPx(), t);
+    }
   } else if (!S.cal.ready) {
     S.gaze = null;
   }
+  if (S.onFrame) S.onFrame(f, t);
   drawCursor();
   if (S.onGaze) S.onGaze(t);
 }
@@ -1569,19 +2265,37 @@ function drawCursor() {
   c.style.transform = `translate3d(${S.gaze.x.toFixed(1)}px, ${S.gaze.y.toFixed(1)}px, 0)`;
   c.style.setProperty("--d", `${Math.round(2 * Math.min(sigmaPx(), 130))}px`);
 }
+var r5 = (v) => Math.round(v * 1e5) / 1e5;
+function b64(bytes) {
+  let str = "";
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return btoa(str);
+}
+function meanEyes(frames) {
+  const open = frames.filter((f) => f.face && f.hi && !(f.blink > 0.5));
+  if (!open.length) return null;
+  const acc = new Float32Array(open[0].hi.length);
+  for (const f of open) for (let i = 0; i < acc.length; i++) acc[i] += f.hi[i];
+  return b64(Uint8Array.from(acc, (v) => Math.round(v / open.length)));
+}
 function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity } = {}) {
-  const sum = summarizeWindow(S.ring.window(Math.max(tMs - 350, since), tMs + 50));
+  const frames = S.ring.window(Math.max(tMs - 350, since), tMs + 50);
+  const sum = summarizeWindow(frames);
   if (!sum.ok) {
     S.rejects[sum.reason] = (S.rejects[sum.reason] || 0) + 1;
     return { ok: false, reason: sum.reason };
   }
-  const rec = S.cal.addSample({ phi: sum.phi, y: target, w: baseW * windowWeight(sum), src, t: Math.round(tMs) }, { force });
+  const rec = S.cal.addSample({ phi: sum.phi, y: target, w: baseW * windowWeight(sum, { eyeRef: EYE_REF }), src, t: Math.round(tMs + T0) }, { force });
   rec.ok = true;
   rec.screen = S.screen;
   rec.frames = sum.n;
   rec.motion = Math.round(sum.motion);
   rec.w = +rec.w.toFixed(3);
-  rec.phi = Array.from(sum.phi, (v) => +v.toFixed(5));
+  for (const k in rec.errs) if (rec.errs[k] != null) rec.errs[k] = Math.round(rec.errs[k] * 10) / 10;
+  rec.phi = Array.from(sum.phi.subarray(0, N_BASE), r5);
+  if (sum.phi.length > N_BASE) rec.pix = packInt8(sum.phi.subarray(N_BASE));
+  const eye = meanEyes(frames);
+  if (eye) rec.eye = eye;
   if (rec.err != null) S.errMap.add(target[0] / S.W, target[1] / S.H, rec.err);
   S.log.push(rec);
   if (S.log.length > 3e3) S.log.shift();
@@ -1589,6 +2303,18 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
   if (S.onSample) S.onSample(rec);
   return rec;
 }
+function modelBoard(recs) {
+  const lead = S.cal.activeModel();
+  return S.cal.models.map((m) => {
+    const e = recs.map((r) => r.errs ? r.errs[m.name] : null).filter((v) => v != null);
+    return { name: m.name, label: m.label, n: e.length, med: median(e), lead: lead === m, ready: m.ready };
+  });
+}
+var boardLine = (board) => board.filter((b) => b.n).map((b) => `${b.name} ${cm(b.med)}`).join(" · ") || "—";
+var leadLabel = () => {
+  const m = S.cal.activeModel();
+  return m ? `${m.name} · ${m.label}` : "—";
+};
 document.addEventListener("pointerdown", (e) => {
   if (!S.running || e.isPrimary === false) return;
   const t = eventTime(e);
@@ -1609,12 +2335,12 @@ function simLookAtTouch(x, y, t) {
   for (let k = 0; k <= 11; k++) {
     const ft = t - 380 + k * 33;
     const f = S.simUser.frame(ft);
-    S.ring.push({ t: ft, face: true, phi: f.phi, blink: f.blink, motion: 0 });
+    S.ring.push({ t: ft, face: true, phi: f.phi, blink: f.blink, motion: 0, hi: null });
   }
 }
 function startSim() {
   if (S.simUser) return;
-  S.simUser = new SimUser({ W: S.W, H: S.H, pxPerCm: S.pxPerCm, seed: 7, noise: 3 });
+  S.simUser = new SimUser({ W: S.W, H: S.H, pxPerCm: S.pxPerCm, seed: 7, noise: 1.5, pixelJitter: 2.5 });
   window.addEventListener("pointermove", (e) => {
     if (e.pointerType === "mouse") S.simUser.lookAt(e.clientX, e.clientY, performance.now());
   });
@@ -1660,6 +2386,73 @@ async function loadLandmarker() {
   landmarker = await make("CPU");
   S.delegate = "CPU";
 }
+var HI_W = 48;
+var HI_H = 24;
+var CROP_SPAN = 1.5;
+var cropCanvas = document.createElement("canvas");
+cropCanvas.width = 2 * HI_W;
+cropCanvas.height = HI_H;
+var cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true });
+var cropFailures = 0;
+function eyeImages(video, eyes) {
+  if (!cropCtx || !eyes || cropFailures > 20) return null;
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  try {
+    cropCtx.setTransform(1, 0, 0, 1, 0, 0);
+    cropCtx.fillStyle = "#808080";
+    cropCtx.fillRect(0, 0, 2 * HI_W, HI_H);
+    cropCtx.imageSmoothingEnabled = true;
+    cropCtx.imageSmoothingQuality = "high";
+    for (let e = 0; e < 2; e++) {
+      const { cx, cy, len, angle } = eyes[e];
+      if (!(len > 4)) return null;
+      const sx0 = Math.max(0, Math.floor(cx - len));
+      const sy0 = Math.max(0, Math.floor(cy - len));
+      const sw = Math.min(vw, Math.ceil(cx + len)) - sx0;
+      const sh = Math.min(vh, Math.ceil(cy + len)) - sy0;
+      if (sw < 8 || sh < 8) return null;
+      const k = HI_W / (CROP_SPAN * len);
+      const ca = k * Math.cos(-angle);
+      const sa = k * Math.sin(-angle);
+      cropCtx.save();
+      cropCtx.beginPath();
+      cropCtx.rect(e * HI_W, 0, HI_W, HI_H);
+      cropCtx.clip();
+      cropCtx.setTransform(ca, sa, -sa, ca, e * HI_W + HI_W / 2 - (ca * cx - sa * cy), HI_H / 2 - (sa * cx + ca * cy));
+      cropCtx.drawImage(video, sx0, sy0, sw, sh, sx0, sy0, sw, sh);
+      cropCtx.restore();
+    }
+    const px = cropCtx.getImageData(0, 0, 2 * HI_W, HI_H).data;
+    const hi = new Uint8Array(2 * HI_W * HI_H);
+    const pix = new Float64Array(2 * PIX_W * PIX_H);
+    const bx = HI_W / PIX_W;
+    const by = HI_H / PIX_H;
+    for (let e = 0; e < 2; e++) {
+      const lo = e * PIX_W * PIX_H;
+      for (let y = 0; y < HI_H; y++) {
+        for (let x = 0; x < HI_W; x++) {
+          const i = (y * 2 * HI_W + e * HI_W + x) * 4;
+          const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+          hi[e * HI_W * HI_H + y * HI_W + x] = g;
+          pix[lo + Math.floor(y / by) * PIX_W + Math.floor(x / bx)] += g;
+        }
+      }
+      let mean = 0;
+      for (let i = 0; i < PIX_W * PIX_H; i++) mean += pix[lo + i];
+      mean /= PIX_W * PIX_H;
+      let sd = 0;
+      for (let i = 0; i < PIX_W * PIX_H; i++) sd += (pix[lo + i] - mean) * (pix[lo + i] - mean);
+      sd = Math.sqrt(sd / (PIX_W * PIX_H));
+      for (let i = 0; i < PIX_W * PIX_H; i++) pix[lo + i] = sd > bx * by ? (pix[lo + i] - mean) / sd : 0;
+    }
+    cropFailures = 0;
+    return { pix, hi };
+  } catch (e) {
+    cropFailures++;
+    return null;
+  }
+}
 function loop() {
   requestAnimationFrame(loop);
   const video = $("#cam");
@@ -1675,7 +2468,17 @@ function loop() {
     if (++detectErrors === 30) toast("تعطّل تتبع الوجه. أعد تحميل الصفحة");
     return;
   }
-  onFrame(extractFeatures(res, video.videoWidth, video.videoHeight), t);
+  const f = extractFeatures(res, video.videoWidth, video.videoHeight);
+  if (f.face) {
+    const img = eyeImages(video, f.eyes);
+    const phi = new Float64Array(N_FULL);
+    phi.set(f.phi);
+    if (img) phi.set(img.pix, N_BASE);
+    f.phi = phi;
+    f.hi = img ? img.hi : null;
+  }
+  S.video = { w: video.videoWidth, h: video.videoHeight };
+  onFrame(f, t);
 }
 function enableMotion() {
   try {
@@ -1727,7 +2530,7 @@ function renderStart(state = "idle", detail = "") {
        <li>الأرقام في هذا الوضع لفحص التطبيق فقط وليست قياسًا حقيقيًا.</li></ul>` : `<h2>معايرة النظر<br>بالكاميرا الأمامية</h2>
        <ul><li>أمسك الهاتف على بعد 30 سم تقريبًا، في إضاءة جيدة على وجهك.</li>
        <li>الصورة تُعالج داخل المتصفح فقط. لا تُرفع ولا تُحفظ.</li>
-       <li>النتائج تقريبية: الكاميرا العادية أقل دقة من حسّاس Face ID.</li></ul>`;
+       <li>النتائج تقريبية، وتتحسن كلما استخدمته.</li></ul>`;
   const err = START_ERRORS[state];
   const preview = EMBEDDED && !S.sim && !err;
   let body;
@@ -1766,7 +2569,7 @@ async function start() {
     if (!video.srcObject) {
       video.srcObject = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }
       });
     }
     await video.play();
@@ -1821,6 +2624,7 @@ function tick() {
   }
   chip.textContent = text;
   chip.className = "chip " + cls;
+  if (S.screen !== "pursue") S.cal.tick(Date.now());
   const st = $("#st-state");
   if (!st) return;
   st.textContent = S.sim ? "محاكاة" : stale ? "الكاميرا متوقفة" : !S.face ? "لا يوجد وجه" : S.cal.ready ? "يتتبع النظر" : "ينتظر المعايرة";
@@ -1881,16 +2685,18 @@ function home() {
         <div class="row"><span>العينات</span><b id="st-n">0</b></div>
         <div class="row"><span>الخطأ الأخير</span><b id="st-err">—</b></div>
         <div class="row"><span>المسافة</span><b id="st-dist">—</b></div>
+        ${S.sim ? "" : `<div class="row" id="eye-row" ${S.settings.preview ? "" : "hidden"}><span>ما يراه النموذج</span><span class="eyes" id="eye-slot"></span></div>`}
       </div>
       <div class="slot" id="cam-slot" ${S.settings.preview && !S.sim ? "" : "hidden"}></div>
     </div>
     <div class="scroll">
-      <button class="btn ${ready ? "" : "primary"}" data-go="boot"><span>${ready ? "إعادة المعايرة الأولية" : "ابدأ بالمعايرة الأولية"}</span><small>9 نقاط</small></button>
+      <button class="btn ${ready ? "" : "primary"}" data-go="pursue"><span>${ready ? "معايرة بالتتبّع" : "ابدأ: معايرة بالتتبّع"}</span><small>${ready ? "تضيف 20 ثانية" : "20 ثانية"}</small></button>
+      <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>${ready ? "تبدأ من الصفر" : "بديل سريع"}</small></button>
       <button class="btn" data-go="test" ${ready ? "" : "disabled"}><span>قياس الدقة</span><small>20 نقطة</small></button>
       <button class="btn" data-go="free"><span>استخدام حر</span><small>يتعلّم من لمساتك</small></button>
       <button class="btn" data-go="pick" ${ready ? "" : "disabled"}><span>نظر + لمس</span><small>اختيار بالعين</small></button>
       <button class="btn" data-go="stats"><span>النتائج والتصدير</span><small></small></button>
-      ${ready ? "" : '<p class="note">«قياس الدقة» و«نظر + لمس» يُفتحان بعد المعايرة الأولية.</p>'}
+      ${ready ? "" : '<p class="note">«قياس الدقة» و«نظر + لمس» يُفتحان بعد المعايرة.</p>'}
       <div class="card settings">
         <div class="row"><span>إظهار مؤشر النظر</span><button class="switch" role="switch" data-set="cursor" aria-label="إظهار مؤشر النظر"></button></div>
         <div class="row"><span>التعلّم من اللمس</span><button class="switch" role="switch" data-set="learn" aria-label="التعلّم من اللمس"></button></div>
@@ -1900,6 +2706,8 @@ function home() {
       </div>
     </div>
   </section>`);
+  const eyeSlot = $("#eye-slot", root);
+  if (eyeSlot) eyeSlot.appendChild(cropCanvas);
   root.querySelectorAll("[data-set]").forEach((b) => {
     const k = b.dataset.set;
     b.setAttribute("aria-checked", String(!!S.settings[k]));
@@ -1917,6 +2725,8 @@ function home() {
       if (k === "learn") S.cal.learning = on;
       if (k === "preview") {
         $("#cam-slot", root).hidden = !on;
+        const eyeRow = $("#eye-row", root);
+        if (eyeRow) eyeRow.hidden = !on;
         placeCam();
       }
       if (k === "cursor") drawCursor();
@@ -1991,8 +2801,7 @@ function boot() {
   S.cal.reset();
   S.errMap.reset();
   S.looPx = NaN;
-  S.fx.reset();
-  S.fy.reset();
+  S.smooth.reset();
   const xs = [0.1, 0.5, 0.9];
   const ys = [0.09, 0.5, 0.91];
   const rest = [];
@@ -2007,15 +2816,15 @@ function boot() {
     },
     onDone: () => {
       S.cal.freeze();
-      const loo = S.cal.looErrors();
+      const loo = S.cal.looErrors(40, Date.now());
       S.looPx = loo.length ? median(loo) : NaN;
       save();
       root.appendChild(el(S.cal.ready ? `<div class="sheet">
-            <h2>تمت المعايرة الأولية</h2>
+            <h2>تمت معايرة 9 نقاط</h2>
             <div class="big">${cm(S.looPx)} <small>سم خطأ متوقع، تقدير من 9 نقاط</small></div>
-            <p class="note">من الآن كل لمسة على هدف صغير تحسّن المعايرة دون خطوة إضافية.</p>
-            <button class="btn primary" data-go="test">قياس الدقة</button>
-            <button class="btn center" data-go="home">الرئيسية</button>
+            <p class="note">9 نقاط لا تكفي نموذج صورة العين. «معايرة بالتتبّع» تعطيه مئات العينات في 20 ثانية.</p>
+            <button class="btn primary" data-go="pursue">معايرة بالتتبّع</button>
+            <div class="btn-row"><button class="btn center" data-go="test">قياس الدقة</button><button class="btn center" data-go="home">الرئيسية</button></div>
           </div>` : `<div class="sheet">
             <h2>تعذّرت المعايرة</h2>
             <p class="note">لم تكفِ العينات لبناء النموذج. أعد المحاولة في إضاءة أفضل.</p>
@@ -2024,6 +2833,117 @@ function boot() {
           </div>`));
     }
   });
+  return root;
+}
+function learnPursuit(frames, path, tStart) {
+  const usable = frames.filter((f) => f.face && f.phi && !(f.blink > 0.5) && f.t > 800);
+  const out = { ok: false, usable: usable.length, total: frames.length };
+  if (usable.length < 200) return out;
+  const lag = estimateLag(usable, path, MODEL_SPECS.filter((m) => m.name === "B" || m.name === "D"));
+  const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: T0 + tStart });
+  if (samples.length < 80) return out;
+  S.cal.addBatch(samples, { nowT: Date.now() });
+  S.cal.freeze();
+  S.smooth.reset();
+  S.pursuitLog.push({
+    at: new Date(T0 + tStart).toISOString(),
+    durationMs: PURSUIT_MS,
+    path: { W: S.W, H: S.H, marginX: 0.1, marginY: 0.08, cyclesX: 5, cyclesY: 2, formula: "x = W/2 + W(0.5-marginX) sin(2π cyclesX u), y = H/2 + H(0.5-marginY) cos(2π cyclesY u), u = t/durationMs" },
+    lagMs: lag.lagMs,
+    lagSure: lag.sure,
+    lagModel: lag.model,
+    lagCurve: lag.curve.map((v) => Math.round(v * 10) / 10),
+    samples: samples.length,
+    // every frame keeps its features; every second one also keeps the larger eye picture
+    frames: frames.map((f, i) => ({
+      t: Math.round(f.t),
+      k: Math.round(f.blink * 100) / 100,
+      b: f.phi ? Array.from(f.phi.subarray(0, N_BASE), r5) : null,
+      q: f.phi && f.phi.length > N_BASE ? packInt8(f.phi.subarray(N_BASE)) : null,
+      e: f.hi && i % 2 === 0 ? b64(f.hi) : null
+    }))
+  });
+  if (S.pursuitLog.length > 2) S.pursuitLog.shift();
+  save();
+  return { ...out, ok: S.cal.ready, n: samples.length, lag };
+}
+function pursue() {
+  const root = el(`<section class="screen full">
+    <button class="close" data-gaze="ignore" data-go="home" aria-label="إغلاق">✕</button>
+    <div class="pbar"></div>
+    <div class="hud hint">المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small></div>
+    <div class="dot" data-gaze="dot"><i></i></div>
+  </section>`);
+  const dot = $(".dot", root);
+  const bar = $(".pbar", root);
+  const path = pursuitPath(S.W, S.H, { durationMs: PURSUIT_MS });
+  const frames = [];
+  let tStart = 0;
+  let raf = 0;
+  let gone = false;
+  const place = (pt) => {
+    dot.style.left = `${pt[0]}px`;
+    dot.style.top = `${pt[1]}px`;
+  };
+  place(path(0));
+  function finish() {
+    S.onFrame = null;
+    dot.remove();
+    bar.remove();
+    if (S.simUser) S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+    const busy = el('<div class="sheet"><div class="loading"><div class="spinner"></div><span>جارٍ التعلّم من التسجيل…</span></div></div>');
+    root.appendChild(busy);
+    setTimeout(() => {
+      if (gone) return;
+      let out;
+      try {
+        out = learnPursuit(frames, path, tStart);
+      } catch (e) {
+        out = { ok: false, usable: 0, total: frames.length, error: String(e && e.message || e) };
+      }
+      busy.remove();
+      root.appendChild(el(out.ok ? `<div class="sheet">
+            <h2>تمت معايرة التتبّع</h2>
+            <div class="big">${out.n} <small>عينة جديدة من ${out.total} إطارًا</small></div>
+            <div class="row"><span>تأخر العين عن النقطة</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? "" : " (افتراضي)"}</b></div>
+            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك يتنافس نموذج صورة العين مع نماذج نقاط الوجه على النقاط نفسها.</p>
+            <button class="btn primary" data-go="test">قياس الدقة</button>
+            <button class="btn center" data-go="home">الرئيسية</button>
+          </div>` : `<div class="sheet">
+            <h2>لم يكتمل التسجيل</h2>
+            <p class="note">رأيت عينيك بوضوح في ${out.usable} من ${out.total} إطارًا فقط. أعد المحاولة في إضاءة أفضل والهاتف ثابت.</p>
+            ${out.error ? `<p class="detail">${esc(out.error)}</p>` : ""}
+            <button class="btn primary" data-go="pursue">إعادة المحاولة</button>
+            <button class="btn center" data-go="home">الرئيسية</button>
+          </div>`));
+    }, 60);
+  }
+  function step() {
+    if (gone) return;
+    const u = performance.now() - tStart;
+    if (u >= PURSUIT_MS) return finish();
+    place(path(Math.max(0, u)));
+    bar.style.width = `${100 * Math.max(0, u) / PURSUIT_MS}%`;
+    raf = requestAnimationFrame(step);
+  }
+  dot.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    if (tStart) return;
+    tStart = performance.now() + 700;
+    $(".hint", root).hidden = true;
+    dot.classList.add("moving");
+    if (S.simUser) S.simUser.follow((t) => path(t - tStart), 120);
+    S.onFrame = (f, t) => {
+      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null });
+    };
+    raf = requestAnimationFrame(step);
+  });
+  S.cleanup = () => {
+    gone = true;
+    cancelAnimationFrame(raf);
+    S.onFrame = null;
+    if (S.simUser && tStart) S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+  };
   return root;
 }
 function testPoints(n) {
@@ -2090,9 +3010,11 @@ function test() {
       root.appendChild(el(`<div class="sheet">
         <h2>نتيجة القياس</h2>
         <div class="big">${cm(med)} <small>سم خطأ وسيط على ${scored.length} نقطة</small></div>
-        <div class="row"><span>${S.cal.learning ? "بالمعايرة الأولية وحدها" : "التعلّم متوقف"}</span><b>${frozen.length ? cm(median(frozen)) + " سم" : "—"}</b></div>
+        <div class="row"><span>${S.cal.learning ? "بالمعايرة وحدها" : "التعلّم متوقف"}</span><b>${frozen.length ? cm(median(frozen)) + " سم" : "—"}</b></div>
         <div class="row"><span>أفقي / عمودي</span><b>${cm(dx)} / ${cm(dy)} سم</b></div>
         <div class="row"><span>أسوأ ربع من النقاط فوق</span><b>${cm(percentile(scored.map((r) => r.err), 0.75))} سم</b></div>
+        <div class="row"><span>النماذج (سم)</span><b dir="ltr">${boardLine(modelBoard(scored))}</b></div>
+        <div class="row"><span>يقود الآن</span><b>${leadLabel()}</b></div>
         <button class="btn primary" data-go="test">إعادة القياس</button>
         <div class="btn-row"><button class="btn center" data-go="stats">النتائج الكاملة</button><button class="btn center" data-go="home">الرئيسية</button></div>
       </div>`));
@@ -2298,6 +3220,9 @@ function summary() {
     p75Px: percentile(last.map((r) => r.err), 0.75),
     looPx: S.looPx,
     bySrc,
+    pursuit: S.cal.samples.filter((x) => x.src === "pursuit").length,
+    models: modelBoard(last).map((b) => ({ name: b.name, n: b.n, medPx: b.med, lead: b.lead, ready: b.ready })),
+    lead: S.cal.activeModel() ? S.cal.activeModel().name : null,
     rejects: { ...S.rejects },
     fps: Math.round(S.fps)
   };
@@ -2315,14 +3240,16 @@ function pickSummary() {
 function summaryText() {
   const s = summary();
   const picks = Object.entries(pickSummary()).map(([k, g]) => `${k}: ${g.ok}/${g.n}`).join(" · ");
-  const srcNames = { bootstrap: "معايرة أولية", "test-dot": "نقاط القياس", "touch-target": "لمس أهداف", "touch-free": "لمس حر" };
+  const srcNames = { bootstrap: "9 نقاط", "test-dot": "نقاط القياس", "touch-target": "لمس أهداف", "touch-free": "لمس حر" };
   return [
     `GazeCal web ${VERSION}${S.sim ? " (محاكاة)" : ""}`,
     `الشاشة ${S.W}×${S.H} · DPR ${window.devicePixelRatio || 1} · ${s.fps} إطار/ث · ${S.delegate}`,
-    `عينات المعايرة: ${s.samples} (${Object.entries(s.bySrc).map(([k, v]) => `${srcNames[k] || k} ${v}`).join("، ") || "—"})`,
+    `الكاميرا ${S.video ? `${S.video.w}×${S.video.h}` : "—"}`,
+    `عينات المعايرة: ${s.samples} (${[...s.pursuit ? [`تتبّع ${s.pursuit}`] : [], ...Object.entries(s.bySrc).map(([k, v]) => `${srcNames[k] || k} ${v}`)].join("، ") || "—"})`,
     `مرفوضة: رمش ${s.rejects.blink || 0}، بلا وجه ${s.rejects["no-face"] || 0}`,
     `تقدير بعد 9 نقاط: ${cm(s.looPx)} سم`,
-    `الخطأ الوسيط (آخر ${Math.min(20, s.scored)}): ${cm(s.medErrPx)} سم · بالمعايرة الأولية وحدها: ${cm(s.medFrozenPx)} سم`,
+    `الخطأ الوسيط (آخر ${Math.min(20, s.scored)}): ${cm(s.medErrPx)} سم · بالمعايرة وحدها: ${cm(s.medFrozenPx)} سم`,
+    `النماذج على العينات نفسها (سم): ${s.models.filter((m) => m.n).map((m) => `${m.name} ${cm(m.medPx)}`).join(" · ") || "—"} · يقود ${s.lead || "—"}`,
     `أفقي / عمودي: ${cm(s.medDxPx)} / ${cm(s.medDyPx)} سم · الربع الأسوأ فوق ${cm(s.p75Px)} سم`,
     `نظر + لمس: ${picks || "—"}`,
     `(${S.pxPerCm} px لكل سم، تقدير)`
@@ -2347,7 +3274,7 @@ function curveSvg() {
       <polyline points="${pts(f)}" fill="none" stroke="#8b97a8" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>
       <polyline points="${pts(a)}" fill="none" stroke="#60a5fa" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
     </svg>
-    <div class="legend"><span><i style="background:#60a5fa"></i>مع التعلّم</span><span><i style="background:#8b97a8"></i>المعايرة الأولية وحدها</span><span>أعلى الرسم = ${top} سم</span></div>`;
+    <div class="legend"><span><i style="background:#60a5fa"></i>مع التعلّم</span><span><i style="background:#8b97a8"></i>المعايرة وحدها</span><span>أعلى الرسم = ${top} سم</span></div>`;
 }
 function heatHtml() {
   const color = (c) => c <= 1 ? "#4ade80" : c <= 2 ? "#fbbf24" : c <= 3 ? "#fb923c" : "#f87171";
@@ -2368,11 +3295,18 @@ function stats() {
     <div class="card">
       <h2>الخطأ الحالي</h2>
       ${has ? `<div class="big">${cm(s.medErrPx)} <small>سم، وسيط آخر ${Math.min(20, s.scored)} عينة</small></div>
-      <div class="row"><span>بالمعايرة الأولية وحدها</span><b>${cm(s.medFrozenPx)} سم</b></div>
+      <div class="row"><span>بالمعايرة وحدها</span><b>${cm(s.medFrozenPx)} سم</b></div>
       <div class="row"><span>أفقي / عمودي</span><b>${cm(s.medDxPx)} / ${cm(s.medDyPx)} سم</b></div>
-      <div class="row"><span>أصغر هدف مريح</span><b>≈ ${cm(2 * s.p75Px)} سم</b></div>` : `<p class="note">لا قياسات بعد. أكمل المعايرة الأولية ثم «قياس الدقة» أو «استخدام حر».</p>`}
+      <div class="row"><span>أصغر هدف مريح</span><b>≈ ${cm(2 * s.p75Px)} سم</b></div>` : `<p class="note">لا قياسات بعد. أكمل المعايرة ثم «قياس الدقة» أو «استخدام حر».</p>`}
       <div class="row"><span>عينات المعايرة</span><b>${s.samples}</b></div>
       <div class="row"><span>مرفوضة (رمش / بلا وجه)</span><b>${s.rejects.blink || 0} / ${s.rejects["no-face"] || 0}</b></div>
+    </div>
+    <div class="card"><h2>بطولة النماذج</h2>
+      ${s.models.map((m) => {
+    const spec = S.cal.model(m.name);
+    return `<div class="row"><span>${m.name} · ${spec.label}${m.lead ? ' <i class="tag">يقود</i>' : ""}</span><b>${m.n ? cm(m.medPx) + " سم" : m.ready ? "—" : "ينتظر عينات"}</b></div>`;
+  }).join("")}
+      <p class="note">كل عينة تُختبر على النماذج الأربعة قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
     </div>
     <div class="card"><h2>الخطأ مع توالي اللمسات (سم)</h2>${curveSvg()}</div>
     <div class="card"><h2>الخطأ حسب المنطقة (سم)</h2>${has ? heatHtml() : '<p class="note">تظهر الخريطة بعد أول قياس.</p>'}</div>
@@ -2399,12 +3333,20 @@ function stats() {
       pxPerCm: S.pxPerCm,
       sim: S.sim,
       delegate: S.delegate,
+      format: 2,
+      video: S.video,
       features: FEATURE_NAMES,
+      // rec.pix / frame.q: PIX_W×PIX_H values per eye (right then left), row by row, int8 = value×32 after
+      // removing the cut-out's mean and dividing by its spread. rec.eye / frame.e: the larger grey
+      // cut-outs, hiW×hiH bytes per eye. Each cut-out spans `span` eye lengths, levelled to the corner line.
+      eyeImages: { w: PIX_W, h: PIX_H, hiW: HI_W, hiH: HI_H, span: CROP_SPAN, encoding: "base64" },
+      models: S.cal.leaderboard(),
       settings: S.settings,
       summary: summary(),
       picks: S.picks,
       log: S.log,
-      calibration: S.cal.toJSON()
+      pursuit: S.pursuitLog,
+      calibration: S.cal.toJSON({ nBase: N_BASE })
     };
     try {
       const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
@@ -2433,13 +3375,15 @@ function stats() {
     S.rejects = {};
     S.looPx = NaN;
     S.gaze = null;
+    S.pursuitLog = [];
+    S.smooth.reset();
     save();
     toast("مُسحت المعايرة");
     go("home");
   });
   return root;
 }
-var SCREENS = { home, boot, test, free, pick, stats };
+var SCREENS = { home, boot, pursue, test, free, pick, stats };
 var resizeTimer = 0;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
