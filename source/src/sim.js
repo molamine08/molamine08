@@ -17,10 +17,16 @@ export function mulberry32(seed) {
   };
 }
 
+// A hand does not keep time with the dot on the screen: none of these periods matches the dot's.
+const WOBBLE = { d: 8.3, x: 6.1, y: 7.3, yaw: 5.3, pitch: 6.7 };
+
 export class SimUser {
   // pixels: 'good' (eye images carry the gaze), 'noise' (they carry nothing), 'none' (no eye images at all)
   // pixelJitter: how badly the eye cut-outs are aligned, relative to the default assumption
-  constructor({ W, H, pxPerCm = 60, seed = 7, noise = 1, pixels = 'good', pixelJitter = 1 } = {}) {
+  // poseGain, depthGain: how the camera misreads the head (a turn read too small, a distance too large)
+  constructor({ W, H, pxPerCm = 60, seed = 7, noise = 1, pixels = 'good', pixelJitter = 1, poseGain = 1, depthGain = 1 } = {}) {
+    this.poseGain = poseGain;
+    this.depthGain = depthGain;
     this.pixels = pixels;
     this.pixelJitter = pixelJitter;
     this.W = W;
@@ -85,8 +91,10 @@ export class SimUser {
     this.light[1] += 0.2 * g();
   }
 
-  startWobble(tMs) {
-    this.wobble = { t0: tMs };
+  // speed: how briskly the phone is moved (1 = the slow drift asked for in the moving calibration)
+  // periods: seconds per swing of the distance, the sideways and up-down position, and the two tilts
+  startWobble(tMs, speed = 1, periods = WOBBLE) {
+    this.wobble = { t0: tMs, speed, periods };
   }
 
   stopWobble() {
@@ -121,10 +129,14 @@ export class SimUser {
     this.lm.v = rhoLm * this.lm.v + kickLm * n(0.035);
     this.slow.t = tMs;
     let hd = this.head;
+    let turn = 0; // how fast the phone turns, degrees per second: what its gyroscope would report
     if (this.wobble) {
-      const u = (tMs - this.wobble.t0) / 1000;
+      const u = ((tMs - this.wobble.t0) / 1000) * this.wobble.speed;
       const sw = (period, phase) => Math.sin((2 * Math.PI * u) / period + phase);
-      hd = { ...hd, d: hd.d + 3.5 * sw(9, 0), x: hd.x + sw(7, 1), y: hd.y + sw(11, 2), yaw: hd.yaw + 0.05 * sw(8, 3), pitch: hd.pitch + 0.05 * sw(10, 4) };
+      const rate = (period, phase) => ((2 * Math.PI * this.wobble.speed) / period) * Math.cos((2 * Math.PI * u) / period + phase);
+      const pr = this.wobble.periods;
+      hd = { ...hd, d: hd.d + 3.5 * sw(pr.d, 0), x: hd.x + sw(pr.x, 1), y: hd.y + sw(pr.y, 2), yaw: hd.yaw + 0.05 * sw(pr.yaw, 3), pitch: hd.pitch + 0.05 * sw(pr.pitch, 4) };
+      turn = (Math.hypot(0.05 * rate(pr.yaw, 3), 0.05 * rate(pr.pitch, 4)) * 180) / Math.PI;
     }
     const us = this.user;
 
@@ -168,7 +180,9 @@ export class SimUser {
     // the head in space as the camera reports it: position in cm, and the slopes of the face direction
     const phi = new Float64Array(this.pixels === 'none' ? N_BASE : N_FULL);
     phi.set(base);
-    phi.set([-hd.x + n(0.1), -hd.y + n(0.1), hd.d + n(0.3), -Math.tan(headYaw) + n(0.01), -Math.tan(headPitch) + n(0.012)], 22);
+    const dg = this.depthGain;
+    const pg = this.poseGain;
+    phi.set([-hd.x * dg + n(0.1), -hd.y * dg + n(0.1), hd.d * dg + n(0.3), -Math.tan(headYaw) * pg + n(0.01), -Math.tan(headPitch) * pg + n(0.012)], 22);
     if (this.pixels !== 'none') {
       for (let e = 0; e < 2; e++) {
         const pj = this.pixelJitter;
@@ -180,7 +194,7 @@ export class SimUser {
         this.eyeImage(phi, OFF_LOG + e * PIX_W * PIX_H, x0, y0, lid, n, null);
       }
     }
-    return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null };
+    return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null, turn };
   }
 
   // A tiny picture of one eye: bright sclera, dark iris at (x0, y0), darker above the upper lid.

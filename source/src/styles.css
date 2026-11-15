@@ -165,6 +165,36 @@ body {
   text-align: end;
 }
 
+.row b span { color: inherit; }
+
+/* a small table: one label column, two number columns */
+.geo {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px 24px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.geo span { color: var(--muted); }
+
+.geo span:nth-child(2),
+.geo span:nth-child(3) {
+  font-size: 14px;
+  text-align: end;
+}
+
+.geo b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.geo b.unset {
+  color: var(--muted);
+  font-weight: 400;
+}
+
 .note {
   margin: 0;
   color: var(--muted);
@@ -358,10 +388,13 @@ body {
   margin: 0;
 }
 
-.overlay .warn {
+.overlay .warn,
+.sheet .warn {
   color: var(--warn);
   margin: 0;
 }
+
+.sheet .warn { font-size: 14px; }
 
 .btn.quiet {
   background: none;
@@ -431,9 +464,15 @@ body {
   pointer-events: none;
 }
 
+/* The ring and the centre dot are pinned to the estimate with explicit left/top. Left to itself, an
+   absolutely positioned box starts where text would start, which in this right-to-left page put
+   the ring one radius to the left of the point it marks. */
 #cursor::after {
   content: "";
   position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box; /* the border is part of --d, so the ring stays centred */
   width: var(--d);
   height: var(--d);
   margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2);
@@ -445,6 +484,8 @@ body {
 #cursor::before {
   content: "";
   position: absolute;
+  left: 0;
+  top: 0;
   width: 8px;
   height: 8px;
   margin: -4px 0 0 -4px;

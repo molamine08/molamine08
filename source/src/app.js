@@ -1,14 +1,14 @@
 import {
-  Calibrator, GazeModel, ErrorMap, FrameRing, FixationSmoother, TargetSelector, summarizeWindow, windowWeight,
-  pursuitPath, pursuitSamples, estimateLag, packInt8, median, percentile, clamp,
+  Calibrator, GazeModel, ErrorMap, FrameRing, FixationSmoother, HeadFilter, TargetSelector, summarizeWindow, windowWeight,
+  pursuitPath, pursuitSamples, estimateLag, measureHeadShares, packInt8, median, percentile, clamp,
 } from './engine.js';
 import {
-  FEATURE_NAMES, MODEL_SPECS, DEFAULT_MODEL, POSE_IDX, POSE_SIGMA, EYE_REF, N_BASE, N_FULL, N_PIX, OFF_PIX, OFF_LOG, PIX_W, PIX_H,
-  extractFeatures, setGeometry,
+  FEATURE_NAMES, MODEL_SPECS, DEFAULT_MODEL, MOVE_SAFE, DEFAULT_SHARES, POSE_IDX, POSE_SIGMA, EYE_REF, N_BASE, N_FULL, N_PIX, OFF_PIX, OFF_LOG, PIX_W, PIX_H,
+  extractFeatures, setGeometry, getGeometry, headParts,
 } from './features.js';
 import { SimUser, mulberry32 } from './sim.js';
 
-const VERSION = '0.3.1';
+const VERSION = '0.4';
 // Frames and touches are timed with performance.now(); stored samples carry wall-clock time.
 // Converted at the moment of use: the page clock stops while the browser is in the background.
 const wall = (tPerf) => Date.now() - (performance.now() - tPerf);
@@ -36,6 +36,7 @@ const makeCal = () => new Calibrator({
   poseIdx: POSE_IDX,
   poseSigma: POSE_SIGMA,
   defaultModel: DEFAULT_MODEL,
+  prefer: MOVE_SAFE, // the model that survives a moving phone leads unless another is clearly better
   cvEvery: 24,
   deferCv: true, // learning waits for the idle timer instead of delaying a touch
   deferFit: true,
@@ -67,6 +68,8 @@ const S = {
   ring: new FrameRing(),
   errMap: new ErrorMap(3, 4),
   smooth: new FixationSmoother(),
+  headFilter: new HeadFilter(),
+  geo: null, // what the last moving calibration measured about the head's share
   gaze: null,
   video: null,
   pursuitLog: [],
@@ -138,7 +141,7 @@ function save() {
   if (S.sim) return;
   try {
     localStorage.setItem('gazecal:settings', JSON.stringify(S.settings));
-    localStorage.setItem(profileKey(), JSON.stringify({ cal: S.cal.toJSON({ nBase: N_BASE }), loo: S.looPx }));
+    localStorage.setItem(profileKey(), JSON.stringify({ cal: S.cal.toJSON({ nBase: N_BASE }), loo: S.looPx, shares: getGeometry().shares, geo: S.geo }));
   } catch (e) { /* storage can be unavailable; the app works without it */ }
 }
 
@@ -155,7 +158,18 @@ function load() {
     if (s) Object.assign(S.settings, s);
     S.settings.motion = motion;
     const p = JSON.parse(localStorage.getItem(profileKey()) || 'null');
-    if (p && p.cal && S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
+    // the head shares belong to the profile and have to be in place before its models are rebuilt
+    setGeometry({ shares: DEFAULT_SHARES });
+    S.geo = null;
+    if (p && p.cal) {
+      setGeometry({ shares: p.shares });
+      if (S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) {
+        S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
+        S.geo = p.geo || null;
+      } else {
+        setGeometry({ shares: DEFAULT_SHARES });
+      }
+    }
   } catch (e) { /* ignore a corrupt or missing profile */ }
   S.cal.learning = S.settings.learn;
 }
@@ -171,14 +185,24 @@ function onFrame(f, t) {
     S.fps = S.fps ? S.fps + 0.1 * (inst - S.fps) : inst;
   }
   S.lastFrameT = t;
-  f.device = t - S.motionT < 400 ? { rot: S.rot.map((v) => Math.round(v * 1e4) / 1e4), grav: S.grav ? S.grav.map((v) => Math.round(v * 100) / 100) : null } : null;
-  S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: t - S.motionT < 400 ? S.motion : 0, hi: f.hi || null });
+  const gyro = t - S.motionT < 400;
+  f.device = gyro ? { rot: S.rot.map((v) => Math.round(v * 1e4) / 1e4), grav: S.grav ? S.grav.map((v) => Math.round(v * 100) / 100) : null } : null;
+  if (S.face) {
+    // The head numbers are steadied while the gyroscope says the phone rests; the camera's own
+    // reading is kept beside them for the log.
+    const turn = S.simUser ? (f.turn >= 0 ? f.turn : null) : gyro ? S.motion : null;
+    f.rawHead = Array.from(f.phi.subarray(22, 27));
+    f.phi.set(S.headFilter.push(f.rawHead, t / 1000, turn), 22);
+  } else {
+    S.headFilter.reset();
+  }
+  S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: gyro ? S.motion : 0, hi: f.hi || null, raw: f.rawHead || null });
   if (S.face) S.cal.setPose(f.phi);
 
   if (!S.face) {
     S.gaze = null;
     S.smooth.reset();
-  } else if (S.cal.ready && !(f.blink > 0.5) && !(t - S.motionT < 400 && S.motion > 80)) {
+  } else if (S.cal.ready && !(f.blink > 0.5) && !(gyro && S.motion > 80)) {
     const p = S.cal.predict(f.phi);
     if (p) {
       S.smooth.radius = clamp(sigmaPx(), 70, 160);
@@ -240,6 +264,9 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
   if (sum.phi.length >= OFF_PIX + N_PIX) rec.pix = packInt8(sum.phi.subarray(OFF_PIX, OFF_PIX + N_PIX));
   const eye = meanEyes(frames);
   if (eye) rec.eye = eye;
+  // the head as the camera read it, before steadying (rec.phi holds the steadied numbers)
+  const raws = frames.filter((fr) => fr.face && fr.raw && !(fr.blink > 0.5)).map((fr) => fr.raw);
+  if (raws.length) rec.head = [0, 1, 2, 3, 4].map((j) => r5(median(raws.map((v) => v[j]))));
   if (performance.now() - S.motionT < 400) {
     rec.rot = S.rot.map((v) => Math.round(v * 1e4) / 1e4);
     if (S.grav) rec.grav = S.grav.map((v) => Math.round(v * 100) / 100);
@@ -290,7 +317,7 @@ function simLookAtTouch(x, y, t) {
   for (let k = 0; k <= 11; k++) {
     const ft = t - 380 + k * 33;
     const f = S.simUser.frame(ft);
-    S.ring.push({ t: ft, face: true, phi: f.phi, blink: f.blink, motion: 0, hi: null });
+    S.ring.push({ t: ft, face: true, phi: f.phi, blink: f.blink, motion: 0, hi: null, raw: Array.from(f.phi.subarray(22, 27)) });
   }
 }
 
@@ -717,7 +744,7 @@ function home() {
     </div>
     <div class="scroll">
       <button class="btn ${ready ? '' : 'primary'}" data-go="pursue"><span>${ready ? 'معايرة بالتتبّع' : 'ابدأ: معايرة بالتتبّع'}</span><small>20 ثانية، الهاتف ثابت</small></button>
-      <button class="btn" data-go="pursueMove"><span>معايرة متحركة</span><small>30 ثانية وأنت تحرّك الهاتف</small></button>
+      <button class="btn" data-go="pursueMove"><span>معايرة متحركة</span><small>30 ثانية وأنت تحرّك الهاتف · تقيس أثر الحركة</small></button>
       <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>تضيف 9 عينات</small></button>
       <button class="btn" data-go="test" ${ready ? '' : 'disabled'}><span>قياس الدقة</span><small>20 نقطة</small></button>
       <button class="btn" data-go="free"><span>استخدام حر</span><small>يتعلّم من لمساتك</small></button>
@@ -881,6 +908,21 @@ const spreadOf = (values) => {
   return a.length ? [percentile(a, 0.05), percentile(a, 0.95)] : [NaN, NaN];
 };
 
+// What the moving recordings in memory say about the head's share of the gaze point. Applied only
+// when at least one part of the head really moved and the held-out error went down.
+function measureGeometry() {
+  const G = MODEL_SPECS.find((m) => m.name === 'G');
+  const pool = S.cal.samples.filter((sm) => sm.src === 'pursuit-move' && sm.phi.length >= G.needs);
+  const r = measureHeadShares(pool, { expand: G.expand, nFeat: G.nFeat, stdFloor: G.stdFloor, parts: headParts, prior: DEFAULT_SHARES });
+  if (!r) return null;
+  const applied = r.measured.some(Boolean) && r.after < r.before;
+  if (applied) {
+    setGeometry({ shares: r.shares });
+    S.cal.refit({ cv: true, nowT: Date.now(), only: (m) => !!m.offset });
+  }
+  return { ...r, before: Math.round(r.before * 10) / 10, after: Math.round(r.after * 10) / 10, applied, at: new Date().toISOString() };
+}
+
 function learnPursuit(frames, path, tStart, { move, duration }) {
   const usable = frames.filter((f) => f.face && f.phi && !(f.blink > 0.5) && f.t > 800);
   const out = { ok: false, usable: usable.length, total: frames.length };
@@ -889,6 +931,15 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
   const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: wall(tStart), src: move ? 'pursuit-move' : 'pursuit' });
   if (samples.length < 80) return out;
   S.cal.addBatch(samples, { nowT: Date.now() });
+  let geo = null;
+  if (move) {
+    try {
+      geo = measureGeometry();
+    } catch (e) {
+      geo = null;
+    }
+    if (geo) S.geo = geo;
+  }
   S.cal.freeze();
   S.smooth.reset();
   S.anchor = { t: performance.now(), pose: S.cal.pose ? Float64Array.from(S.cal.pose) : null };
@@ -909,6 +960,7 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
     lagCurve: lag.curve.map((v) => Math.round(v * 10) / 10),
     samples: samples.length,
     spread,
+    geometry: geo, // the head shares measured from the moving recordings in memory (null for a still one)
     // every frame keeps its numbers and the plain eye picture; every second one also the larger picture
     frames: frames.map((f, i) => ({
       t: Math.round(f.t),
@@ -917,13 +969,29 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
       g: f.device ? f.device.rot : null, // the phone's turn (quaternion x, y, z, w) from the gyroscope
       a: f.device ? f.device.grav : null, // gravity in the phone's own axes, m/s²
       b: f.phi ? Array.from(f.phi.subarray(0, N_BASE), r5) : null,
+      r: f.raw ? f.raw.map(r5) : null, // tx, ty, tz, nxz, nyz as the camera read them; `b` holds them steadied
       q: f.phi && f.phi.length >= OFF_PIX + N_PIX ? packInt8(f.phi.subarray(OFF_PIX, OFF_PIX + N_PIX)) : null,
       e: f.hi && i % 2 === 0 ? b64(f.hi) : null,
     })),
   });
   if (S.pursuitLog.length > 3) S.pursuitLog.shift();
   save();
-  return { ...out, ok: S.cal.ready, n: samples.length, lag, spread };
+  return { ...out, ok: S.cal.ready, n: samples.length, lag, spread, geo };
+}
+
+// The head shares in effect, as a small table: position and direction, each across and down the
+// screen. A share no moving calibration has settled yet is the default, shown dimmed with a star.
+function geoRows(geo, { footnote = true } = {}) {
+  const sh = getGeometry().shares;
+  const set = (i) => !!(geo && geo.applied && geo.measured[i]);
+  const cell = (i) => `<b dir="ltr"${set(i) ? '' : ' class="unset"'}>${sh[i].toFixed(2)}${set(i) ? '' : '*'}</b>`;
+  const all = [0, 1, 2, 3].every(set);
+  return `<div class="geo">
+      <span>أثر حركة الرأس</span><span>أفقي</span><span>عمودي</span>
+      <span>موضعه</span>${cell(0)}${cell(1)}
+      <span>اتجاهه</span>${cell(2)}${cell(3)}
+    </div>${footnote && !all ? '<p class="note">* قيمة افتراضية لم تُقَس بعد.</p>' : ''}${sh.some((v) => v < 0)
+    ? '<p class="note">القيمة السالبة تعني أن الكاميرا تعطي ذلك المحور معكوسًا. قيس ذلك وصار محسوبًا.</p>' : ''}`;
 }
 
 function pursue(move = false) {
@@ -932,7 +1000,7 @@ function pursue(move = false) {
     <button class="close" data-gaze="ignore" data-go="home" aria-label="إغلاق">✕</button>
     <div class="pbar"></div>
     <div class="hud hint">${move
-      ? 'المس النقطة ثم تابعها بعينيك<br><small>وحرّك الهاتف ببطء طوال 30 ثانية: قرّبه، أبعده، أمِله قليلًا.</small>'
+      ? 'المس النقطة ثم تابعها بعينيك<br><small>وحرّك الهاتف بلا توقف طوال 30 ثانية: يمينًا ويسارًا، أعلى وأسفل، قرّبه وأبعده، وأمِله.</small>'
       : 'المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small>'}</div>
     <div class="dot" data-gaze="dot"><i></i></div>
   </section>`);
@@ -971,7 +1039,8 @@ function pursue(move = false) {
         out = { ok: false, usable: 0, total: frames.length, error: String((e && e.message) || e) };
       }
       busy.remove();
-      const narrow = move && out.ok && !(out.spread.distCm[1] - out.spread.distCm[0] >= 3 || out.spread.tiltDeg >= 6);
+      const geo = out.ok ? out.geo : null;
+      const all = !!geo && geo.applied && geo.measured.every(Boolean);
       root.appendChild(el(out.ok
         ? `<div class="sheet">
             <h2>${move ? 'تمت المعايرة المتحركة' : 'تمت معايرة التتبّع'}</h2>
@@ -979,9 +1048,11 @@ function pursue(move = false) {
             <div class="row"><span>تأخر العين</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? '' : ' (افتراضي)'}</b></div>
             <div class="row"><span>المسافة</span><b><span dir="ltr">${out.spread.distCm[0]}–${out.spread.distCm[1]}</span> سم</b></div>
             <div class="row"><span>مدى الميل</span><b><span dir="ltr">${out.spread.tiltDeg}°</span></b></div>
-            ${narrow ? '<p class="warn">الحركة كانت قليلة. أعدها بحركة أوسع ليتعلّم النموذج أثر الوضعية.</p>' : ''}
-            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك تتنافس النماذج كلها على النقاط نفسها.</p>
-            <button class="btn primary" data-go="test">قياس الدقة</button>
+            ${move ? geoRows(geo, { footnote: false }) : ''}
+            ${move && !all ? '<p class="warn">القيم ذات النجمة لم تُقَس: الحركة لم تكفِ. أعدها وحرّك الهاتف في كل الاتجاهات، فكل تسجيل يُضاف إلى ما قبله.</p>' : ''}
+            ${move
+              ? '<p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: غيّر مسكة الهاتف قبله لترى أثر الحركة.</p><button class="btn primary" data-go="test">قياس الدقة</button>'
+              : '<p class="note">التالي: «معايرة متحركة» تقيس كيف يتحرك وجهك أمام الكاميرا حين يتحرك الهاتف.</p><button class="btn primary" data-go="pursueMove">معايرة متحركة</button><button class="btn center" data-go="test">قياس الدقة</button>'}
             <button class="btn center" data-go="home">الرئيسية</button>
           </div>`
         : `<div class="sheet">
@@ -1015,7 +1086,7 @@ function pursue(move = false) {
       if (move) S.simUser.startWobble(tStart);
     }
     S.onFrame = (f, t) => {
-      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0, device: f.device });
+      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, raw: f.face ? f.rawHead : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0, device: f.device });
     };
     raf = requestAnimationFrame(step);
   });
@@ -1418,6 +1489,8 @@ function summary() {
     pursuit: S.cal.samples.filter((x) => x.src.startsWith('pursuit')).length,
     models: modelBoard(last).map((b) => ({ name: b.name, n: b.n, medPx: b.med, lead: b.lead, ready: b.ready })),
     lead: S.cal.activeModel() ? S.cal.activeModel().name : null,
+    headShares: getGeometry().shares,
+    headSharesMeasured: S.geo && S.geo.applied ? S.geo.measured : [false, false, false, false],
     rejects: { ...S.rejects },
     fps: Math.round(S.fps),
   };
@@ -1448,6 +1521,7 @@ function summaryText() {
     `الخطأ الوسيط (آخر ${Math.min(20, s.scored)}): ${cm(s.medErrPx)} سم · بالمعايرة وحدها: ${cm(s.medFrozenPx)} سم`,
     `النماذج على العينات نفسها (سم): ${s.models.filter((m) => m.n).map((m) => `${m.name} ${cm(m.medPx)}`).join(' · ') || '—'} · يقود ${s.lead || '—'}`,
     `أفقي / عمودي: ${cm(s.medDxPx)} / ${cm(s.medDyPx)} سم · الربع الأسوأ فوق ${cm(s.p75Px)} سم`,
+    `أثر الرأس (موضع أفقي، عمودي · اتجاه أفقي، عمودي): ${s.headShares.map((v, i) => `${v.toFixed(2)}${s.headSharesMeasured[i] ? '' : '*'}`).join('، ')}${s.headSharesMeasured.every(Boolean) ? '' : ' (* افتراضي لم يُقَس)'}`,
     `نظر + لمس: ${picks || '—'}`,
     `(${S.pxPerCm} px لكل سم، تقدير)`,
   ].join('\n');
@@ -1508,7 +1582,11 @@ function stats() {
         const spec = S.cal.model(m.name);
         return `<div class="row"><span>${m.name} · ${spec.label}${m.lead ? ' <i class="tag">يقود</i>' : ''}</span><b>${m.n ? cm(m.medPx) + ' سم' : m.ready ? '—' : 'ينتظر عينات'}</b></div>`;
       }).join('')}
-      <p class="note">كل عينة تُختبر على النماذج كلها قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
+      <p class="note">كل عينة تُختبر على النماذج كلها قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة. النموذج الهندسي G يقود المؤشر لأنه يتحمّل حركة الهاتف، ولا يتقدّمه غيره إلا إذا كان خطؤه أقل بنحو الثلث.</p>
+    </div>
+    <div class="card"><h2>هندسة الرأس</h2>
+      ${geoRows(S.geo)}
+      <p class="note">كم يُصدَّق قياس الكاميرا لموضع رأسك واتجاهه حين يُحسب أثرهما على نقطة النظر. «معايرة متحركة» تقيسه، وكل تسجيل جديد يُضاف إلى ما قبله.</p>
     </div>
     <div class="card"><h2>الخطأ مع توالي اللمسات (سم)</h2>${curveSvg()}</div>
     <div class="card"><h2>الخطأ حسب المنطقة (سم)</h2>${has ? heatHtml() : '<p class="note">تظهر الخريطة بعد أول قياس.</p>'}</div>
@@ -1539,12 +1617,15 @@ function stats() {
       pxPerCm: S.pxPerCm,
       sim: S.sim,
       delegate: S.delegate,
-      format: 3,
+      format: 4,
       video: S.video,
       features: FEATURE_NAMES,
       // tx, ty, tz, nxz, nyz: the head as the camera's face fit reports it, in cm (x toward image-right, y up,
       // tz = distance) and the slopes of the face direction. Model G computes the head's share from these.
-      geometry: { pxPerCm: S.pxPerCm, touchBoost: TOUCH_BOOST },
+      // shares: how much of the head's position (x, y) and direction (x, y) enters the head's part of
+      // the gaze point; `measured` is the last moving calibration's verdict. rec.head / frame.r hold the
+      // head numbers as the camera read them, rec.phi / frame.b the same after steadying.
+      geometry: { pxPerCm: S.pxPerCm, touchBoost: TOUCH_BOOST, shares: getGeometry().shares, defaultShares: DEFAULT_SHARES, measured: S.geo, headFilter: { minCutoffHz: 1.5, beta: 0.3, hzPerDegPerSec: 0.4, needsGyroscope: true } },
       // rec.pix / frame.q: PIX_W×PIX_H values per eye (right then left), row by row, int8 = value×32 after
       // removing the cut-out's mean and dividing by its spread. rec.eye / frame.e: the larger grey
       // cut-outs, hiW×hiH bytes per eye. Each cut-out spans `span` eye lengths, levelled to the corner line.
@@ -1588,6 +1669,8 @@ function stats() {
     S.gaze = null;
     S.pursuitLog = [];
     S.smooth.reset();
+    setGeometry({ shares: DEFAULT_SHARES });
+    S.geo = null;
     save();
     toast('مُسحت المعايرة');
     go('home');
@@ -1629,5 +1712,5 @@ window.addEventListener('resize', () => {
 });
 
 $('#back').addEventListener('click', () => go('home'));
-window.__gazecal = { S, go, takeSample, summary, summaryText };
+window.__gazecal = { S, go, takeSample, summary, summaryText, getGeometry, setGeometry, save };
 renderStart();

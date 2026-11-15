@@ -126,7 +126,8 @@ export class OneEuro {
     this.t = null;
   }
 
-  filter(x, tSec) {
+  // boost (Hz) opens the filter from outside: something else already knows the value is about to change.
+  filter(x, tSec, boost = 0) {
     if (this.t === null) {
       this.x = x;
       this.dx = 0;
@@ -136,7 +137,7 @@ export class OneEuro {
     const dt = Math.max(1e-3, tSec - this.t);
     const dx = (x - this.x) / dt;
     this.dx += OneEuro.alpha(this.dCutoff, dt) * (dx - this.dx);
-    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx) + boost;
     this.x += OneEuro.alpha(cutoff, dt) * (x - this.x);
     this.t = tSec;
     return this.x;
@@ -485,6 +486,7 @@ export class Calibrator {
     models, poseIdx = [], poseSigma = [], defaultModel = null,
     maxSamples = 900, halfLifeMs = 20 * 60000, recencyFloor = 0.25, poseFloor = 0.2,
     window = 30, minScored = 8, cvEvery = 12, deferCv = false, deferFit = false, poseRefitMs = 400,
+    prefer = [], preferMargin = 0.7,
   }) {
     this.models = models;
     this.poseIdx = poseIdx;
@@ -500,6 +502,12 @@ export class Calibrator {
     this.deferCv = deferCv; // true: the lambda search runs from tick(), never inside addSample()
     this.deferFit = deferFit; // true: addSample() only stores; tick() or flush() does the refit
     this.poseRefitMs = poseRefitMs; // shortest pause between refits caused by head movement alone
+    // Scores come from touches, and touches happen while the phone is held still. A model that falls
+    // apart when the phone moves therefore looks as good as one that does not. The models named
+    // here keep working when it moves; another model leads only if it is clearly better at rest:
+    // its error has to be below preferMargin times theirs.
+    this.prefer = prefer;
+    this.preferMargin = preferMargin;
     this.learning = true;
     this.reset();
   }
@@ -682,17 +690,16 @@ export class Calibrator {
   }
 
   pickActive() {
-    let best = null;
-    for (const m of this.models) {
+    const cost = (m) => {
       const a = this.scores[m.name];
-      if (!m.ready || a.length < this.minScored) continue;
-      const med = median(a.slice(-this.window));
-      if (!best || med < best.med) best = { name: m.name, med };
-    }
-    if (!best || best.name === this.active) return;
-    const cur = this.scores[this.active];
-    const curMed = cur.length >= this.minScored ? median(cur.slice(-this.window)) : Infinity;
-    if (best.med < curMed * 0.93) this.active = best.name; // needs a clear lead to take over
+      if (!m.ready || a.length < this.minScored) return Infinity;
+      return median(a.slice(-this.window)) * (this.prefer.includes(m.name) ? this.preferMargin : 1);
+    };
+    let best = null;
+    for (const m of this.models) if (!best || cost(m) < cost(best)) best = m;
+    if (!best || !Number.isFinite(cost(best)) || best.name === this.active) return;
+    const cur = this.model(this.active);
+    if (cost(best) < (cur ? cost(cur) : Infinity) * 0.93) this.active = best.name; // needs a clear lead to take over
   }
 
   leaderboard() {
@@ -787,6 +794,311 @@ export class Calibrator {
     }
     return true;
   }
+}
+
+// The camera's measurement of the head trembles from frame to frame, and every bit of that tremble
+// lands on the screen once the head's share of the gaze point is computed from it. While the
+// phone moves, though, the head's share and the eyes' share are large and opposite, and a head
+// measurement that arrives late leaves the eyes' share uncovered: smoothing then costs more than
+// the tremble did. So each number is held only while the gyroscope says the phone is at rest, and
+// let go in step with how fast the phone turns. Without a gyroscope reading nothing is smoothed.
+export class HeadFilter {
+  constructor({ scale = [1, 1, 2, 0.02, 0.02], minCutoff = 1.5, beta = 0.3, gyroGain = 0.4 } = {}) {
+    this.scale = scale; // one "ordinary step" of each number, so one setting fits cm and slopes alike
+    this.gyroGain = gyroGain; // Hz of extra bandwidth per degree/second of phone rotation
+    this.f = scale.map(() => new OneEuro(minCutoff, beta));
+  }
+
+  reset() {
+    for (const f of this.f) f.reset();
+  }
+
+  // values: the head numbers of one frame; tSec: its time; turn: phone rotation rate in deg/s,
+  // or null when no gyroscope reading is at hand
+  push(values, tSec, turn = null) {
+    if (turn == null || !(turn >= 0)) {
+      this.reset();
+      return Array.from(values);
+    }
+    const boost = this.gyroGain * turn;
+    const out = new Array(values.length);
+    for (let j = 0; j < values.length; j++) out[j] = this.f[j].filter(values[j] / this.scale[j], tSec, boost) * this.scale[j];
+    return out;
+  }
+}
+
+// How much of the measured head movement should be believed, and which way round? The camera may
+// read a turn of the head too small or too large, its idea of distance rests on an assumed face
+// size, and an axis may come out with the opposite sign to the one assumed here.
+// Measured on a recording in which the gaze target is known while the head pose varies:
+//  - The eyes' share is what a ridge fit of the eye features explains. That fit is linear in its
+//    target, so the held-out error of "target minus share × head part" is
+//        r(target) − share × r(head part),
+//    with r(·) the held-out residual of each column. One pass of blocked cross-validation gives
+//    every column's residual; the shares then solve a 2×2 least-squares problem per screen axis.
+//  - The eyes run behind a moving target by an amount known only roughly. What that leaves in the
+//    target follows the target's velocity, so the velocity sits among the regressors and takes it.
+//  - A head part that hardly moved on its own (less than minMove px on the screen, once what
+//    follows the target is set aside: people turn the head a little toward what they look at)
+//    carries mostly the tremble of its measurement, which would drag its share toward zero. Its
+//    share is left as it was. The others are held to the prior only loosely (v0, in px²), which
+//    is enough to keep them in place when position and direction cancel each other, as they do
+//    when the phone is turned on the spot.
+//  - Several recordings may be passed together (in time order; a pause longer than gapMs starts a
+//    new one). Each keeps its own level: only what varies inside a recording counts, so a change
+//    of light or posture between two recordings is not mistaken for evidence.
+//  - The ridge on the eye features is kept weak here (lambda 3, not the 30 the model itself
+//    uses): whatever the ridge holds back of the eyes' share moves with the head and would be
+//    booked against the head's share.
+//  - Half a minute of movement settles the sign of a share and roughly its size, not its second
+//    decimal. A camera misreads the head by tens of percent, not by multiples, so the size is
+//    kept within `bands`: tighter for the position (the camera's idea of scale is rarely off by
+//    more than a fifth; and of all four shares the up-down position is the one a short recording
+//    pins down worst, because moving the phone up or down usually changes its distance too),
+//    wider for the direction. A share that comes out near zero (below `unsure`), or that changes
+//    a lot when a sixth of the recording is left out (above `maxSe`), is taken as not measured.
+// parts(phi) -> [position x, position y, direction x, direction y], each in px per unit share.
+// Returns { shares, raw, se, moved, measured, before, after, n, recordings }: shares, the estimates
+// they come from and their uncertainty (block jackknife), in the order of parts; moved = rms of
+// each head part's own movement, px; measured = which shares were settled; before / after = mean
+// held-out error (px) with the prior and with the new shares.
+export function measureHeadShares(all, { expand, nFeat, stdFloor, lambda = 3, parts, prior = [0.8, 0.8, 0.8, 0.8], folds = 6, v0 = 100, minMove = 25, bands = [[0.8, 1.2], [0.8, 1.2], [0.6, 1.4], [0.6, 1.4]], unsure = 0.3, maxSe = 0.25, gapMs = 2000, minRun = 60 }) {
+  // split into recordings and drop the short ones
+  const runs = [];
+  for (let i = 0; i < all.length; i++) {
+    const dt = i ? all[i].t - all[i - 1].t : NaN;
+    if (!(dt >= 0 && dt < gapMs)) runs.push([]);
+    runs[runs.length - 1].push(all[i]);
+  }
+  const samples = [];
+  const runOf = [];
+  let nRuns = 0;
+  for (const run of runs) {
+    if (run.length < minRun) continue;
+    for (const sm of run) {
+      samples.push(sm);
+      runOf.push(nRuns);
+    }
+    nRuns++;
+  }
+  const N = samples.length;
+  if (N < 20 * folds) return null;
+  const n0 = samples[0].phi.length;
+  const center = new Float64Array(n0);
+  for (const sm of samples) for (let j = 0; j < n0; j++) center[j] += sm.phi[j] / N;
+  const rows = samples.map((sm) => ({ phi: Float64Array.from(expand(sm.phi, center)) }));
+  const weights = samples.map((sm) => sm.w);
+  const P = samples.map((sm) => parts(sm.phi));
+  const Y = samples.map((sm) => [sm.y[0], sm.y[1]]);
+  // every recording around its own mean: features, head parts and targets alike
+  {
+    const wsum = new Float64Array(nRuns);
+    const mf = Array.from({ length: nRuns }, () => new Float64Array(nFeat));
+    const mp = Array.from({ length: nRuns }, () => new Float64Array(4));
+    const my = Array.from({ length: nRuns }, () => new Float64Array(2));
+    for (let i = 0; i < N; i++) {
+      const r = runOf[i];
+      const w = weights[i];
+      wsum[r] += w;
+      for (let j = 0; j < nFeat; j++) mf[r][j] += w * rows[i].phi[j];
+      for (let c = 0; c < 4; c++) mp[r][c] += w * P[i][c];
+      for (let c = 0; c < 2; c++) my[r][c] += w * Y[i][c];
+    }
+    for (let i = 0; i < N; i++) {
+      const r = runOf[i];
+      if (!(wsum[r] > 0)) continue;
+      for (let j = 0; j < nFeat; j++) rows[i].phi[j] -= mf[r][j] / wsum[r];
+      for (let c = 0; c < 4; c++) P[i][c] -= mp[r][c] / wsum[r];
+      for (let c = 0; c < 2; c++) Y[i][c] -= my[r][c] / wsum[r];
+    }
+  }
+  const st = new RidgeMap(nFeat, { lambda, stdFloor }).stats(rows, weights);
+  if (!st) return null;
+  const { mu, sd, sw } = st;
+  const wScale = N / sw;
+
+  // the target's position and velocity, standardised: [1, x, y, vx, vy]
+  const Q = 5;
+  const tv = samples.map((sm, i) => {
+    const a = samples[Math.max(0, i - 1)];
+    const b = samples[Math.min(N - 1, i + 1)];
+    const dt = b.t - a.t;
+    const ok = dt > 0 && dt < 1000;
+    return [1, Y[i][0], Y[i][1], ok ? (b.y[0] - a.y[0]) / dt : 0, ok ? (b.y[1] - a.y[1]) / dt : 0];
+  });
+  for (let q = 1; q < Q; q++) {
+    let mean = 0;
+    let dev = 0;
+    for (let i = 0; i < N; i++) mean += (weights[i] * tv[i][q]) / sw;
+    for (let i = 0; i < N; i++) dev += (weights[i] * (tv[i][q] - mean) ** 2) / sw;
+    dev = Math.sqrt(dev) || 1;
+    for (let i = 0; i < N; i++) tv[i][q] = (tv[i][q] - mean) / dev;
+  }
+
+  // how much each head part moved on its own: what is left after a fit on the target
+  const moved = [0, 0, 0, 0];
+  {
+    const A0 = new Float64Array(Q * Q);
+    const B0 = new Float64Array(Q * 4);
+    for (let i = 0; i < N; i++) {
+      const z = tv[i];
+      const w = weights[i];
+      for (let r = 0; r < Q; r++) {
+        for (let c = 0; c <= r; c++) A0[r * Q + c] += w * z[r] * z[c];
+        for (let c = 0; c < 4; c++) B0[r * 4 + c] += w * z[r] * P[i][c];
+      }
+    }
+    for (let r = 0; r < Q; r++) A0[r * Q + r] += 1e-9 * sw;
+    if (!solveSPD(A0, B0, Q, 4)) return null;
+    for (let i = 0; i < N; i++) {
+      for (let c = 0; c < 4; c++) {
+        let fit = 0;
+        for (let r = 0; r < Q; r++) fit += B0[r * 4 + c] * tv[i][r];
+        moved[c] += (weights[i] / sw) * (P[i][c] - fit) ** 2;
+      }
+    }
+    for (let c = 0; c < 4; c++) moved[c] = Math.round(Math.sqrt(moved[c]) * 10) / 10;
+  }
+  const free = moved.map((v) => v >= minMove);
+
+  // held-out residual of the target (2 columns) and of the head parts (4), by contiguous blocks;
+  // regressors: the eye features, then the target's velocity
+  const K = 6;
+  const m = nFeat + 3;
+  const foldOf = (i) => Math.min(folds - 1, Math.floor((i * folds) / N));
+  const G = Array.from({ length: folds }, () => new Float64Array(m * m));
+  const B = Array.from({ length: folds }, () => new Float64Array(m * K));
+  const Z = new Float64Array(N * m);
+  const T = new Float64Array(N * K);
+  for (let i = 0; i < N; i++) {
+    const z = Z.subarray(i * m, (i + 1) * m);
+    const p = rows[i].phi;
+    z[0] = 1;
+    for (let j = 0; j < nFeat; j++) z[j + 1] = (p[j] - mu[j]) / sd[j];
+    z[nFeat + 1] = tv[i][3];
+    z[nFeat + 2] = tv[i][4];
+    T[i * K] = Y[i][0];
+    T[i * K + 1] = Y[i][1];
+    for (let c = 0; c < 4; c++) T[i * K + 2 + c] = P[i][c];
+    const w = weights[i] * wScale;
+    if (!(w > 0)) continue;
+    const g = G[foldOf(i)];
+    const b = B[foldOf(i)];
+    for (let r = 0; r < m; r++) {
+      const wz = w * z[r];
+      const row = r * m;
+      for (let c = 0; c <= r; c++) g[row + c] += wz * z[c];
+      for (let c = 0; c < K; c++) b[r * K + c] += wz * T[i * K + c];
+    }
+  }
+  const GT = new Float64Array(m * m);
+  const BT = new Float64Array(m * K);
+  for (let k = 0; k < folds; k++) {
+    for (let q = 0; q < m * m; q++) GT[q] += G[k][q];
+    for (let q = 0; q < m * K; q++) BT[q] += B[k][q];
+  }
+  const R = new Float64Array(N * K);
+  const A = new Float64Array(m * m);
+  const X = new Float64Array(m * K);
+  for (let k = 0; k < folds; k++) {
+    for (let q = 0; q < m * m; q++) A[q] = GT[q] - G[k][q];
+    for (let q = 0; q < m * K; q++) X[q] = BT[q] - B[k][q];
+    A[0] += 1e-9;
+    for (let j = 1; j <= nFeat; j++) A[j * m + j] += lambda;
+    for (let j = nFeat + 1; j < m; j++) A[j * m + j] += 1e-6;
+    if (!solveSPD(A, X, m, K)) return null;
+    for (let i = 0; i < N; i++) {
+      if (foldOf(i) !== k) continue;
+      const o = i * m;
+      for (let c = 0; c < K; c++) {
+        let fit = 0;
+        for (let r = 0; r < m; r++) fit += X[r * K + c] * Z[o + r];
+        R[i * K + c] = T[i * K + c] - fit;
+      }
+    }
+  }
+
+  // per screen axis: r(target) ≈ sPos × r(position part) + sDir × r(direction part)
+  const solveAxis = (a, skipFold, h) => {
+    let spp = 0;
+    let sdd = 0;
+    let spd = 0;
+    let spy = 0;
+    let sdy = 0;
+    let n = 0;
+    for (let i = 0; i < N; i++) {
+      if (foldOf(i) === skipFold) continue;
+      const w = weights[i] * wScale * (h ? h[i] : 1);
+      const ry = R[i * K + a];
+      const rp = R[i * K + 2 + a];
+      const rd = R[i * K + 4 + a];
+      spp += w * rp * rp;
+      sdd += w * rd * rd;
+      spd += w * rp * rd;
+      spy += w * rp * ry;
+      sdy += w * rd * ry;
+      n += w;
+    }
+    // a part that did not move enough is pinned to its prior
+    const pen1 = n * (free[a] ? v0 : 1e12);
+    const pen2 = n * (free[2 + a] ? v0 : 1e12);
+    const a11 = spp + pen1;
+    const a22 = sdd + pen2;
+    const b1 = spy + pen1 * prior[a];
+    const b2 = sdy + pen2 * prior[2 + a];
+    const det = a11 * a22 - spd * spd;
+    return [(b1 * a22 - b2 * spd) / det, (b2 * a11 - b1 * spd) / det];
+  };
+  const shares = prior.slice();
+  const se = [0, 0, 0, 0];
+  const raw = [null, null, null, null]; // the estimate before the band is applied
+  const clip = (v, c) => Math.round(Math.sign(v) * clamp(Math.abs(v), bands[c][0], bands[c][1]) * 100) / 100;
+  for (let a = 0; a < 2; a++) {
+    // A share that comes out too uncertain or too close to zero is pinned to its prior, and the
+    // other share of the same axis is then solved again on its own.
+    for (let pass = 0; pass < 3 && (free[a] || free[2 + a]); pass++) {
+      // two rounds of Huber weights: a blink or a glance away must not decide a share
+      let h = null;
+      let sol = solveAxis(a, -1, h);
+      for (let it = 0; it < 2; it++) {
+        const res = new Array(N);
+        for (let i = 0; i < N; i++) res[i] = Math.abs(R[i * K + a] - sol[0] * R[i * K + 2 + a] - sol[1] * R[i * K + 4 + a]);
+        const s = Math.max(1.4826 * median(res), 5);
+        h = res.map((e) => (e <= 1.5 * s ? 1 : (1.5 * s) / e));
+        sol = solveAxis(a, -1, h);
+      }
+      const jack = [];
+      for (let k = 0; k < folds; k++) jack.push(solveAxis(a, k, h));
+      let dropped = false;
+      for (let j = 0; j < 2; j++) {
+        const c = a + 2 * j;
+        if (!free[c]) continue;
+        const mean = jack.reduce((acc, v) => acc + v[j], 0) / folds;
+        const seJ = Math.sqrt((jack.reduce((acc, v) => acc + (v[j] - mean) ** 2, 0) * (folds - 1)) / folds);
+        raw[c] = Math.round(sol[j] * 100) / 100;
+        se[c] = Math.round(seJ * 100) / 100;
+        if (Math.abs(sol[j]) < unsure || !(seJ <= maxSe)) {
+          free[c] = false;
+          dropped = true;
+        }
+      }
+      if (dropped) continue;
+      for (let j = 0; j < 2; j++) if (free[a + 2 * j]) shares[a + 2 * j] = clip(sol[j], a + 2 * j);
+      break;
+    }
+  }
+  const errWith = (sh) => {
+    let e = 0;
+    let n = 0;
+    for (let i = 0; i < N; i++) {
+      const ex = R[i * K] - sh[0] * R[i * K + 2] - sh[2] * R[i * K + 4];
+      const ey = R[i * K + 1] - sh[1] * R[i * K + 3] - sh[3] * R[i * K + 5];
+      e += weights[i] * Math.min(400, Math.hypot(ex, ey));
+      n += weights[i];
+    }
+    return e / n;
+  };
+  return { shares, raw, se, moved, measured: free, before: errWith(prior), after: errWith(shares), n: N, recordings: nRuns };
 }
 
 // Steady while the eyes rest, quick when they jump.

@@ -39,17 +39,31 @@ export const POSE_SIGMA = [0.1, 0.1, 0.08, 0.06, 0.06, 0.03];
 export const EYE_REF = [0.006, 0.008, 0.006, 0.008];
 
 // ---- geometry: where the head itself points on the screen ----
-const geometry = { pxPerCm: 60 };
-export function setGeometry(g) {
-  Object.assign(geometry, g);
+// shares: how much of the measured head position and head direction is believed, per screen axis:
+// [position x, position y, direction x, direction y]. 0.8 each until a moving calibration has
+// measured them on this user and this phone (measureHeadShares). A negative share means the
+// camera reports that axis the other way round from what is assumed below.
+export const DEFAULT_SHARES = [0.8, 0.8, 0.8, 0.8];
+const geometry = { pxPerCm: 60, shares: DEFAULT_SHARES.slice() };
+export function setGeometry({ pxPerCm, shares } = {}) {
+  if (pxPerCm > 0) geometry.pxPerCm = pxPerCm;
+  if (Array.isArray(shares) && shares.length === 4 && shares.every(Number.isFinite)) geometry.shares = shares.slice();
+}
+export const getGeometry = () => ({ pxPerCm: geometry.pxPerCm, shares: geometry.shares.slice() });
+
+// The four parts of the head's contribution, unweighted, in px: where the head is (x, y) and where
+// it points (x, y). A ray leaves the head at (tx, ty) along the face direction and travels tz to
+// the screen plane. Screen x runs against image x (the camera faces the user), screen y against "up".
+export function headParts(p) {
+  const k = -geometry.pxPerCm;
+  return [k * p[22], k * p[23], k * p[24] * p[25], k * p[24] * p[26]];
 }
 
 // The point of the screen plane that the face points at, in px, up to a constant offset.
-// A ray leaves the head at (tx, ty) along the face direction and travels tz to the screen.
-// Screen x runs against image x (the camera faces the user), screen y against "up".
 export function headRay(p) {
   const k = -geometry.pxPerCm;
-  return [k * (p[22] + p[24] * p[25]), k * (p[23] + p[24] * p[26])];
+  const s = geometry.shares;
+  return [k * (s[0] * p[22] + s[2] * p[24] * p[25]), k * (s[1] * p[23] + s[3] * p[24] * p[26])];
 }
 
 // ---- model A: the ten averaged features of version 0.1, kept as the reference ----
@@ -73,6 +87,8 @@ function withPicture(p, off) {
 // What is learned is how the eye turns inside the head. On the screen that turn covers a distance
 // proportional to how far away the head is, so every eye feature is multiplied by the distance.
 // The head's own share (headRay) is taken out of the target before fitting and added back after.
+// It reads no head-pose numbers at all: a coefficient learned for them in two or three postures
+// is what throws the other models off in a fourth.
 const Z_REF = 30;
 const N_EYE = 16;
 
@@ -89,7 +105,9 @@ const WIDE = { lambda: 30, lambdas: [3, 10, 30, 100, 300, 1000], autoLambda: tru
 
 // Ordered from simplest to richest. DEFAULT_MODEL leads until the running scores say otherwise:
 // every richer model has to earn the lead on this user's own data.
-export const DEFAULT_MODEL = 'B';
+export const DEFAULT_MODEL = 'G';
+// Models that keep working when the phone moves in the hand. The tournament favours them.
+export const MOVE_SAFE = ['G'];
 
 export const MODEL_SPECS = [
   { name: 'A', label: 'أساسي (0.1)', expand: expandA, nFeat: 10, stdFloor: FLOOR_A, lambda: 1, minFit: 5 },
@@ -98,7 +116,7 @@ export const MODEL_SPECS = [
   { name: 'E', label: 'عين مقاومة للإضاءة', expand: (p) => withPicture(p, OFF_LOG), nFeat: N_LM + N_PIX, needs: N_FULL, stdFloor: [...STD_FLOOR, ...PIX_FLOOR], poseLocal: true, ...WIDE },
   {
     name: 'G', label: 'هندسي', expand: expandG, nFeat: N_EYE + N_PIX + 1, needs: N_FULL,
-    stdFloor: [...STD_FLOOR.slice(0, N_EYE), ...PIX_FLOOR, 0.03], offset: headRay, centered: true, poseLocal: false, ...WIDE,
+    stdFloor: [...STD_FLOOR.slice(0, N_EYE), ...PIX_FLOOR, 0.03], offset: headRay, centered: true, poseLocal: true, ...WIDE,
   },
 ];
 

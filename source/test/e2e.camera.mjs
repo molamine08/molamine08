@@ -181,6 +181,9 @@ await sleep(300);
   const withEye = d.pursuit[0].frames.filter((f) => f.e).length;
   console.log(`export: ${(statSync(file).size / 1024).toFixed(0)} KB · video ${JSON.stringify(d.video)} · log ${d.log.length} (eye ${d.log[0].eye ? d.log[0].eye.length : 0} chars) · pursuit ${d.pursuit[0].frames.length} frames, ${withEye} with eye pictures · lag ${d.pursuit[0].lagMs} (${d.pursuit[0].lagSure ? 'found' : 'default'})`);
   if (!d.log[0].eye || d.log[0].eye.length !== 3072 || !withEye) problems.push('export has no eye pictures');
+  const withRaw = d.pursuit[0].frames.filter((f) => f.r && f.r.length === 5).length;
+  console.log(`head numbers: sample as read ${JSON.stringify(d.log[0].head)}, steadied ${JSON.stringify(d.log[0].phi.slice(22))}; pursuit frames carrying the raw reading: ${withRaw}; shares ${JSON.stringify(d.geometry.shares)}; lead ${d.summary.lead}`);
+  if (d.format !== 4 || !d.log[0].head || d.log[0].head.length !== 5 || withRaw < 400 || d.geometry.shares.length !== 4) problems.push('export is missing the 0.4 head fields');
   const gy = await page.evaluate(() => {
     const { S } = window.__gazecal;
     return { dm: window.__dmPermission, setting: S.settings.motion, el: (performance.now() - window.__t0) / 1000, ang: (2 * Math.acos(Math.min(1, Math.abs(S.rot[3]))) * 180) / Math.PI, rot: S.rot.map((v) => +v.toFixed(3)), grav: S.grav };
@@ -192,7 +195,11 @@ await sleep(300);
   if (Math.abs(gy.ang - want) > 8 || withTurn < 500 || !d.log[0].rot || Math.abs(gy.rot[1]) > 0.02 || Math.abs(gy.rot[2]) > 0.02) problems.push('gyroscope turn is not summed or not logged correctly');
 }
 
-// the stored profile must come back after a reload
+// the stored profile must come back after a reload, head shares included
+await page.evaluate(() => {
+  window.__gazecal.setGeometry({ shares: [0.9, 0.7, 1.1, -0.5] });
+  window.__gazecal.save();
+});
 await sleep(800);
 await page.reload();
 await page.waitForSelector('#start-go');
@@ -201,10 +208,11 @@ await page.waitForSelector('[data-go="pursue"]', { timeout: 60000 });
 await sleep(1500);
 const back = await page.evaluate(() => {
   const { S } = window.__gazecal;
-  return { ready: S.cal.ready, samples: S.cal.samples.length, feat: S.cal.samples[0] ? S.cal.samples[0].phi.length : 0, lead: S.cal.active, stored: Math.round((localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('gazecal:v3:'))) || '').length / 1024) };
+  return { ready: S.cal.ready, samples: S.cal.samples.length, feat: S.cal.samples[0] ? S.cal.samples[0].phi.length : 0, lead: S.cal.active, shares: window.__gazecal.getGeometry().shares, stored: Math.round((localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('gazecal:v3:'))) || '').length / 1024) };
 });
 console.log('after reload:', JSON.stringify(back));
 if (!back.ready || back.samples !== state.samples) problems.push('profile did not survive a reload');
+if (JSON.stringify(back.shares) !== JSON.stringify([0.9, 0.7, 1.1, -0.5])) problems.push('head shares did not survive a reload: ' + JSON.stringify(back.shares));
 
 console.log(problems.length ? '\nPROBLEMS:\n' + problems.join('\n') : '\nno console errors');
 await browser.close();

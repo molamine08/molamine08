@@ -2,13 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   solveLinear, solveSPD, packInt8, unpackInt8, median, percentile, OneEuro, FrameRing, summarizeWindow, windowWeight,
-  RidgeMap, GazeModel, Calibrator, FixationSmoother, pursuitPath, pursuitSamples, estimateLag, ErrorMap, TargetSelector,
+  RidgeMap, GazeModel, Calibrator, FixationSmoother, HeadFilter, measureHeadShares, pursuitPath, pursuitSamples, estimateLag, ErrorMap, TargetSelector,
 } from '../src/engine.js';
-import { MODEL_SPECS, DEFAULT_MODEL, POSE_IDX, POSE_SIGMA, EYE_REF, N_BASE, N_FULL } from '../src/features.js';
+import { DEFAULT_SHARES, MODEL_SPECS, DEFAULT_MODEL, MOVE_SAFE, POSE_IDX, POSE_SIGMA, EYE_REF, N_BASE, N_FULL, setGeometry, headParts } from '../src/features.js';
 import { SimUser, mulberry32 } from '../src/sim.js';
+import { W, H, makeCal, weightOf, touch, nineDots, pursuit, evalDots } from './harness.mjs';
 
-const W = 390;
-const H = 844;
 
 test('solveLinear solves a 3x3 system and flags singular input', () => {
   const X = solveLinear([[2, 1, 0], [1, 3, 1], [0, 1, 4]], [[3], [5], [5]]);
@@ -251,71 +250,6 @@ test('ErrorMap bins by region', () => {
 
 // ---- whole sessions with the synthetic user ----
 
-const makeCal = (specs = MODEL_SPECS, opts = {}) => new Calibrator({
-  models: specs.map((s) => new GazeModel(s)), poseIdx: POSE_IDX, poseSigma: POSE_SIGMA, defaultModel: DEFAULT_MODEL, ...opts,
-});
-const weightOf = (s) => windowWeight(s, { eyeRef: EYE_REF });
-
-// The user looks at a point (or elsewhere, for a careless touch) and taps the target.
-function touch(sim, ring, cal, t0, target, { lookElsewhere = null } = {}) {
-  const look = lookElsewhere || target;
-  sim.lookAt(look[0], look[1], t0);
-  for (let t = t0; t <= t0 + 700; t += 33) {
-    const f = sim.frame(t);
-    cal.setPose(f.phi);
-    ring.push({ t, face: f.face, phi: f.phi, blink: f.blink, motion: 5 });
-  }
-  cal.tick(t0 + 700);
-  const tTouch = t0 + 650;
-  return summarizeWindow(ring.window(tTouch - 350, tTouch + 50));
-}
-
-function nineDots(sim, ring, cal, t) {
-  for (const yn of [0.1, 0.5, 0.9]) for (const xn of [0.12, 0.5, 0.88]) {
-    const target = [xn * W, yn * H];
-    const s = touch(sim, ring, cal, t, target);
-    t += 900;
-    if (s.ok) cal.addSample({ phi: s.phi, y: target, w: weightOf(s), src: 'bootstrap', t }, { force: true });
-  }
-  return t;
-}
-
-// The user follows the moving dot for 20 s; the frames become training samples.
-function pursuit(sim, cal, t0, { lagMs = 120, durationMs = 20000 } = {}) {
-  const path = pursuitPath(W, H, { durationMs });
-  sim.follow((t) => path(t - t0), lagMs);
-  const frames = [];
-  for (let t = t0; t <= t0 + durationMs; t += 33) {
-    const f = sim.frame(t);
-    cal.setPose(f.phi);
-    frames.push({ t: t - t0, face: f.face, phi: f.phi, blink: f.blink });
-  }
-  const usable = frames.filter((f) => f.face && !(f.blink > 0.5) && f.t > 800);
-  const lag = estimateLag(usable, path, MODEL_SPECS.filter((m) => m.name === 'B' || m.name === 'D'));
-  const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: t0 });
-  cal.addBatch(samples, { nowT: t0 + durationMs });
-  return { t: t0 + durationMs + 500, lag, n: samples.length };
-}
-
-// Error of every model on fresh points, without learning from them.
-function evalDots(sim, ring, cal, t, n, rand) {
-  const errs = { lead: [] };
-  for (const m of cal.models) errs[m.name] = [];
-  for (let i = 0; i < n; i++) {
-    const target = [(0.06 + 0.88 * rand()) * W, (0.06 + 0.88 * rand()) * H];
-    const s = touch(sim, ring, cal, t, target);
-    t += 900;
-    if (!s.ok) continue;
-    const d = (p) => Math.hypot(p[0] - target[0], p[1] - target[1]);
-    errs.lead.push(d(cal.predict(s.phi)));
-    for (const m of cal.models) {
-      const p = m.predict(s.phi);
-      if (p) errs[m.name].push(d(p));
-    }
-  }
-  return { t, errs };
-}
-
 function runSession({ seed = 11, learning = true, touches = 160, shiftAt = 60, outlierRate = 0.1, pixels = 'good', withPursuit = false, specs = MODEL_SPECS } = {}) {
   const sim = new SimUser({ W, H, seed, pixels });
   const rand = mulberry32(seed * 31 + 1);
@@ -387,6 +321,7 @@ test('tournament: the eye-image model leads only when the images really carry th
     for (const seed of seeds) {
       const { cal, recs } = runSession({ seed, pixels, withPursuit: true, touches: 90, shiftAt: 1e9, outlierRate: 0.1 });
       if ('DEG'.includes(cal.active)) leadD++;
+      if (pixels === 'noise') assert.ok(!'DE'.includes(cal.active), `seed ${seed}: a picture-only model leads on noise pictures`);
       const eB = median(cleanModel(recs, 20, 90, 'B'));
       const eD = median(cleanModel(recs, 20, 90, 'D'));
       const eLead = median(clean(recs, 20, 90, 'err'));
@@ -398,11 +333,9 @@ test('tournament: the eye-image model leads only when the images really carry th
     if (pixels === 'good') {
       assert.ok(leadD >= 4, `an eye-image model led in only ${leadD}/${seeds.length} sessions with informative images`);
       assert.ok(median(ratio) < 0.9, `D/B error ratio ${median(ratio).toFixed(2)}`);
-    } else {
-      assert.equal(leadD, 0, 'no eye-image model may lead when the images are noise');
     }
     // what the user saw is close to the better of the two, whichever that was
-    assert.ok(median(cost) < 1.15, `${pixels}: shown error is ${median(cost).toFixed(2)}× the better of B and D`);
+    assert.ok(median(cost) < (pixels === 'good' ? 1.15 : 1.5), `${pixels}: shown error is ${median(cost).toFixed(2)}× the better of B and D`);
   }
 });
 
@@ -504,7 +437,7 @@ test('calibrator survives a save / load round trip, eye images included', () => 
 test('a user without eye images still gets the landmark models', () => {
   const { cal, recs } = runSession({ seed: 71, pixels: 'none', touches: 40, shiftAt: 1e9 });
   assert.equal(cal.model('D').ready, false);
-  assert.ok(!cal.model('E').ready && !cal.model('G').ready && 'AB'.includes(cal.active));
+  assert.ok(!cal.model('E').ready && !cal.model('G').ready && 'AB'.includes(cal.activeModel().name));
   assert.ok(median(clean(recs, 10, 40, 'err')) < 150);
 });
 
@@ -577,4 +510,227 @@ test('a posture change with no touch after it: computed geometry and the log pic
   assert.ok(med('after', 'G') < med('after', 'D') * 0.7, 'geometry should absorb most of the posture change');
   assert.ok(med('after', 'E') < med('after', 'D'), 'the log picture should suffer less from the lighting change');
   assert.ok(med('before', 'G') < med('before', 'D') * 1.4, 'geometry must not cost much in a fixed posture');
+});
+
+test('HeadFilter: calm while the phone rests, out of the way when the gyroscope reports a turn, off without a gyroscope', () => {
+  const rand = mulberry32(21);
+  const g = () => (rand() + rand() + rand() - 1.5) * 2;
+  const sd = (a) => { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); };
+  const still = new HeadFilter();
+  const raw = [];
+  const out = [];
+  for (let i = 0; i < 150; i++) {
+    const v = [1 + 0.1 * g(), -2 + 0.1 * g(), 30 + 0.3 * g(), 0.05 + 0.01 * g(), -0.1 + 0.012 * g()];
+    raw.push(v[3]);
+    out.push(still.push(v, i / 30, 0.5)[3]); // a hand at rest still trembles by half a degree per second
+  }
+  assert.ok(sd(out.slice(40)) < sd(raw.slice(40)) * 0.6, `at rest: ${sd(out.slice(40)).toFixed(4)} from ${sd(raw.slice(40)).toFixed(4)}`);
+  // The phone turns: the face direction slides at that rate. How far behind does the filter run?
+  // 0.006 is a third of a degree, about 8 px on the screen at 30 cm.
+  for (const degPerSec of [5, 20, 60]) {
+    const slope = (degPerSec * Math.PI) / 180;
+    const f = new HeadFilter();
+    let behind = 0;
+    for (let i = 0; i < 90; i++) {
+      const truth = i < 30 ? 0 : ((i - 30) / 30) * slope;
+      const o = f.push([0, 0, 30, truth + 0.003 * g(), 0], i / 30, i < 30 ? 0.5 : degPerSec)[3];
+      if (i >= 60) behind += (truth - o) / 30;
+    }
+    assert.ok(Math.abs(behind) < 0.006, `turning at ${degPerSec}°/s the head measurement runs ${behind.toFixed(4)} behind`);
+  }
+  // no gyroscope reading: the numbers pass through untouched
+  const blind = new HeadFilter();
+  for (let i = 0; i < 10; i++) {
+    const v = [g(), g(), 30 + g(), 0.1 * g(), 0.1 * g()];
+    assert.deepEqual(blind.push(v, i / 30, null), v);
+    assert.deepEqual(blind.push(v, i / 30), v);
+  }
+});
+
+test('steadying the head measurement: less tremble at rest, no cost while the phone moves briskly', () => {
+  // The head's share and the eyes' share cancel while the phone moves. A head measurement that
+  // arrives late would break that, so the filter has to be out of the way by then.
+  const run = (filtered) => {
+    const res = { restRaw: [], restCursor: [], briskRaw: [], briskCursor: [] };
+    for (const seed of [201, 202]) {
+      setGeometry({ shares: [1, 1, 1, 1] }); // this camera reads the head exactly; the shares are not the question here
+      const sim = new SimUser({ W, H, seed });
+      const filt = filtered ? new HeadFilter() : null;
+      const steady = (f, t) => {
+        if (filt) f.phi.set(filt.push(Array.from(f.phi.subarray(22, 27)), t / 1000, f.turn), 22);
+        return f;
+      };
+      const cal = makeCal(MODEL_SPECS.filter((m) => m.name === 'B' || m.name === 'G'));
+      let t = 1000;
+      for (const move of [false, true]) {
+        const durationMs = move ? 30000 : 20000;
+        const path = pursuitPath(W, H, move ? { durationMs, cyclesX: 7, cyclesY: 3 } : { durationMs });
+        sim.follow((u) => path(u - t), 120);
+        if (move) sim.startWobble(t);
+        const frames = [];
+        for (let u = t; u <= t + durationMs; u += 33) {
+          const f = steady(sim.frame(u), u);
+          cal.setPose(f.phi);
+          frames.push({ t: u - t, face: f.face, phi: f.phi, blink: f.blink });
+        }
+        sim.stopWobble();
+        cal.addBatch(pursuitSamples(frames, path, { lagMs: 120, wallT0: t }), { nowT: t + durationMs });
+        t += durationMs + 500;
+      }
+      cal.refit({ cv: true, nowT: t });
+      const G = cal.model('G');
+      const rand = mulberry32(seed + 5);
+      for (const [phase, speed] of [['rest', 0], ['brisk', 4]]) {
+        if (speed) sim.startWobble(t, speed); // a swing every second or two: about 9°/s and 10 cm/s at the peaks
+        const smooth = new FixationSmoother();
+        for (let i = 0; i < 12; i++) {
+          const target = [(0.1 + 0.8 * rand()) * W, (0.1 + 0.8 * rand()) * H];
+          sim.lookAt(target[0], target[1], t);
+          for (let k = 0; k < 75; k++, t += 33) {
+            const f = steady(sim.frame(t), t);
+            if (f.blink > 0.5) continue;
+            const p = G.predict(f.phi);
+            const q = smooth.push(p[0], p[1], t);
+            if (k < 25) continue; // the eyes are still on their way, the smoother still settling
+            res[phase + 'Raw'].push(Math.hypot(p[0] - target[0], p[1] - target[1]));
+            res[phase + 'Cursor'].push(Math.hypot(q.x - target[0], q.y - target[1]));
+          }
+        }
+        sim.stopWobble();
+      }
+    }
+    setGeometry({ shares: DEFAULT_SHARES });
+    return Object.fromEntries(Object.entries(res).map(([k, v]) => [k, median(v)]));
+  };
+  const plain = run(false);
+  const steadied = run(true);
+  console.log(`\nerror of G per frame / of the cursor (px) — at rest: ${f0(plain.restRaw)} /${f0(plain.restCursor)} as measured, ${f0(steadied.restRaw)} /${f0(steadied.restCursor)} steadied · phone moving briskly: ${f0(plain.briskRaw)} /${f0(plain.briskCursor)} as measured, ${f0(steadied.briskRaw)} /${f0(steadied.briskCursor)} steadied`);
+  assert.ok(steadied.restRaw < plain.restRaw * 0.95, 'steadying should take tremble out of the single-frame estimate at rest');
+  assert.ok(steadied.restCursor < plain.restCursor * 1.1);
+  assert.ok(steadied.briskCursor < plain.briskCursor * 1.1, 'and must not cost accuracy while the phone moves');
+  assert.ok(steadied.briskRaw < plain.briskRaw * 1.1);
+});
+
+test('the tournament favours the model that survives movement unless another is clearly better at rest', () => {
+  const mk = (name) => new GazeModel({ name, expand: (p) => p, nFeat: 1, stdFloor: [1e-3], minFit: 3 });
+  const run = (errSafe, errOther) => {
+    const cal = new Calibrator({ models: [mk('other'), mk('safe')], defaultModel: 'other', prefer: ['safe'] });
+    for (const m of cal.models) m.map.beta = [[0, 0], [0, 0]]; // "ready"
+    for (let i = 0; i < 12; i++) {
+      cal.scores.safe.push(errSafe);
+      cal.scores.other.push(errOther);
+    }
+    cal.pickActive();
+    return cal.active;
+  };
+  assert.equal(run(60, 50), 'safe'); // 17% worse at rest: still preferred
+  assert.equal(run(60, 60), 'safe');
+  assert.equal(run(100, 50), 'other'); // twice the error: the preference gives way
+});
+
+// One user, one phone: a still recording, then one or two moving ones. Returns what the moving
+// recordings say about the head shares, and the error of G on fresh points after a change of posture
+// with no touch, under several choices of shares.
+const SECOND_WOBBLE = { d: 7.1, x: 9.7, y: 5.9, yaw: 6.3, pitch: 8.9 };
+
+function sharesSession(seed, { poseGain, depthGain }, choices) {
+  const G = MODEL_SPECS.find((m) => m.name === 'G');
+  const opt = { expand: G.expand, nFeat: G.nFeat, stdFloor: G.stdFloor, parts: headParts, prior: DEFAULT_SHARES };
+  const out = { err: {}, said: {} };
+  for (const [name, { recordings = 1, pick }] of Object.entries(choices)) {
+    setGeometry({ shares: DEFAULT_SHARES });
+    const sim = new SimUser({ W, H, seed, poseGain, depthGain });
+    const ring = new FrameRing();
+    const cal = makeCal();
+    const still = pursuit(sim, cal, 1000);
+    let pool = [];
+    let t = still.t;
+    for (let k = 0; k < recordings; k++) {
+      const mv = pursuit(sim, cal, t + (k ? 5000 : 0), { move: true, periods: k ? SECOND_WOBBLE : undefined });
+      pool = pool.concat(mv.samples);
+      t = mv.t;
+    }
+    out.stillSays = measureHeadShares(still.samples, opt);
+    const said = measureHeadShares(pool, opt);
+    out.said[name] = said;
+    setGeometry({ shares: pick(said) });
+    cal.refit({ cv: true, nowT: t });
+    sim.shiftPosture(1.3);
+    const { errs } = evalDots(sim, ring, cal, t, 25, mulberry32(seed + 9));
+    out.err[name] = median(errs.G);
+    out.err.E = median(errs.E);
+  }
+  setGeometry({ shares: DEFAULT_SHARES });
+  return out;
+}
+
+const fShares = (m) => `${m.shares.map((v) => v.toFixed(2)).join(', ')} (from ${m.raw.map((v) => (v == null ? '—' : v.toFixed(2))).join(', ')} ± ${m.se.map((v) => v.toFixed(2)).join(', ')})`;
+
+test('moving calibration measures how far to trust the head measurement; a second recording sharpens it', () => {
+  // this camera reads head turns at 70% and distances 10% too long
+  const gains = { poseGain: 0.7, depthGain: 1.1 };
+  const truth = [1 / 1.1, 1 / 1.1, 1 / 0.77, 1 / 0.77];
+  const rows = [101, 102, 103, 104].map((seed) => ({
+    seed,
+    ...sharesSession(seed, gains, {
+      plain: { pick: () => DEFAULT_SHARES },
+      one: { pick: (m) => m.shares },
+      two: { recordings: 2, pick: (m) => m.shares },
+      exact: { pick: () => truth },
+    }),
+  }));
+  console.log(`\nshares: position x, y; direction x, y. The camera's true gains would call for ${truth.map((v) => v.toFixed(2)).join(', ')}`);
+  console.log('seed | measured on one moving recording | on two | after a posture shift, no touch: G default / one / two / true gains / E   (px)');
+  for (const r of rows) console.log(`${String(r.seed).padStart(4)} | ${fShares(r.said.one)} | ${fShares(r.said.two)} | ${f0(r.err.plain)} / ${f0(r.err.one)} / ${f0(r.err.two)} / ${f0(r.err.exact)} / ${f0(r.err.E)}`);
+  for (const r of rows) {
+    const one = r.said.one;
+    assert.ok(one.measured.every(Boolean), `seed ${r.seed}: every head part moved enough to be measured`);
+    assert.ok(one.shares[2] > 1 && one.shares[2] < 1.6 && one.shares[3] > 0.95 && one.shares[3] < 1.6, `seed ${r.seed}: direction shares ${one.shares[2]}, ${one.shares[3]}`);
+    assert.ok(one.after < one.before * 0.85);
+    assert.equal(r.said.two.recordings, 2);
+    for (let j = 0; j < 4; j++) assert.ok(Math.abs(r.said.two.shares[j] - truth[j]) < 0.2, `seed ${r.seed}: share ${j} from two recordings ${r.said.two.shares[j]}`);
+    // a recording with the phone held still says nothing about the shares, and must leave them alone
+    assert.deepEqual(r.stillSays.shares, DEFAULT_SHARES);
+    assert.ok(!r.stillSays.measured.some(Boolean));
+  }
+  const med = (k) => median(rows.map((r) => r.err[k]));
+  assert.ok(med('one') < med('plain') * 0.8, 'one moving recording should already help after a posture change');
+  assert.ok(med('two') < med('plain') * 0.7, 'two recordings should cut the error after a posture change');
+  assert.ok(med('two') < med('exact') * 1.35, 'and come close to what the true gains would give');
+  assert.ok(med('two') < med('E') * 0.6);
+});
+
+test('a head measurement that only trembles is not taken for head movement', () => {
+  const G = MODEL_SPECS.find((m) => m.name === 'G');
+  const opt = { expand: G.expand, nFeat: G.nFeat, stdFloor: G.stdFloor, parts: headParts, prior: DEFAULT_SHARES };
+  for (const seed of [121, 122, 123]) {
+    const sim = new SimUser({ W, H, seed });
+    const still = pursuit(sim, makeCal(MODEL_SPECS.filter((m) => m.name === 'B')), 1000);
+    // the up-down face direction as a much worse camera would report it: the same head, plus noise
+    // worth about 60 px on the screen
+    const rand = mulberry32(seed);
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-12, rand()))) * Math.cos(2 * Math.PI * rand());
+    const shaky = still.samples.map((sm) => {
+      const phi = Float64Array.from(sm.phi);
+      phi[26] += 0.03 * gauss();
+      return { ...sm, phi };
+    });
+    const m = measureHeadShares(shaky, opt);
+    assert.ok(m.moved[3] >= 25, `seed ${seed}: the noise should get past the movement gate (${m.moved[3]} px)`);
+    assert.equal(m.measured[3], false, `seed ${seed}: a share of ${m.raw[3]} ± ${m.se[3]} must not count as measured`);
+    assert.deepEqual(m.shares, DEFAULT_SHARES);
+  }
+});
+
+test('a camera that reports the head direction the other way round is found out and corrected', () => {
+  const rows = [111, 112, 113].map((seed) => ({
+    seed,
+    ...sharesSession(seed, { poseGain: -1, depthGain: 1 }, { plain: { pick: () => DEFAULT_SHARES }, tuned: { pick: (m) => m.shares } }),
+  }));
+  console.log('\nseed | shares measured | after a posture shift, no touch: G assuming the usual sign / G measured / E   (px)');
+  for (const r of rows) console.log(`${String(r.seed).padStart(4)} | ${fShares(r.said.tuned)} | ${f0(r.err.plain)} / ${f0(r.err.tuned)} / ${f0(r.err.E)}`);
+  for (const r of rows) assert.ok(r.said.tuned.shares[2] < -0.7 && r.said.tuned.shares[3] < -0.7, `seed ${r.seed}: ${r.said.tuned.shares}`);
+  const med = (k) => median(rows.map((r) => r.err[k]));
+  assert.ok(med('tuned') < med('plain') * 0.5);
+  assert.ok(med('tuned') < med('E'));
 });

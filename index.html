@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="robots" content="noindex">
-<title>GazeCal 0.3.1 · معايرة النظر</title>
+<title>GazeCal 0.4 · معايرة النظر</title>
 <style>
 :root {
   --bg: #0b0d10;
@@ -174,6 +174,36 @@ body {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: end;
+}
+
+.row b span { color: inherit; }
+
+/* a small table: one label column, two number columns */
+.geo {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px 24px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.geo span { color: var(--muted); }
+
+.geo span:nth-child(2),
+.geo span:nth-child(3) {
+  font-size: 14px;
+  text-align: end;
+}
+
+.geo b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.geo b.unset {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .note {
@@ -369,10 +399,13 @@ body {
   margin: 0;
 }
 
-.overlay .warn {
+.overlay .warn,
+.sheet .warn {
   color: var(--warn);
   margin: 0;
 }
+
+.sheet .warn { font-size: 14px; }
 
 .btn.quiet {
   background: none;
@@ -442,9 +475,15 @@ body {
   pointer-events: none;
 }
 
+/* The ring and the centre dot are pinned to the estimate with explicit left/top. Left to itself, an
+   absolutely positioned box starts where text would start, which in this right-to-left page put
+   the ring one radius to the left of the point it marks. */
 #cursor::after {
   content: "";
   position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box; /* the border is part of --d, so the ring stays centred */
   width: var(--d);
   height: var(--d);
   margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2);
@@ -456,6 +495,8 @@ body {
 #cursor::before {
   content: "";
   position: absolute;
+  left: 0;
+  top: 0;
   width: 8px;
   height: 8px;
   margin: -4px 0 0 -4px;
@@ -988,7 +1029,8 @@ var OneEuro = class _OneEuro {
     this.dx = 0;
     this.t = null;
   }
-  filter(x, tSec) {
+  // boost (Hz) opens the filter from outside: something else already knows the value is about to change.
+  filter(x, tSec, boost = 0) {
     if (this.t === null) {
       this.x = x;
       this.dx = 0;
@@ -998,7 +1040,7 @@ var OneEuro = class _OneEuro {
     const dt = Math.max(1e-3, tSec - this.t);
     const dx = (x - this.x) / dt;
     this.dx += _OneEuro.alpha(this.dCutoff, dt) * (dx - this.dx);
-    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx) + boost;
     this.x += _OneEuro.alpha(cutoff, dt) * (x - this.x);
     this.t = tSec;
     return this.x;
@@ -1317,7 +1359,9 @@ var Calibrator = class {
     cvEvery = 12,
     deferCv = false,
     deferFit = false,
-    poseRefitMs = 400
+    poseRefitMs = 400,
+    prefer = [],
+    preferMargin = 0.7
   }) {
     this.models = models;
     this.poseIdx = poseIdx;
@@ -1333,6 +1377,8 @@ var Calibrator = class {
     this.deferCv = deferCv;
     this.deferFit = deferFit;
     this.poseRefitMs = poseRefitMs;
+    this.prefer = prefer;
+    this.preferMargin = preferMargin;
     this.learning = true;
     this.reset();
   }
@@ -1499,17 +1545,16 @@ var Calibrator = class {
     this.refit({ cv: true, nowT });
   }
   pickActive() {
-    let best = null;
-    for (const m of this.models) {
+    const cost = (m) => {
       const a = this.scores[m.name];
-      if (!m.ready || a.length < this.minScored) continue;
-      const med = median(a.slice(-this.window));
-      if (!best || med < best.med) best = { name: m.name, med };
-    }
-    if (!best || best.name === this.active) return;
-    const cur = this.scores[this.active];
-    const curMed = cur.length >= this.minScored ? median(cur.slice(-this.window)) : Infinity;
-    if (best.med < curMed * 0.93) this.active = best.name;
+      if (!m.ready || a.length < this.minScored) return Infinity;
+      return median(a.slice(-this.window)) * (this.prefer.includes(m.name) ? this.preferMargin : 1);
+    };
+    let best = null;
+    for (const m of this.models) if (!best || cost(m) < cost(best)) best = m;
+    if (!best || !Number.isFinite(cost(best)) || best.name === this.active) return;
+    const cur = this.model(this.active);
+    if (cost(best) < (cur ? cost(cur) : Infinity) * 0.93) this.active = best.name;
   }
   leaderboard() {
     return this.models.map((m) => {
@@ -1606,6 +1651,251 @@ var Calibrator = class {
     return true;
   }
 };
+var HeadFilter = class {
+  constructor({ scale = [1, 1, 2, 0.02, 0.02], minCutoff = 1.5, beta = 0.3, gyroGain = 0.4 } = {}) {
+    this.scale = scale;
+    this.gyroGain = gyroGain;
+    this.f = scale.map(() => new OneEuro(minCutoff, beta));
+  }
+  reset() {
+    for (const f of this.f) f.reset();
+  }
+  // values: the head numbers of one frame; tSec: its time; turn: phone rotation rate in deg/s,
+  // or null when no gyroscope reading is at hand
+  push(values, tSec, turn = null) {
+    if (turn == null || !(turn >= 0)) {
+      this.reset();
+      return Array.from(values);
+    }
+    const boost = this.gyroGain * turn;
+    const out = new Array(values.length);
+    for (let j = 0; j < values.length; j++) out[j] = this.f[j].filter(values[j] / this.scale[j], tSec, boost) * this.scale[j];
+    return out;
+  }
+};
+function measureHeadShares(all, { expand, nFeat, stdFloor, lambda = 3, parts, prior = [0.8, 0.8, 0.8, 0.8], folds = 6, v0 = 100, minMove = 25, bands = [[0.8, 1.2], [0.8, 1.2], [0.6, 1.4], [0.6, 1.4]], unsure = 0.3, maxSe = 0.25, gapMs = 2e3, minRun = 60 }) {
+  const runs = [];
+  for (let i = 0; i < all.length; i++) {
+    const dt = i ? all[i].t - all[i - 1].t : NaN;
+    if (!(dt >= 0 && dt < gapMs)) runs.push([]);
+    runs[runs.length - 1].push(all[i]);
+  }
+  const samples = [];
+  const runOf = [];
+  let nRuns = 0;
+  for (const run of runs) {
+    if (run.length < minRun) continue;
+    for (const sm of run) {
+      samples.push(sm);
+      runOf.push(nRuns);
+    }
+    nRuns++;
+  }
+  const N = samples.length;
+  if (N < 20 * folds) return null;
+  const n0 = samples[0].phi.length;
+  const center = new Float64Array(n0);
+  for (const sm of samples) for (let j = 0; j < n0; j++) center[j] += sm.phi[j] / N;
+  const rows = samples.map((sm) => ({ phi: Float64Array.from(expand(sm.phi, center)) }));
+  const weights = samples.map((sm) => sm.w);
+  const P = samples.map((sm) => parts(sm.phi));
+  const Y = samples.map((sm) => [sm.y[0], sm.y[1]]);
+  {
+    const wsum = new Float64Array(nRuns);
+    const mf = Array.from({ length: nRuns }, () => new Float64Array(nFeat));
+    const mp = Array.from({ length: nRuns }, () => new Float64Array(4));
+    const my = Array.from({ length: nRuns }, () => new Float64Array(2));
+    for (let i = 0; i < N; i++) {
+      const r = runOf[i];
+      const w = weights[i];
+      wsum[r] += w;
+      for (let j = 0; j < nFeat; j++) mf[r][j] += w * rows[i].phi[j];
+      for (let c = 0; c < 4; c++) mp[r][c] += w * P[i][c];
+      for (let c = 0; c < 2; c++) my[r][c] += w * Y[i][c];
+    }
+    for (let i = 0; i < N; i++) {
+      const r = runOf[i];
+      if (!(wsum[r] > 0)) continue;
+      for (let j = 0; j < nFeat; j++) rows[i].phi[j] -= mf[r][j] / wsum[r];
+      for (let c = 0; c < 4; c++) P[i][c] -= mp[r][c] / wsum[r];
+      for (let c = 0; c < 2; c++) Y[i][c] -= my[r][c] / wsum[r];
+    }
+  }
+  const st = new RidgeMap(nFeat, { lambda, stdFloor }).stats(rows, weights);
+  if (!st) return null;
+  const { mu, sd, sw } = st;
+  const wScale = N / sw;
+  const Q = 5;
+  const tv = samples.map((sm, i) => {
+    const a = samples[Math.max(0, i - 1)];
+    const b = samples[Math.min(N - 1, i + 1)];
+    const dt = b.t - a.t;
+    const ok = dt > 0 && dt < 1e3;
+    return [1, Y[i][0], Y[i][1], ok ? (b.y[0] - a.y[0]) / dt : 0, ok ? (b.y[1] - a.y[1]) / dt : 0];
+  });
+  for (let q = 1; q < Q; q++) {
+    let mean = 0;
+    let dev = 0;
+    for (let i = 0; i < N; i++) mean += weights[i] * tv[i][q] / sw;
+    for (let i = 0; i < N; i++) dev += weights[i] * (tv[i][q] - mean) ** 2 / sw;
+    dev = Math.sqrt(dev) || 1;
+    for (let i = 0; i < N; i++) tv[i][q] = (tv[i][q] - mean) / dev;
+  }
+  const moved = [0, 0, 0, 0];
+  {
+    const A0 = new Float64Array(Q * Q);
+    const B0 = new Float64Array(Q * 4);
+    for (let i = 0; i < N; i++) {
+      const z = tv[i];
+      const w = weights[i];
+      for (let r = 0; r < Q; r++) {
+        for (let c = 0; c <= r; c++) A0[r * Q + c] += w * z[r] * z[c];
+        for (let c = 0; c < 4; c++) B0[r * 4 + c] += w * z[r] * P[i][c];
+      }
+    }
+    for (let r = 0; r < Q; r++) A0[r * Q + r] += 1e-9 * sw;
+    if (!solveSPD(A0, B0, Q, 4)) return null;
+    for (let i = 0; i < N; i++) {
+      for (let c = 0; c < 4; c++) {
+        let fit = 0;
+        for (let r = 0; r < Q; r++) fit += B0[r * 4 + c] * tv[i][r];
+        moved[c] += weights[i] / sw * (P[i][c] - fit) ** 2;
+      }
+    }
+    for (let c = 0; c < 4; c++) moved[c] = Math.round(Math.sqrt(moved[c]) * 10) / 10;
+  }
+  const free2 = moved.map((v) => v >= minMove);
+  const K = 6;
+  const m = nFeat + 3;
+  const foldOf = (i) => Math.min(folds - 1, Math.floor(i * folds / N));
+  const G = Array.from({ length: folds }, () => new Float64Array(m * m));
+  const B = Array.from({ length: folds }, () => new Float64Array(m * K));
+  const Z = new Float64Array(N * m);
+  const T = new Float64Array(N * K);
+  for (let i = 0; i < N; i++) {
+    const z = Z.subarray(i * m, (i + 1) * m);
+    const p = rows[i].phi;
+    z[0] = 1;
+    for (let j = 0; j < nFeat; j++) z[j + 1] = (p[j] - mu[j]) / sd[j];
+    z[nFeat + 1] = tv[i][3];
+    z[nFeat + 2] = tv[i][4];
+    T[i * K] = Y[i][0];
+    T[i * K + 1] = Y[i][1];
+    for (let c = 0; c < 4; c++) T[i * K + 2 + c] = P[i][c];
+    const w = weights[i] * wScale;
+    if (!(w > 0)) continue;
+    const g = G[foldOf(i)];
+    const b = B[foldOf(i)];
+    for (let r = 0; r < m; r++) {
+      const wz = w * z[r];
+      const row = r * m;
+      for (let c = 0; c <= r; c++) g[row + c] += wz * z[c];
+      for (let c = 0; c < K; c++) b[r * K + c] += wz * T[i * K + c];
+    }
+  }
+  const GT = new Float64Array(m * m);
+  const BT = new Float64Array(m * K);
+  for (let k = 0; k < folds; k++) {
+    for (let q = 0; q < m * m; q++) GT[q] += G[k][q];
+    for (let q = 0; q < m * K; q++) BT[q] += B[k][q];
+  }
+  const R = new Float64Array(N * K);
+  const A = new Float64Array(m * m);
+  const X = new Float64Array(m * K);
+  for (let k = 0; k < folds; k++) {
+    for (let q = 0; q < m * m; q++) A[q] = GT[q] - G[k][q];
+    for (let q = 0; q < m * K; q++) X[q] = BT[q] - B[k][q];
+    A[0] += 1e-9;
+    for (let j = 1; j <= nFeat; j++) A[j * m + j] += lambda;
+    for (let j = nFeat + 1; j < m; j++) A[j * m + j] += 1e-6;
+    if (!solveSPD(A, X, m, K)) return null;
+    for (let i = 0; i < N; i++) {
+      if (foldOf(i) !== k) continue;
+      const o = i * m;
+      for (let c = 0; c < K; c++) {
+        let fit = 0;
+        for (let r = 0; r < m; r++) fit += X[r * K + c] * Z[o + r];
+        R[i * K + c] = T[i * K + c] - fit;
+      }
+    }
+  }
+  const solveAxis = (a, skipFold, h) => {
+    let spp = 0;
+    let sdd = 0;
+    let spd = 0;
+    let spy = 0;
+    let sdy = 0;
+    let n = 0;
+    for (let i = 0; i < N; i++) {
+      if (foldOf(i) === skipFold) continue;
+      const w = weights[i] * wScale * (h ? h[i] : 1);
+      const ry = R[i * K + a];
+      const rp = R[i * K + 2 + a];
+      const rd = R[i * K + 4 + a];
+      spp += w * rp * rp;
+      sdd += w * rd * rd;
+      spd += w * rp * rd;
+      spy += w * rp * ry;
+      sdy += w * rd * ry;
+      n += w;
+    }
+    const pen1 = n * (free2[a] ? v0 : 1e12);
+    const pen2 = n * (free2[2 + a] ? v0 : 1e12);
+    const a11 = spp + pen1;
+    const a22 = sdd + pen2;
+    const b1 = spy + pen1 * prior[a];
+    const b2 = sdy + pen2 * prior[2 + a];
+    const det = a11 * a22 - spd * spd;
+    return [(b1 * a22 - b2 * spd) / det, (b2 * a11 - b1 * spd) / det];
+  };
+  const shares = prior.slice();
+  const se = [0, 0, 0, 0];
+  const raw = [null, null, null, null];
+  const clip = (v, c) => Math.round(Math.sign(v) * clamp(Math.abs(v), bands[c][0], bands[c][1]) * 100) / 100;
+  for (let a = 0; a < 2; a++) {
+    for (let pass = 0; pass < 3 && (free2[a] || free2[2 + a]); pass++) {
+      let h = null;
+      let sol = solveAxis(a, -1, h);
+      for (let it = 0; it < 2; it++) {
+        const res = new Array(N);
+        for (let i = 0; i < N; i++) res[i] = Math.abs(R[i * K + a] - sol[0] * R[i * K + 2 + a] - sol[1] * R[i * K + 4 + a]);
+        const s = Math.max(1.4826 * median(res), 5);
+        h = res.map((e) => e <= 1.5 * s ? 1 : 1.5 * s / e);
+        sol = solveAxis(a, -1, h);
+      }
+      const jack = [];
+      for (let k = 0; k < folds; k++) jack.push(solveAxis(a, k, h));
+      let dropped = false;
+      for (let j = 0; j < 2; j++) {
+        const c = a + 2 * j;
+        if (!free2[c]) continue;
+        const mean = jack.reduce((acc, v) => acc + v[j], 0) / folds;
+        const seJ = Math.sqrt(jack.reduce((acc, v) => acc + (v[j] - mean) ** 2, 0) * (folds - 1) / folds);
+        raw[c] = Math.round(sol[j] * 100) / 100;
+        se[c] = Math.round(seJ * 100) / 100;
+        if (Math.abs(sol[j]) < unsure || !(seJ <= maxSe)) {
+          free2[c] = false;
+          dropped = true;
+        }
+      }
+      if (dropped) continue;
+      for (let j = 0; j < 2; j++) if (free2[a + 2 * j]) shares[a + 2 * j] = clip(sol[j], a + 2 * j);
+      break;
+    }
+  }
+  const errWith = (sh) => {
+    let e = 0;
+    let n = 0;
+    for (let i = 0; i < N; i++) {
+      const ex = R[i * K] - sh[0] * R[i * K + 2] - sh[2] * R[i * K + 4];
+      const ey = R[i * K + 1] - sh[1] * R[i * K + 3] - sh[3] * R[i * K + 5];
+      e += weights[i] * Math.min(400, Math.hypot(ex, ey));
+      n += weights[i];
+    }
+    return e / n;
+  };
+  return { shares, raw, se, moved, measured: free2, before: errWith(prior), after: errWith(shares), n: N, recordings: nRuns };
+}
 var FixationSmoother = class _FixationSmoother {
   constructor({ radius = 90, maxMs = 1500, confirm = 2, drift = 0.5, ease = [2, 0.02] } = {}) {
     this.radius = radius;
@@ -1907,13 +2197,21 @@ var PIX_FLOOR = new Array(N_PIX).fill(0.08);
 var POSE_IDX = [16, 17, 18, 19, 20, 21];
 var POSE_SIGMA = [0.1, 0.1, 0.08, 0.06, 0.06, 0.03];
 var EYE_REF = [6e-3, 8e-3, 6e-3, 8e-3];
-var geometry = { pxPerCm: 60 };
-function setGeometry(g) {
-  Object.assign(geometry, g);
+var DEFAULT_SHARES = [0.8, 0.8, 0.8, 0.8];
+var geometry = { pxPerCm: 60, shares: DEFAULT_SHARES.slice() };
+function setGeometry({ pxPerCm, shares } = {}) {
+  if (pxPerCm > 0) geometry.pxPerCm = pxPerCm;
+  if (Array.isArray(shares) && shares.length === 4 && shares.every(Number.isFinite)) geometry.shares = shares.slice();
+}
+var getGeometry = () => ({ pxPerCm: geometry.pxPerCm, shares: geometry.shares.slice() });
+function headParts(p) {
+  const k = -geometry.pxPerCm;
+  return [k * p[22], k * p[23], k * p[24] * p[25], k * p[24] * p[26]];
 }
 function headRay(p) {
   const k = -geometry.pxPerCm;
-  return [k * (p[22] + p[24] * p[25]), k * (p[23] + p[24] * p[26])];
+  const s = geometry.shares;
+  return [k * (s[0] * p[22] + s[2] * p[24] * p[25]), k * (s[1] * p[23] + s[3] * p[24] * p[26])];
 }
 var FLOOR_A = [6e-3, 8e-3, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02, 0.02, 0.01];
 var lookH = (p) => (p[9] - p[8] + p[12] - p[13]) / 2;
@@ -1938,7 +2236,8 @@ function expandG(p, c) {
   return out;
 }
 var WIDE = { lambda: 30, lambdas: [3, 10, 30, 100, 300, 1e3], autoLambda: true, robust: false, borrow: "B", minFit: 30 };
-var DEFAULT_MODEL = "B";
+var DEFAULT_MODEL = "G";
+var MOVE_SAFE = ["G"];
 var MODEL_SPECS = [
   { name: "A", label: "أساسي (0.1)", expand: expandA, nFeat: 10, stdFloor: FLOOR_A, lambda: 1, minFit: 5 },
   { name: "B", label: "نقاط الوجه", expand: (p) => p.subarray(0, N_LM), nFeat: N_LM, stdFloor: STD_FLOOR, lambda: 3, autoLambda: true, poseLocal: true, minFit: 8 },
@@ -1953,7 +2252,7 @@ var MODEL_SPECS = [
     stdFloor: [...STD_FLOOR.slice(0, N_EYE), ...PIX_FLOOR, 0.03],
     offset: headRay,
     centered: true,
-    poseLocal: false,
+    poseLocal: true,
     ...WIDE
   }
 ];
@@ -2097,10 +2396,14 @@ function mulberry32(seed) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
+var WOBBLE = { d: 8.3, x: 6.1, y: 7.3, yaw: 5.3, pitch: 6.7 };
 var SimUser = class {
   // pixels: 'good' (eye images carry the gaze), 'noise' (they carry nothing), 'none' (no eye images at all)
   // pixelJitter: how badly the eye cut-outs are aligned, relative to the default assumption
-  constructor({ W, H, pxPerCm = 60, seed = 7, noise = 1, pixels = "good", pixelJitter = 1 } = {}) {
+  // poseGain, depthGain: how the camera misreads the head (a turn read too small, a distance too large)
+  constructor({ W, H, pxPerCm = 60, seed = 7, noise = 1, pixels = "good", pixelJitter = 1, poseGain = 1, depthGain = 1 } = {}) {
+    this.poseGain = poseGain;
+    this.depthGain = depthGain;
     this.pixels = pixels;
     this.pixelJitter = pixelJitter;
     this.W = W;
@@ -2155,8 +2458,10 @@ var SimUser = class {
     this.light[0] += 0.3 * g();
     this.light[1] += 0.2 * g();
   }
-  startWobble(tMs) {
-    this.wobble = { t0: tMs };
+  // speed: how briskly the phone is moved (1 = the slow drift asked for in the moving calibration)
+  // periods: seconds per swing of the distance, the sideways and up-down position, and the two tilts
+  startWobble(tMs, speed = 1, periods = WOBBLE) {
+    this.wobble = { t0: tMs, speed, periods };
   }
   stopWobble() {
     this.wobble = null;
@@ -2189,10 +2494,14 @@ var SimUser = class {
     this.lm.v = rhoLm * this.lm.v + kickLm * n(0.035);
     this.slow.t = tMs;
     let hd = this.head;
+    let turn = 0;
     if (this.wobble) {
-      const u = (tMs - this.wobble.t0) / 1e3;
+      const u = (tMs - this.wobble.t0) / 1e3 * this.wobble.speed;
       const sw = (period, phase) => Math.sin(2 * Math.PI * u / period + phase);
-      hd = { ...hd, d: hd.d + 3.5 * sw(9, 0), x: hd.x + sw(7, 1), y: hd.y + sw(11, 2), yaw: hd.yaw + 0.05 * sw(8, 3), pitch: hd.pitch + 0.05 * sw(10, 4) };
+      const rate = (period, phase) => 2 * Math.PI * this.wobble.speed / period * Math.cos(2 * Math.PI * u / period + phase);
+      const pr = this.wobble.periods;
+      hd = { ...hd, d: hd.d + 3.5 * sw(pr.d, 0), x: hd.x + sw(pr.x, 1), y: hd.y + sw(pr.y, 2), yaw: hd.yaw + 0.05 * sw(pr.yaw, 3), pitch: hd.pitch + 0.05 * sw(pr.pitch, 4) };
+      turn = Math.hypot(0.05 * rate(pr.yaw, 3), 0.05 * rate(pr.pitch, 4)) * 180 / Math.PI;
     }
     const us = this.user;
     const dxCm = (this.gx - this.W / 2) / this.ppc - hd.x;
@@ -2232,7 +2541,9 @@ var SimUser = class {
     );
     const phi = new Float64Array(this.pixels === "none" ? N_BASE : N_FULL);
     phi.set(base);
-    phi.set([-hd.x + n(0.1), -hd.y + n(0.1), hd.d + n(0.3), -Math.tan(headYaw) + n(0.01), -Math.tan(headPitch) + n(0.012)], 22);
+    const dg = this.depthGain;
+    const pg = this.poseGain;
+    phi.set([-hd.x * dg + n(0.1), -hd.y * dg + n(0.1), hd.d * dg + n(0.3), -Math.tan(headYaw) * pg + n(0.01), -Math.tan(headPitch) * pg + n(0.012)], 22);
     if (this.pixels !== "none") {
       for (let e = 0; e < 2; e++) {
         const pj = this.pixelJitter;
@@ -2244,7 +2555,7 @@ var SimUser = class {
         this.eyeImage(phi, OFF_LOG + e * PIX_W * PIX_H, x0, y0, lid2, n, null);
       }
     }
-    return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null };
+    return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null, turn };
   }
   // A tiny picture of one eye: bright sclera, dark iris at (x0, y0), darker above the upper lid.
   // Coordinates are in eye widths from the middle of the eye, like the real cut-out.
@@ -2278,7 +2589,7 @@ var SimUser = class {
 };
 
 // src/app.js
-var VERSION = "0.3.1";
+var VERSION = "0.4";
 var wall = (tPerf) => Date.now() - (performance.now() - tPerf);
 var PURSUIT_MS = 2e4;
 var MOVE_MS = 3e4;
@@ -2300,6 +2611,8 @@ var makeCal = () => new Calibrator({
   poseIdx: POSE_IDX,
   poseSigma: POSE_SIGMA,
   defaultModel: DEFAULT_MODEL,
+  prefer: MOVE_SAFE,
+  // the model that survives a moving phone leads unless another is clearly better
   cvEvery: 24,
   deferCv: true,
   // learning waits for the idle timer instead of delaying a touch
@@ -2330,6 +2643,9 @@ var S = {
   ring: new FrameRing(),
   errMap: new ErrorMap(3, 4),
   smooth: new FixationSmoother(),
+  headFilter: new HeadFilter(),
+  geo: null,
+  // what the last moving calibration measured about the head's share
   gaze: null,
   video: null,
   pursuitLog: [],
@@ -2392,7 +2708,7 @@ function save() {
   if (S.sim) return;
   try {
     localStorage.setItem("gazecal:settings", JSON.stringify(S.settings));
-    localStorage.setItem(profileKey(), JSON.stringify({ cal: S.cal.toJSON({ nBase: N_BASE }), loo: S.looPx }));
+    localStorage.setItem(profileKey(), JSON.stringify({ cal: S.cal.toJSON({ nBase: N_BASE }), loo: S.looPx, shares: getGeometry().shares, geo: S.geo }));
   } catch (e) {
   }
 }
@@ -2408,7 +2724,17 @@ function load() {
     if (s) Object.assign(S.settings, s);
     S.settings.motion = motion;
     const p = JSON.parse(localStorage.getItem(profileKey()) || "null");
-    if (p && p.cal && S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
+    setGeometry({ shares: DEFAULT_SHARES });
+    S.geo = null;
+    if (p && p.cal) {
+      setGeometry({ shares: p.shares });
+      if (S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) {
+        S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
+        S.geo = p.geo || null;
+      } else {
+        setGeometry({ shares: DEFAULT_SHARES });
+      }
+    }
   } catch (e) {
   }
   S.cal.learning = S.settings.learn;
@@ -2422,13 +2748,21 @@ function onFrame(f, t) {
     S.fps = S.fps ? S.fps + 0.1 * (inst - S.fps) : inst;
   }
   S.lastFrameT = t;
-  f.device = t - S.motionT < 400 ? { rot: S.rot.map((v) => Math.round(v * 1e4) / 1e4), grav: S.grav ? S.grav.map((v) => Math.round(v * 100) / 100) : null } : null;
-  S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: t - S.motionT < 400 ? S.motion : 0, hi: f.hi || null });
+  const gyro = t - S.motionT < 400;
+  f.device = gyro ? { rot: S.rot.map((v) => Math.round(v * 1e4) / 1e4), grav: S.grav ? S.grav.map((v) => Math.round(v * 100) / 100) : null } : null;
+  if (S.face) {
+    const turn = S.simUser ? f.turn >= 0 ? f.turn : null : gyro ? S.motion : null;
+    f.rawHead = Array.from(f.phi.subarray(22, 27));
+    f.phi.set(S.headFilter.push(f.rawHead, t / 1e3, turn), 22);
+  } else {
+    S.headFilter.reset();
+  }
+  S.ring.push({ t, face: S.face, phi: f.phi || null, blink: f.blink || 0, motion: gyro ? S.motion : 0, hi: f.hi || null, raw: f.rawHead || null });
   if (S.face) S.cal.setPose(f.phi);
   if (!S.face) {
     S.gaze = null;
     S.smooth.reset();
-  } else if (S.cal.ready && !(f.blink > 0.5) && !(t - S.motionT < 400 && S.motion > 80)) {
+  } else if (S.cal.ready && !(f.blink > 0.5) && !(gyro && S.motion > 80)) {
     const p = S.cal.predict(f.phi);
     if (p) {
       S.smooth.radius = clamp(sigmaPx(), 70, 160);
@@ -2483,6 +2817,8 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
   if (sum.phi.length >= OFF_PIX + N_PIX) rec.pix = packInt8(sum.phi.subarray(OFF_PIX, OFF_PIX + N_PIX));
   const eye = meanEyes(frames);
   if (eye) rec.eye = eye;
+  const raws = frames.filter((fr) => fr.face && fr.raw && !(fr.blink > 0.5)).map((fr) => fr.raw);
+  if (raws.length) rec.head = [0, 1, 2, 3, 4].map((j) => r5(median(raws.map((v) => v[j]))));
   if (performance.now() - S.motionT < 400) {
     rec.rot = S.rot.map((v) => Math.round(v * 1e4) / 1e4);
     if (S.grav) rec.grav = S.grav.map((v) => Math.round(v * 100) / 100);
@@ -2526,7 +2862,7 @@ function simLookAtTouch(x, y, t) {
   for (let k = 0; k <= 11; k++) {
     const ft = t - 380 + k * 33;
     const f = S.simUser.frame(ft);
-    S.ring.push({ t: ft, face: true, phi: f.phi, blink: f.blink, motion: 0, hi: null });
+    S.ring.push({ t: ft, face: true, phi: f.phi, blink: f.blink, motion: 0, hi: null, raw: Array.from(f.phi.subarray(22, 27)) });
   }
 }
 function startSim() {
@@ -2915,7 +3251,7 @@ function home() {
     </div>
     <div class="scroll">
       <button class="btn ${ready ? "" : "primary"}" data-go="pursue"><span>${ready ? "معايرة بالتتبّع" : "ابدأ: معايرة بالتتبّع"}</span><small>20 ثانية، الهاتف ثابت</small></button>
-      <button class="btn" data-go="pursueMove"><span>معايرة متحركة</span><small>30 ثانية وأنت تحرّك الهاتف</small></button>
+      <button class="btn" data-go="pursueMove"><span>معايرة متحركة</span><small>30 ثانية وأنت تحرّك الهاتف · تقيس أثر الحركة</small></button>
       <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>تضيف 9 عينات</small></button>
       <button class="btn" data-go="test" ${ready ? "" : "disabled"}><span>قياس الدقة</span><small>20 نقطة</small></button>
       <button class="btn" data-go="free"><span>استخدام حر</span><small>يتعلّم من لمساتك</small></button>
@@ -3061,6 +3397,18 @@ var spreadOf = (values) => {
   const a = values.filter(Number.isFinite);
   return a.length ? [percentile(a, 0.05), percentile(a, 0.95)] : [NaN, NaN];
 };
+function measureGeometry() {
+  const G = MODEL_SPECS.find((m) => m.name === "G");
+  const pool = S.cal.samples.filter((sm) => sm.src === "pursuit-move" && sm.phi.length >= G.needs);
+  const r = measureHeadShares(pool, { expand: G.expand, nFeat: G.nFeat, stdFloor: G.stdFloor, parts: headParts, prior: DEFAULT_SHARES });
+  if (!r) return null;
+  const applied = r.measured.some(Boolean) && r.after < r.before;
+  if (applied) {
+    setGeometry({ shares: r.shares });
+    S.cal.refit({ cv: true, nowT: Date.now(), only: (m) => !!m.offset });
+  }
+  return { ...r, before: Math.round(r.before * 10) / 10, after: Math.round(r.after * 10) / 10, applied, at: (/* @__PURE__ */ new Date()).toISOString() };
+}
 function learnPursuit(frames, path, tStart, { move, duration }) {
   const usable = frames.filter((f) => f.face && f.phi && !(f.blink > 0.5) && f.t > 800);
   const out = { ok: false, usable: usable.length, total: frames.length };
@@ -3069,6 +3417,15 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
   const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: wall(tStart), src: move ? "pursuit-move" : "pursuit" });
   if (samples.length < 80) return out;
   S.cal.addBatch(samples, { nowT: Date.now() });
+  let geo = null;
+  if (move) {
+    try {
+      geo = measureGeometry();
+    } catch (e) {
+      geo = null;
+    }
+    if (geo) S.geo = geo;
+  }
   S.cal.freeze();
   S.smooth.reset();
   S.anchor = { t: performance.now(), pose: S.cal.pose ? Float64Array.from(S.cal.pose) : null };
@@ -3088,6 +3445,8 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
     lagCurve: lag.curve.map((v) => Math.round(v * 10) / 10),
     samples: samples.length,
     spread,
+    geometry: geo,
+    // the head shares measured from the moving recordings in memory (null for a still one)
     // every frame keeps its numbers and the plain eye picture; every second one also the larger picture
     frames: frames.map((f, i) => ({
       t: Math.round(f.t),
@@ -3098,20 +3457,33 @@ function learnPursuit(frames, path, tStart, { move, duration }) {
       a: f.device ? f.device.grav : null,
       // gravity in the phone's own axes, m/s²
       b: f.phi ? Array.from(f.phi.subarray(0, N_BASE), r5) : null,
+      r: f.raw ? f.raw.map(r5) : null,
+      // tx, ty, tz, nxz, nyz as the camera read them; `b` holds them steadied
       q: f.phi && f.phi.length >= OFF_PIX + N_PIX ? packInt8(f.phi.subarray(OFF_PIX, OFF_PIX + N_PIX)) : null,
       e: f.hi && i % 2 === 0 ? b64(f.hi) : null
     }))
   });
   if (S.pursuitLog.length > 3) S.pursuitLog.shift();
   save();
-  return { ...out, ok: S.cal.ready, n: samples.length, lag, spread };
+  return { ...out, ok: S.cal.ready, n: samples.length, lag, spread, geo };
+}
+function geoRows(geo, { footnote = true } = {}) {
+  const sh = getGeometry().shares;
+  const set = (i) => !!(geo && geo.applied && geo.measured[i]);
+  const cell = (i) => `<b dir="ltr"${set(i) ? "" : ' class="unset"'}>${sh[i].toFixed(2)}${set(i) ? "" : "*"}</b>`;
+  const all = [0, 1, 2, 3].every(set);
+  return `<div class="geo">
+      <span>أثر حركة الرأس</span><span>أفقي</span><span>عمودي</span>
+      <span>موضعه</span>${cell(0)}${cell(1)}
+      <span>اتجاهه</span>${cell(2)}${cell(3)}
+    </div>${footnote && !all ? '<p class="note">* قيمة افتراضية لم تُقَس بعد.</p>' : ""}${sh.some((v) => v < 0) ? '<p class="note">القيمة السالبة تعني أن الكاميرا تعطي ذلك المحور معكوسًا. قيس ذلك وصار محسوبًا.</p>' : ""}`;
 }
 function pursue(move = false) {
   const duration = move ? MOVE_MS : PURSUIT_MS;
   const root = el(`<section class="screen full">
     <button class="close" data-gaze="ignore" data-go="home" aria-label="إغلاق">✕</button>
     <div class="pbar"></div>
-    <div class="hud hint">${move ? "المس النقطة ثم تابعها بعينيك<br><small>وحرّك الهاتف ببطء طوال 30 ثانية: قرّبه، أبعده، أمِله قليلًا.</small>" : "المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small>"}</div>
+    <div class="hud hint">${move ? "المس النقطة ثم تابعها بعينيك<br><small>وحرّك الهاتف بلا توقف طوال 30 ثانية: يمينًا ويسارًا، أعلى وأسفل، قرّبه وأبعده، وأمِله.</small>" : "المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small>"}</div>
     <div class="dot" data-gaze="dot"><i></i></div>
   </section>`);
   const dot = $(".dot", root);
@@ -3147,16 +3519,17 @@ function pursue(move = false) {
         out = { ok: false, usable: 0, total: frames.length, error: String(e && e.message || e) };
       }
       busy.remove();
-      const narrow = move && out.ok && !(out.spread.distCm[1] - out.spread.distCm[0] >= 3 || out.spread.tiltDeg >= 6);
+      const geo = out.ok ? out.geo : null;
+      const all = !!geo && geo.applied && geo.measured.every(Boolean);
       root.appendChild(el(out.ok ? `<div class="sheet">
             <h2>${move ? "تمت المعايرة المتحركة" : "تمت معايرة التتبّع"}</h2>
             <div class="big">${out.n} <small>عينة جديدة من ${out.total} إطارًا</small></div>
             <div class="row"><span>تأخر العين</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? "" : " (افتراضي)"}</b></div>
             <div class="row"><span>المسافة</span><b><span dir="ltr">${out.spread.distCm[0]}–${out.spread.distCm[1]}</span> سم</b></div>
             <div class="row"><span>مدى الميل</span><b><span dir="ltr">${out.spread.tiltDeg}°</span></b></div>
-            ${narrow ? '<p class="warn">الحركة كانت قليلة. أعدها بحركة أوسع ليتعلّم النموذج أثر الوضعية.</p>' : ""}
-            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك تتنافس النماذج كلها على النقاط نفسها.</p>
-            <button class="btn primary" data-go="test">قياس الدقة</button>
+            ${move ? geoRows(geo, { footnote: false }) : ""}
+            ${move && !all ? '<p class="warn">القيم ذات النجمة لم تُقَس: الحركة لم تكفِ. أعدها وحرّك الهاتف في كل الاتجاهات، فكل تسجيل يُضاف إلى ما قبله.</p>' : ""}
+            ${move ? '<p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: غيّر مسكة الهاتف قبله لترى أثر الحركة.</p><button class="btn primary" data-go="test">قياس الدقة</button>' : '<p class="note">التالي: «معايرة متحركة» تقيس كيف يتحرك وجهك أمام الكاميرا حين يتحرك الهاتف.</p><button class="btn primary" data-go="pursueMove">معايرة متحركة</button><button class="btn center" data-go="test">قياس الدقة</button>'}
             <button class="btn center" data-go="home">الرئيسية</button>
           </div>` : `<div class="sheet">
             <h2>لم يكتمل التسجيل</h2>
@@ -3186,7 +3559,7 @@ function pursue(move = false) {
       if (move) S.simUser.startWobble(tStart);
     }
     S.onFrame = (f, t) => {
-      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0, device: f.device });
+      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, raw: f.face ? f.rawHead : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0, device: f.device });
     };
     raf = requestAnimationFrame(step);
   });
@@ -3568,6 +3941,8 @@ function summary() {
     pursuit: S.cal.samples.filter((x) => x.src.startsWith("pursuit")).length,
     models: modelBoard(last).map((b) => ({ name: b.name, n: b.n, medPx: b.med, lead: b.lead, ready: b.ready })),
     lead: S.cal.activeModel() ? S.cal.activeModel().name : null,
+    headShares: getGeometry().shares,
+    headSharesMeasured: S.geo && S.geo.applied ? S.geo.measured : [false, false, false, false],
     rejects: { ...S.rejects },
     fps: Math.round(S.fps)
   };
@@ -3596,6 +3971,7 @@ function summaryText() {
     `الخطأ الوسيط (آخر ${Math.min(20, s.scored)}): ${cm(s.medErrPx)} سم · بالمعايرة وحدها: ${cm(s.medFrozenPx)} سم`,
     `النماذج على العينات نفسها (سم): ${s.models.filter((m) => m.n).map((m) => `${m.name} ${cm(m.medPx)}`).join(" · ") || "—"} · يقود ${s.lead || "—"}`,
     `أفقي / عمودي: ${cm(s.medDxPx)} / ${cm(s.medDyPx)} سم · الربع الأسوأ فوق ${cm(s.p75Px)} سم`,
+    `أثر الرأس (موضع أفقي، عمودي · اتجاه أفقي، عمودي): ${s.headShares.map((v, i) => `${v.toFixed(2)}${s.headSharesMeasured[i] ? "" : "*"}`).join("، ")}${s.headSharesMeasured.every(Boolean) ? "" : " (* افتراضي لم يُقَس)"}`,
     `نظر + لمس: ${picks || "—"}`,
     `(${S.pxPerCm} px لكل سم، تقدير)`
   ].join("\n");
@@ -3651,7 +4027,11 @@ function stats() {
     const spec = S.cal.model(m.name);
     return `<div class="row"><span>${m.name} · ${spec.label}${m.lead ? ' <i class="tag">يقود</i>' : ""}</span><b>${m.n ? cm(m.medPx) + " سم" : m.ready ? "—" : "ينتظر عينات"}</b></div>`;
   }).join("")}
-      <p class="note">كل عينة تُختبر على النماذج كلها قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
+      <p class="note">كل عينة تُختبر على النماذج كلها قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة. النموذج الهندسي G يقود المؤشر لأنه يتحمّل حركة الهاتف، ولا يتقدّمه غيره إلا إذا كان خطؤه أقل بنحو الثلث.</p>
+    </div>
+    <div class="card"><h2>هندسة الرأس</h2>
+      ${geoRows(S.geo)}
+      <p class="note">كم يُصدَّق قياس الكاميرا لموضع رأسك واتجاهه حين يُحسب أثرهما على نقطة النظر. «معايرة متحركة» تقيسه، وكل تسجيل جديد يُضاف إلى ما قبله.</p>
     </div>
     <div class="card"><h2>الخطأ مع توالي اللمسات (سم)</h2>${curveSvg()}</div>
     <div class="card"><h2>الخطأ حسب المنطقة (سم)</h2>${has ? heatHtml() : '<p class="note">تظهر الخريطة بعد أول قياس.</p>'}</div>
@@ -3678,12 +4058,15 @@ function stats() {
       pxPerCm: S.pxPerCm,
       sim: S.sim,
       delegate: S.delegate,
-      format: 3,
+      format: 4,
       video: S.video,
       features: FEATURE_NAMES,
       // tx, ty, tz, nxz, nyz: the head as the camera's face fit reports it, in cm (x toward image-right, y up,
       // tz = distance) and the slopes of the face direction. Model G computes the head's share from these.
-      geometry: { pxPerCm: S.pxPerCm, touchBoost: TOUCH_BOOST },
+      // shares: how much of the head's position (x, y) and direction (x, y) enters the head's part of
+      // the gaze point; `measured` is the last moving calibration's verdict. rec.head / frame.r hold the
+      // head numbers as the camera read them, rec.phi / frame.b the same after steadying.
+      geometry: { pxPerCm: S.pxPerCm, touchBoost: TOUCH_BOOST, shares: getGeometry().shares, defaultShares: DEFAULT_SHARES, measured: S.geo, headFilter: { minCutoffHz: 1.5, beta: 0.3, hzPerDegPerSec: 0.4, needsGyroscope: true } },
       // rec.pix / frame.q: PIX_W×PIX_H values per eye (right then left), row by row, int8 = value×32 after
       // removing the cut-out's mean and dividing by its spread. rec.eye / frame.e: the larger grey
       // cut-outs, hiW×hiH bytes per eye. Each cut-out spans `span` eye lengths, levelled to the corner line.
@@ -3726,6 +4109,8 @@ function stats() {
     S.gaze = null;
     S.pursuitLog = [];
     S.smooth.reset();
+    setGeometry({ shares: DEFAULT_SHARES });
+    S.geo = null;
     save();
     toast("مُسحت المعايرة");
     go("home");
@@ -3763,7 +4148,7 @@ window.addEventListener("resize", () => {
   }, 350);
 });
 $("#back").addEventListener("click", () => go("home"));
-window.__gazecal = { S, go, takeSample, summary, summaryText };
+window.__gazecal = { S, go, takeSample, summary, summaryText, getGeometry, setGeometry, save };
 renderStart();
 
 </script>

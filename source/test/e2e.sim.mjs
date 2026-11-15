@@ -107,6 +107,10 @@ await shot('04f-move-hint');
   await sleep(150);
   await shot('04g-move-done');
   console.log('moving sheet:', (await page.locator('.sheet').innerText()).replace(/\n+/g, ' | '));
+  const geo = await page.evaluate(() => ({ geo: window.__gazecal.S.geo, shares: window.__gazecal.getGeometry().shares, lead: window.__gazecal.S.cal.active }));
+  console.log('head geometry:', JSON.stringify(geo));
+  if (!geo.geo || !geo.geo.applied || !geo.geo.measured.some(Boolean) || geo.shares.every((v) => v === 0.8)) problems.push('the moving calibration did not measure the head shares');
+  if (geo.shares.some((v) => !(v > 0.4 && v < 1.6))) problems.push('measured head shares are far from this simulated camera (which reads the head exactly): ' + geo.shares);
 }
 
 // accuracy test
@@ -211,7 +215,10 @@ console.log('\n' + await page.evaluate(() => window.__gazecal.summaryText()));
     ` · calibration v${d.calibration.v} with ${d.calibration.samples.length} samples of ${d.calibration.nFeat} features · last rec errs ${JSON.stringify(rec.errs)} pix ${rec.pix ? rec.pix.length : 0} chars`);
   const pk = d.picks[d.picks.length - 1];
   console.log(`export 0.3: runs ${d.pursuit.map((r) => `${r.mode} ${r.samples} (dist ${r.spread.distCm.join('–')} cm, tilt ${r.spread.tiltDeg}°)`).join('; ')} · last pick ${JSON.stringify({ goal: pk.goal, chosen: pk.chosen, ok: pk.ok, okEarly: pk.okEarly, errPx: pk.errPx, trace: pk.trace.length })} · preds ${JSON.stringify(rec.preds)} · by src ${JSON.stringify(d.summary.bySrc)}`);
-  if (d.format !== 3 || d.calibration.v !== 3 || d.calibration.nFeat !== 315 || d.pursuit.length !== 2 || !d.pursuit[1].frames[30].q || !rec.pix || !rec.preds || !pk.trace.length || rec.phi.length !== 27) problems.push('export is missing 0.3 fields');
+  if (d.calibration.v !== 3 || d.calibration.nFeat !== 315 || d.pursuit.length !== 2 || !d.pursuit[1].frames[30].q || !rec.pix || !rec.preds || !pk.trace.length || rec.phi.length !== 27) problems.push('export is missing 0.3 fields');
+  const fr = d.pursuit[1].frames.find((f) => f.r);
+  console.log(`export 0.4: app ${d.app} · geometry ${JSON.stringify(d.geometry)} · moving run geometry ${JSON.stringify(d.pursuit[1].geometry)} · frame head raw ${JSON.stringify(fr && fr.r)} steadied ${JSON.stringify(fr && fr.b.slice(22))} · sample head ${JSON.stringify(rec.head)} · summary shares ${JSON.stringify(d.summary.headShares)}`);
+  if (d.format !== 4 || !/0\.4$/.test(d.app) || d.geometry.shares.length !== 4 || !d.geometry.measured || d.pursuit[0].geometry !== null || !d.pursuit[1].geometry || !fr || fr.r.length !== 5 || !rec.head || rec.head.length !== 5 || d.summary.headShares.length !== 4) problems.push('export is missing 0.4 fields');
 }
 
 // reset flow
@@ -219,8 +226,9 @@ await tapSel('#s-reset');
 await sleep(100);
 await tapSel('#s-reset');
 await sleep(300);
-const after = await page.evaluate(() => ({ n: window.__gazecal.S.cal.samples.length, screen: window.__gazecal.S.screen }));
+const after = await page.evaluate(() => ({ n: window.__gazecal.S.cal.samples.length, screen: window.__gazecal.S.screen, shares: window.__gazecal.getGeometry().shares, geo: window.__gazecal.S.geo }));
 console.log('\nafter reset:', JSON.stringify(after));
+if (after.n !== 0 || after.geo !== null || after.shares.some((v) => v !== 0.8)) problems.push('reset left samples or measured head shares behind');
 
 console.log(problems.length ? '\nPROBLEMS:\n' + problems.join('\n') : '\nno console errors');
 await browser.close();
