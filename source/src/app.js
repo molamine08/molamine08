@@ -8,7 +8,7 @@ import {
 } from './features.js';
 import { SimUser, mulberry32 } from './sim.js';
 
-const VERSION = '0.4';
+const VERSION = '0.5';
 // Frames and touches are timed with performance.now(); stored samples carry wall-clock time.
 // Converted at the moment of use: the page clock stops while the browser is in the background.
 const wall = (tPerf) => Date.now() - (performance.now() - tPerf);
@@ -28,8 +28,8 @@ const EMBEDDED = (() => {
   }
 })() || !/^https?:$/.test(location.protocol);
 
-const TITLES = { home: 'معايرة النظر', boot: 'معايرة 9 نقاط', pursue: 'معايرة بالتتبّع', pursueMove: 'معايرة متحركة', test: 'قياس الدقة', free: 'استخدام حر', pick: 'نظر + لمس', stats: 'النتائج' };
-const IMMERSIVE = { boot: true, pursue: true, pursueMove: true, test: true, pick: true };
+const TITLES = { home: 'معايرة النظر', boot: 'معايرة 9 نقاط', pursue: 'معايرة بالتتبّع', pursueMove: 'معايرة متحركة', test: 'قياس الدقة', free: 'استخدام حر', pick: 'نظر + لمس', ar: 'عرض AR', stats: 'النتائج' };
+const IMMERSIVE = { boot: true, pursue: true, pursueMove: true, test: true, pick: true, ar: true };
 
 const makeCal = () => new Calibrator({
   models: MODEL_SPECS.map((spec) => new GazeModel(spec)),
@@ -75,7 +75,7 @@ const S = {
   pursuitLog: [],
   anchor: null, // when and in which head pose the last labelled sample was taken
   onFrame: null,
-  settings: { cursor: true, learn: true, preview: true, gpu: false, motion: false },
+  settings: { cursor: true, learn: true, preview: true, gpu: false, motion: false, ar: { mesh: true, head: true, gaze: true } },
   log: [],
   picks: [],
   rejects: {},
@@ -749,6 +749,7 @@ function home() {
       <button class="btn" data-go="test" ${ready ? '' : 'disabled'}><span>قياس الدقة</span><small>20 نقطة</small></button>
       <button class="btn" data-go="free"><span>استخدام حر</span><small>يتعلّم من لمساتك</small></button>
       <button class="btn" data-go="pick" ${ready ? '' : 'disabled'}><span>نظر + لمس</span><small>اختيار بالعين</small></button>
+      <button class="btn" data-go="ar"><span>عرض AR</span><small>صورتك وعليها شبكة الوجه واتجاه النظر</small></button>
       <button class="btn" data-go="stats"><span>النتائج والتصدير</span><small></small></button>
       ${ready ? '' : '<p class="note">«قياس الدقة» و«نظر + لمس» يُفتحان بعد المعايرة.</p>'}
       <div class="card settings">
@@ -1469,7 +1470,222 @@ function pick() {
   return root;
 }
 
-// ---------- 5. results and export ----------
+// ---------- 5. AR view: the camera picture with what the tracker sees drawn over it ----------
+// The frame that was just analysed is painted like a mirror, and the face mesh, the direction of
+// the head and the gaze are drawn over it in the same coordinates, so every line sits on the
+// picture it was computed from. The gaze point lies on the screen itself: a line from each eye in
+// the picture to that point shows the estimate as it is, with nothing added.
+const AR_LAYERS = [['mesh', 'الشبكة'], ['head', 'الرأس'], ['gaze', 'النظر']];
+const IRIS = [[468, 469], [473, 474]]; // centre of each iris and one point on its rim
+let faceLineSets = null;
+
+// MediaPipe's lists of which landmarks to join, flattened once: [start, end, start, end, ...]
+function faceLines() {
+  if (faceLineSets || !visionLib || !visionLib.FaceLandmarker) return faceLineSets;
+  const F = visionLib.FaceLandmarker;
+  const flat = (...lists) => {
+    const out = [];
+    for (const list of lists) for (const c of list || []) out.push(c.start, c.end);
+    return Uint16Array.from(out);
+  };
+  faceLineSets = {
+    fine: flat(F.FACE_LANDMARKS_TESSELATION),
+    outline: flat(F.FACE_LANDMARKS_FACE_OVAL, F.FACE_LANDMARKS_LEFT_EYEBROW, F.FACE_LANDMARKS_RIGHT_EYEBROW, F.FACE_LANDMARKS_LIPS),
+    eyes: flat(F.FACE_LANDMARKS_LEFT_EYE, F.FACE_LANDMARKS_RIGHT_EYE),
+  };
+  return faceLineSets;
+}
+
+function ar() {
+  if (!S.settings.ar || typeof S.settings.ar !== 'object') S.settings.ar = { mesh: true, head: true, gaze: true };
+  const layers = S.settings.ar;
+  const root = el(`<section class="screen full ar">
+    <canvas id="ar-view" aria-hidden="true"></canvas>
+    <button class="close" data-gaze="ignore" data-go="home" aria-label="إغلاق">✕</button>
+    <div class="hud hint" id="ar-hint" hidden></div>
+    <div class="ar-bar" data-gaze="ignore">
+      <div class="statline" id="ar-stat">—</div>
+      <div class="ar-layers">${AR_LAYERS.map(([k, label]) => `<button class="seg" data-layer="${k}" aria-pressed="${!!layers[k]}">${label}</button>`).join('')}</div>
+    </div>
+  </section>`);
+  const canvas = $('#ar-view', root);
+  const ctx = canvas.getContext('2d');
+  const hint = $('#ar-hint', root);
+  const stat = $('#ar-stat', root);
+  const video = $('#cam');
+  const pts = new Float32Array(478 * 2); // every landmark where it falls on the screen
+  let statT = -1e9;
+
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-layer]');
+    if (!b) return;
+    layers[b.dataset.layer] = !layers[b.dataset.layer];
+    b.setAttribute('aria-pressed', String(layers[b.dataset.layer]));
+    save();
+  });
+
+  function strokeLines(idx, style, width) {
+    ctx.beginPath();
+    for (let i = 0; i < idx.length; i += 2) {
+      ctx.moveTo(pts[2 * idx[i]], pts[2 * idx[i] + 1]);
+      ctx.lineTo(pts[2 * idx[i + 1]], pts[2 * idx[i + 1] + 1]);
+    }
+    ctx.strokeStyle = style;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+
+  function draw(f, t) {
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    if (!ctx || !W || !H) return;
+    // twice the CSS size is enough for thin lines and keeps the per-frame fill small
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // the camera frame fills the screen (cropped, never stretched) and is flipped like a mirror
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const res = S.sim ? null : S.lastResult;
+    const lm = res && f.face && res.faceLandmarks ? res.faceLandmarks[0] : null;
+    let live = false;
+    if (!S.sim && vw && vh) {
+      const k = Math.max(W / vw, H / vh);
+      const sw = W / k;
+      const sh = H / k;
+      const sx = (vw - sw) / 2;
+      const sy = (vh - sh) / 2;
+      ctx.save();
+      try {
+        ctx.translate(W, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
+        live = true;
+      } catch (e) { /* the frame was not ready to be drawn */ }
+      ctx.restore();
+      ctx.fillStyle = 'rgba(11, 13, 16, 0.3)'; // a little darker, so thin light lines stay readable
+      ctx.fillRect(0, 0, W, H);
+      if (lm) {
+        for (let i = 0; i < 478; i++) {
+          pts[2 * i] = W - (lm[i].x * vw - sx) * k;
+          pts[2 * i + 1] = (lm[i].y * vh - sy) * k;
+        }
+      }
+    }
+    const seen = live && !!lm && lm.length >= 478;
+
+    const lines = seen ? faceLines() : null;
+    if (lines && layers.mesh) {
+      strokeLines(lines.fine, 'rgba(233, 238, 245, 0.16)', 0.5);
+      strokeLines(lines.outline, 'rgba(233, 238, 245, 0.6)', 1);
+      strokeLines(lines.eyes, 'rgba(233, 238, 245, 0.95)', 1.25);
+    }
+    if (seen && (layers.mesh || layers.gaze)) {
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 1.5;
+      for (const [c, rim] of IRIS) {
+        ctx.beginPath();
+        ctx.arc(pts[2 * c], pts[2 * c + 1], Math.max(2, Math.hypot(pts[2 * rim] - pts[2 * c], pts[2 * rim + 1] - pts[2 * c + 1])), 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+    }
+
+    // Where the face points, as the camera reads it: the third column of the face transform is the
+    // face's forward axis (x to the right of the picture, y up, z toward the camera). Drawn from
+    // the tip of the nose; the picture is mirrored, so x flips, and on the screen y runs down.
+    const mat = res && res.facialTransformationMatrixes && res.facialTransformationMatrixes[0];
+    const d = mat && mat.data && mat.data.length >= 16 ? mat.data : null;
+    let turn = null;
+    if (seen && d && d[10] > 0.05) {
+      turn = [Math.atan2(d[8], d[10]) * 180 / Math.PI, Math.atan2(d[9], d[10]) * 180 / Math.PI];
+      if (layers.head) {
+        const between = Math.hypot(pts[2 * 473] - pts[2 * 468], pts[2 * 473 + 1] - pts[2 * 468 + 1]);
+        const len = 3 * between; // about 19 cm of ray in front of the face
+        const nx = pts[2];
+        const ny = pts[3];
+        const ex = nx - d[8] * len;
+        const ey = ny - d[9] * len;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.fillStyle = '#fbbf24';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(nx, ny);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(ex, ey, 4.5, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    // the gaze: from each eye in the picture to the point of the screen being looked at
+    if (layers.gaze && S.gaze) {
+      const box = canvas.getBoundingClientRect();
+      const gx = S.gaze.x - box.left;
+      const gy = S.gaze.y - box.top;
+      if (seen) {
+        ctx.lineWidth = 1.5;
+        for (const [c] of IRIS) {
+          const x0 = pts[2 * c];
+          const y0 = pts[2 * c + 1];
+          const fade = ctx.createLinearGradient(x0, y0, gx, gy);
+          fade.addColorStop(0, 'rgba(96, 165, 250, 0.25)');
+          fade.addColorStop(1, 'rgba(96, 165, 250, 0.95)');
+          ctx.strokeStyle = fade;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(gx, gy);
+          ctx.stroke();
+        }
+      }
+      // the same ring as the gaze cursor: its radius is the recent error
+      ctx.beginPath();
+      ctx.arc(gx, gy, Math.min(sigmaPx(), 130), 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(96, 165, 250, 0.13)';
+      ctx.fill();
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(gx, gy, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = '#60a5fa';
+      ctx.fill();
+    }
+
+    const msg = S.sim ? 'هذا العرض يحتاج الكاميرا، والمحاكاة بلا كاميرا'
+      : !live ? 'الكاميرا متوقفة'
+        : !seen ? 'لا يوجد وجه'
+          : layers.gaze && !S.cal.ready ? 'عاير أولًا ليظهر اتجاه النظر' : '';
+    if (hint.textContent !== msg) {
+      hint.textContent = msg;
+      hint.hidden = !msg;
+    }
+    if (t - statT > 250) {
+      statT = t;
+      const parts = [];
+      if (Number.isFinite(S.distCm)) parts.push(`المسافة ${Math.round(S.distCm)} سم`);
+      if (turn) parts.push(`دوران الرأس ${Math.abs(turn[0]).toFixed(0)}°`, `ميله ${Math.abs(turn[1]).toFixed(0)}°`);
+      const lead = S.cal.ready ? S.cal.activeModel() : null;
+      if (lead) parts.push(`يقود ${lead.name}`);
+      stat.textContent = parts.join(' · ') || '—';
+    }
+  }
+
+  S.onFrame = draw;
+  S.cleanup = () => {
+    S.onFrame = null;
+  };
+  return root;
+}
+
+// ---------- 6. results and export ----------
 function summary() {
   const scored = S.log.filter((r) => r.ok && r.err != null && r.src !== 'bootstrap');
   const last = scored.slice(-20);
@@ -1678,7 +1894,7 @@ function stats() {
   return root;
 }
 
-const SCREENS = { home, boot, pursue: () => pursue(false), pursueMove: () => pursue(true), test, free, pick, stats };
+const SCREENS = { home, boot, pursue: () => pursue(false), pursueMove: () => pursue(true), test, free, pick, ar, stats };
 
 // ---------- rotation: each orientation keeps its own calibration ----------
 let resizeTimer = 0;

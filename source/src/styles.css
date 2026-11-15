@@ -609,6 +609,52 @@ body {
   color: var(--muted);
 }
 
+/* ---------- AR view ---------- */
+.ar canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ar .close {
+  background: rgba(11, 13, 16, 0.62);
+  color: var(--text);
+}
+
+.ar .hud.hint {
+  top: 16%;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
+}
+
+.ar-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 5;
+  padding: 2px 8px 8px;
+  border-radius: 16px;
+  background: rgba(11, 13, 16, 0.62);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.ar-bar .statline { color: var(--text); }
+
+.ar-layers {
+  display: flex;
+  gap: 6px;
+}
+
+.ar-layers .seg { background: rgba(255, 255, 255, 0.07); }
+
+.ar-layers .seg[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
 /* ---------- free-use screen ---------- */
 .free {
   padding: 0;

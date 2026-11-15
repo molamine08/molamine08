@@ -193,6 +193,33 @@ console.log('pick 3x5:', await page.locator('#p-stat').innerText(), `| anchors $
 // results
 await tapSel('.close');
 await sleep(250);
+// AR view: without a camera it says so, still marks the gaze point, and leaves cleanly
+await tapSel('[data-go="ar"]');
+await sleep(600);
+{
+  const arView = await page.evaluate(() => {
+    const { S } = window.__gazecal;
+    const canvas = document.querySelector('#ar-view');
+    const c = canvas.getContext('2d');
+    let blue = 0;
+    if (S.gaze) {
+      const dpr = canvas.width / canvas.clientWidth;
+      const px = c.getImageData(Math.round((S.gaze.x - 5) * dpr), Math.round((S.gaze.y - 5) * dpr), Math.round(10 * dpr), Math.round(10 * dpr)).data;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 2] > 200 && px[i] < 160) blue++;
+    }
+    return { hint: document.querySelector('#ar-hint').textContent, hidden: document.querySelector('#ar-hint').hidden, gaze: !!S.gaze, blue, stat: document.querySelector('#ar-stat').textContent };
+  });
+  console.log('\nAR view in simulation:', JSON.stringify(arView));
+  await shot('13b-ar-sim');
+  if (arView.hidden || !/الكاميرا/.test(arView.hint)) problems.push('AR view in simulation should say that it needs the camera');
+  if (arView.gaze && !(arView.blue > 20)) problems.push('AR view did not mark the gaze point');
+  await tapSel('[data-layer="gaze"]');
+  await tapSel('[data-layer="gaze"]');
+  await tapSel('.close');
+  await sleep(200);
+  if (await page.evaluate(() => !!window.__gazecal.S.onFrame)) problems.push('AR view kept drawing after it was closed');
+}
+
 await tapSel('[data-go="stats"]');
 await sleep(300);
 await shot('14-stats-top');
@@ -218,7 +245,7 @@ console.log('\n' + await page.evaluate(() => window.__gazecal.summaryText()));
   if (d.calibration.v !== 3 || d.calibration.nFeat !== 315 || d.pursuit.length !== 2 || !d.pursuit[1].frames[30].q || !rec.pix || !rec.preds || !pk.trace.length || rec.phi.length !== 27) problems.push('export is missing 0.3 fields');
   const fr = d.pursuit[1].frames.find((f) => f.r);
   console.log(`export 0.4: app ${d.app} · geometry ${JSON.stringify(d.geometry)} · moving run geometry ${JSON.stringify(d.pursuit[1].geometry)} · frame head raw ${JSON.stringify(fr && fr.r)} steadied ${JSON.stringify(fr && fr.b.slice(22))} · sample head ${JSON.stringify(rec.head)} · summary shares ${JSON.stringify(d.summary.headShares)}`);
-  if (d.format !== 4 || !/0\.4$/.test(d.app) || d.geometry.shares.length !== 4 || !d.geometry.measured || d.pursuit[0].geometry !== null || !d.pursuit[1].geometry || !fr || fr.r.length !== 5 || !rec.head || rec.head.length !== 5 || d.summary.headShares.length !== 4) problems.push('export is missing 0.4 fields');
+  if (d.format !== 4 || !/0\.5$/.test(d.app) || d.geometry.shares.length !== 4 || !d.geometry.measured || d.pursuit[0].geometry !== null || !d.pursuit[1].geometry || !fr || fr.r.length !== 5 || !rec.head || rec.head.length !== 5 || d.summary.headShares.length !== 4) problems.push('export is missing 0.4 fields');
 }
 
 // reset flow
