@@ -3,14 +3,19 @@ import {
   pursuitPath, pursuitSamples, estimateLag, packInt8, median, percentile, clamp,
 } from './engine.js';
 import {
-  FEATURE_NAMES, MODEL_SPECS, DEFAULT_MODEL, POSE_IDX, POSE_SIGMA, EYE_REF, N_BASE, N_FULL, PIX_W, PIX_H, extractFeatures,
+  FEATURE_NAMES, MODEL_SPECS, DEFAULT_MODEL, POSE_IDX, POSE_SIGMA, EYE_REF, N_BASE, N_FULL, N_PIX, OFF_PIX, OFF_LOG, PIX_W, PIX_H,
+  extractFeatures, setGeometry,
 } from './features.js';
 import { SimUser, mulberry32 } from './sim.js';
 
-const VERSION = '0.2';
+const VERSION = '0.3';
 // Frames and touches are timed with performance.now(); stored samples carry wall-clock time.
-const T0 = Date.now() - performance.now();
+// Converted at the moment of use: the page clock stops while the browser is in the background.
+const wall = (tPerf) => Date.now() - (performance.now() - tPerf);
 const PURSUIT_MS = 20000;
+const MOVE_MS = 30000;
+// A touch or a dot is one deliberate look at a known place; a pursuit frame is one of hundreds.
+const TOUCH_BOOST = 3;
 const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3';
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const SIM_URL = /\bsim\b/.test(location.search + location.hash);
@@ -23,8 +28,8 @@ const EMBEDDED = (() => {
   }
 })() || !/^https?:$/.test(location.protocol);
 
-const TITLES = { home: 'معايرة النظر', boot: 'معايرة 9 نقاط', pursue: 'معايرة بالتتبّع', test: 'قياس الدقة', free: 'استخدام حر', pick: 'نظر + لمس', stats: 'النتائج' };
-const IMMERSIVE = { boot: true, pursue: true, test: true, pick: true };
+const TITLES = { home: 'معايرة النظر', boot: 'معايرة 9 نقاط', pursue: 'معايرة بالتتبّع', pursueMove: 'معايرة متحركة', test: 'قياس الدقة', free: 'استخدام حر', pick: 'نظر + لمس', stats: 'النتائج' };
+const IMMERSIVE = { boot: true, pursue: true, pursueMove: true, test: true, pick: true };
 
 const makeCal = () => new Calibrator({
   models: MODEL_SPECS.map((spec) => new GazeModel(spec)),
@@ -32,7 +37,9 @@ const makeCal = () => new Calibrator({
   poseSigma: POSE_SIGMA,
   defaultModel: DEFAULT_MODEL,
   cvEvery: 24,
-  deferCv: true, // the slow part of learning waits for the idle timer instead of delaying a touch
+  deferCv: true, // learning waits for the idle timer instead of delaying a touch
+  deferFit: true,
+  poseRefitMs: 1000,
 });
 
 function guessPxPerCm() {
@@ -63,6 +70,7 @@ const S = {
   gaze: null,
   video: null,
   pursuitLog: [],
+  anchor: null, // when and in which head pose the last labelled sample was taken
   onFrame: null,
   settings: { cursor: true, learn: true, preview: true, gpu: false, motion: false },
   log: [],
@@ -78,6 +86,8 @@ const S = {
   selector: null,
   pickLevel: 0,
 };
+
+setGeometry({ pxPerCm: S.pxPerCm });
 
 // ---------- small helpers ----------
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -119,7 +129,7 @@ function shuffle(a, rand = Math.random) {
 }
 
 // ---------- persistence (one calibration per screen width and orientation) ----------
-const profileKey = () => `gazecal:v2:${S.W}:${S.H >= S.W ? 'p' : 'l'}`;
+const profileKey = () => `gazecal:v3:${S.W}:${S.H >= S.W ? 'p' : 'l'}`;
 let saveTimer = 0;
 
 function save() {
@@ -139,11 +149,12 @@ function load() {
   if (S.sim) return;
   try {
     const s = JSON.parse(localStorage.getItem('gazecal:settings') || 'null');
+    const motion = S.settings.motion; // granted or refused in this visit; a stored answer means nothing
     if (s) Object.assign(S.settings, s);
+    S.settings.motion = motion;
     const p = JSON.parse(localStorage.getItem(profileKey()) || 'null');
     if (p && p.cal && S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
   } catch (e) { /* ignore a corrupt or missing profile */ }
-  S.settings.motion = false; // needs a fresh permission tap every visit
   S.cal.learning = S.settings.learn;
 }
 
@@ -164,7 +175,7 @@ function onFrame(f, t) {
   if (!S.face) {
     S.gaze = null;
     S.smooth.reset();
-  } else if (S.cal.ready && !(f.blink > 0.5)) {
+  } else if (S.cal.ready && !(f.blink > 0.5) && !(t - S.motionT < 400 && S.motion > 80)) {
     const p = S.cal.predict(f.phi);
     if (p) {
       S.smooth.radius = clamp(sigmaPx(), 70, 160);
@@ -214,7 +225,8 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
     S.rejects[sum.reason] = (S.rejects[sum.reason] || 0) + 1;
     return { ok: false, reason: sum.reason };
   }
-  const rec = S.cal.addSample({ phi: sum.phi, y: target, w: baseW * windowWeight(sum, { eyeRef: EYE_REF }), src, t: Math.round(tMs + T0) }, { force });
+  const rec = S.cal.addSample({ phi: sum.phi, y: target, w: TOUCH_BOOST * baseW * windowWeight(sum, { eyeRef: EYE_REF }), src, t: Math.round(wall(tMs)) }, { force });
+  S.anchor = { t: tMs, pose: S.cal.pose ? Float64Array.from(S.cal.pose) : null };
   rec.ok = true;
   rec.screen = S.screen;
   rec.frames = sum.n;
@@ -222,7 +234,7 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
   rec.w = +rec.w.toFixed(3);
   for (const k in rec.errs) if (rec.errs[k] != null) rec.errs[k] = Math.round(rec.errs[k] * 10) / 10;
   rec.phi = Array.from(sum.phi.subarray(0, N_BASE), r5);
-  if (sum.phi.length > N_BASE) rec.pix = packInt8(sum.phi.subarray(N_BASE));
+  if (sum.phi.length >= OFF_PIX + N_PIX) rec.pix = packInt8(sum.phi.subarray(OFF_PIX, OFF_PIX + N_PIX));
   const eye = meanEyes(frames);
   if (eye) rec.eye = eye;
   if (rec.err != null) S.errMap.add(target[0] / S.W, target[1] / S.H, rec.err);
@@ -371,6 +383,7 @@ function eyeImages(video, eyes) {
     const px = cropCtx.getImageData(0, 0, 2 * HI_W, HI_H).data;
     const hi = new Uint8Array(2 * HI_W * HI_H); // right eye then left eye, each row by row
     const pix = new Float64Array(2 * PIX_W * PIX_H);
+    const pixl = new Float64Array(2 * PIX_W * PIX_H); // the same picture in log-brightness
     const bx = HI_W / PIX_W;
     const by = HI_H / PIX_H;
     for (let e = 0; e < 2; e++) {
@@ -380,20 +393,24 @@ function eyeImages(video, eyes) {
           const i = (y * 2 * HI_W + e * HI_W + x) * 4;
           const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
           hi[e * HI_W * HI_H + y * HI_W + x] = g;
-          pix[lo + Math.floor(y / by) * PIX_W + Math.floor(x / bx)] += g;
+          const cell = lo + Math.floor(y / by) * PIX_W + Math.floor(x / bx);
+          pix[cell] += g;
+          pixl[cell] += Math.log(g + 8);
         }
       }
       // brightness and contrast of the cut-out are removed, so room lighting matters less
-      let mean = 0;
-      for (let i = 0; i < PIX_W * PIX_H; i++) mean += pix[lo + i];
-      mean /= PIX_W * PIX_H;
-      let sd = 0;
-      for (let i = 0; i < PIX_W * PIX_H; i++) sd += (pix[lo + i] - mean) * (pix[lo + i] - mean);
-      sd = Math.sqrt(sd / (PIX_W * PIX_H));
-      for (let i = 0; i < PIX_W * PIX_H; i++) pix[lo + i] = sd > bx * by ? (pix[lo + i] - mean) / sd : 0;
+      for (const [arr, floor] of [[pix, bx * by], [pixl, 1e-3 * bx * by]]) {
+        let mean = 0;
+        for (let i = 0; i < PIX_W * PIX_H; i++) mean += arr[lo + i];
+        mean /= PIX_W * PIX_H;
+        let sd = 0;
+        for (let i = 0; i < PIX_W * PIX_H; i++) sd += (arr[lo + i] - mean) * (arr[lo + i] - mean);
+        sd = Math.sqrt(sd / (PIX_W * PIX_H));
+        for (let i = 0; i < PIX_W * PIX_H; i++) arr[lo + i] = sd > floor ? (arr[lo + i] - mean) / sd : 0;
+      }
     }
     cropFailures = 0;
-    return { pix, hi };
+    return { pix, pixl, hi };
   } catch (e) {
     cropFailures++;
     return null;
@@ -417,11 +434,14 @@ function loop() {
   }
   const f = extractFeatures(res, video.videoWidth, video.videoHeight);
   if (f.face) {
-    // the full feature vector: 22 numbers from the face landmarks, then the two eye pictures
+    // the full feature vector: the numbers from the face landmarks, then the eye pictures in both forms
     const img = eyeImages(video, f.eyes);
     const phi = new Float64Array(N_FULL);
     phi.set(f.phi);
-    if (img) phi.set(img.pix, N_BASE);
+    if (img) {
+      phi.set(img.pix, OFF_PIX);
+      phi.set(img.pixl, OFF_LOG);
+    }
     f.phi = phi;
     f.hi = img ? img.hi : null;
   }
@@ -524,6 +544,8 @@ async function start() {
   if (!window.isSecureContext) return renderStart('insecure');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return renderStart('unsupported');
   renderStart('cam');
+  // The gyroscope tells a shaken phone from a moving eye. iOS only offers it inside a tap.
+  S.settings.motion = await enableMotion();
   const video = $('#cam');
   try {
     if (!video.srcObject) {
@@ -589,7 +611,7 @@ function tick() {
   chip.textContent = text;
   chip.className = 'chip ' + cls;
   // slow upkeep of the models, kept away from the recording screen where a hiccup would cost frames
-  if (S.screen !== 'pursue') S.cal.tick(Date.now());
+  if (S.screen !== 'pursue' && S.screen !== 'pursueMove') S.cal.tick(Date.now());
 
   const st = $('#st-state');
   if (!st) return;
@@ -661,8 +683,9 @@ function home() {
       <div class="slot" id="cam-slot" ${S.settings.preview && !S.sim ? '' : 'hidden'}></div>
     </div>
     <div class="scroll">
-      <button class="btn ${ready ? '' : 'primary'}" data-go="pursue"><span>${ready ? 'معايرة بالتتبّع' : 'ابدأ: معايرة بالتتبّع'}</span><small>${ready ? 'تضيف 20 ثانية' : '20 ثانية'}</small></button>
-      <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>${ready ? 'تبدأ من الصفر' : 'بديل سريع'}</small></button>
+      <button class="btn ${ready ? '' : 'primary'}" data-go="pursue"><span>${ready ? 'معايرة بالتتبّع' : 'ابدأ: معايرة بالتتبّع'}</span><small>20 ثانية، الهاتف ثابت</small></button>
+      <button class="btn" data-go="pursueMove"><span>معايرة متحركة</span><small>30 ثانية وأنت تحرّك الهاتف</small></button>
+      <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>تضيف 9 عينات</small></button>
       <button class="btn" data-go="test" ${ready ? '' : 'disabled'}><span>قياس الدقة</span><small>20 نقطة</small></button>
       <button class="btn" data-go="free"><span>استخدام حر</span><small>يتعلّم من لمساتك</small></button>
       <button class="btn" data-go="pick" ${ready ? '' : 'disabled'}><span>نظر + لمس</span><small>اختيار بالعين</small></button>
@@ -777,11 +800,6 @@ function boot() {
     <div class="hud hint">انظر إلى النقطة الخضراء ثم المسها</div>
     <div class="hud prog"></div>
   </section>`);
-  S.cal.reset();
-  S.errMap.reset();
-  S.looPx = NaN;
-  S.smooth.reset();
-
   const xs = [0.1, 0.5, 0.9];
   const ys = [0.09, 0.5, 0.91];
   const rest = [];
@@ -796,14 +814,15 @@ function boot() {
       return 120;
     },
     onDone: () => {
+      S.cal.flush(Date.now());
       S.cal.freeze();
-      const loo = S.cal.looErrors(40, Date.now());
-      S.looPx = loo.length ? median(loo) : NaN;
+      const loo = S.cal.looErrors(40, Date.now()); // only meaningful while these dots are most of the memory
+      if (loo.length) S.looPx = median(loo);
       save();
       root.appendChild(el(S.cal.ready
         ? `<div class="sheet">
             <h2>تمت معايرة 9 نقاط</h2>
-            <div class="big">${cm(S.looPx)} <small>سم خطأ متوقع، تقدير من 9 نقاط</small></div>
+            ${loo.length ? `<div class="big">${cm(S.looPx)} <small>سم خطأ متوقع، تقدير من 9 نقاط</small></div>` : `<div class="big">${S.cal.samples.length} <small>عينة في الذاكرة الآن</small></div>`}
             <p class="note">9 نقاط لا تكفي نموذج صورة العين. «معايرة بالتتبّع» تعطيه مئات العينات في 20 ثانية.</p>
             <button class="btn primary" data-go="pursue">معايرة بالتتبّع</button>
             <div class="btn-row"><button class="btn center" data-go="test">قياس الدقة</button><button class="btn center" data-go="home">الرئيسية</button></div>
@@ -821,50 +840,70 @@ function boot() {
 
 // ---------- 1b. follow-the-dot calibration ----------
 // Twenty seconds of following one moving dot give several hundred labelled frames:
-// enough for the model that learns from the eye pictures, which nine dots cannot feed.
-function learnPursuit(frames, path, tStart) {
+// enough for the models that learn from the eye pictures, which nine dots cannot feed.
+// In the moving variant the user also keeps shifting the phone, so the frames cover
+// many distances and tilts instead of one posture.
+const spreadOf = (values) => {
+  const a = values.filter(Number.isFinite);
+  return a.length ? [percentile(a, 0.05), percentile(a, 0.95)] : [NaN, NaN];
+};
+
+function learnPursuit(frames, path, tStart, { move, duration }) {
   const usable = frames.filter((f) => f.face && f.phi && !(f.blink > 0.5) && f.t > 800);
   const out = { ok: false, usable: usable.length, total: frames.length };
   if (usable.length < 200) return out;
   const lag = estimateLag(usable, path, MODEL_SPECS.filter((m) => m.name === 'B' || m.name === 'D'));
-  const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: T0 + tStart });
+  const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: wall(tStart), src: move ? 'pursuit-move' : 'pursuit' });
   if (samples.length < 80) return out;
   S.cal.addBatch(samples, { nowT: Date.now() });
   S.cal.freeze();
   S.smooth.reset();
+  S.anchor = { t: performance.now(), pose: S.cal.pose ? Float64Array.from(S.cal.pose) : null };
+  // how much of the space of postures this recording covered
+  const dist = spreadOf(usable.map((f) => f.phi[24]));
+  const deg = (v) => (Math.atan(v) * 180) / Math.PI;
+  const tiltX = spreadOf(usable.map((f) => deg(f.phi[25])));
+  const tiltY = spreadOf(usable.map((f) => deg(f.phi[26])));
+  const spread = { distCm: dist.map((v) => Math.round(v * 10) / 10), tiltDeg: Math.round(Math.max(tiltX[1] - tiltX[0], tiltY[1] - tiltY[0]) * 10) / 10 };
   S.pursuitLog.push({
-    at: new Date(T0 + tStart).toISOString(),
-    durationMs: PURSUIT_MS,
-    path: { W: S.W, H: S.H, marginX: 0.1, marginY: 0.08, cyclesX: 5, cyclesY: 2, formula: 'x = W/2 + W(0.5-marginX) sin(2π cyclesX u), y = H/2 + H(0.5-marginY) cos(2π cyclesY u), u = t/durationMs' },
+    at: new Date(wall(tStart)).toISOString(),
+    mode: move ? 'moving' : 'still',
+    durationMs: duration,
+    path: { W: S.W, H: S.H, marginX: 0.1, marginY: 0.08, cyclesX: move ? 7 : 5, cyclesY: move ? 3 : 2, formula: 'x = W/2 + W(0.5-marginX) sin(2π cyclesX u), y = H/2 + H(0.5-marginY) cos(2π cyclesY u), u = t/durationMs' },
     lagMs: lag.lagMs,
     lagSure: lag.sure,
     lagModel: lag.model,
     lagCurve: lag.curve.map((v) => Math.round(v * 10) / 10),
     samples: samples.length,
-    // every frame keeps its features; every second one also keeps the larger eye picture
+    spread,
+    // every frame keeps its numbers and the plain eye picture; every second one also the larger picture
     frames: frames.map((f, i) => ({
       t: Math.round(f.t),
       k: Math.round(f.blink * 100) / 100,
+      m: Math.round(f.motion || 0),
       b: f.phi ? Array.from(f.phi.subarray(0, N_BASE), r5) : null,
-      q: f.phi && f.phi.length > N_BASE ? packInt8(f.phi.subarray(N_BASE)) : null,
+      q: f.phi && f.phi.length >= OFF_PIX + N_PIX ? packInt8(f.phi.subarray(OFF_PIX, OFF_PIX + N_PIX)) : null,
       e: f.hi && i % 2 === 0 ? b64(f.hi) : null,
     })),
   });
-  if (S.pursuitLog.length > 2) S.pursuitLog.shift();
+  if (S.pursuitLog.length > 3) S.pursuitLog.shift();
   save();
-  return { ...out, ok: S.cal.ready, n: samples.length, lag };
+  return { ...out, ok: S.cal.ready, n: samples.length, lag, spread };
 }
 
-function pursue() {
+function pursue(move = false) {
+  const duration = move ? MOVE_MS : PURSUIT_MS;
   const root = el(`<section class="screen full">
     <button class="close" data-gaze="ignore" data-go="home" aria-label="إغلاق">✕</button>
     <div class="pbar"></div>
-    <div class="hud hint">المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small></div>
+    <div class="hud hint">${move
+      ? 'المس النقطة ثم تابعها بعينيك<br><small>وحرّك الهاتف ببطء طوال 30 ثانية: قرّبه، أبعده، أمِله قليلًا.</small>'
+      : 'المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small>'}</div>
     <div class="dot" data-gaze="dot"><i></i></div>
   </section>`);
   const dot = $('.dot', root);
   const bar = $('.pbar', root);
-  const path = pursuitPath(S.W, S.H, { durationMs: PURSUIT_MS });
+  const path = pursuitPath(S.W, S.H, move ? { durationMs: duration, cyclesX: 7, cyclesY: 3 } : { durationMs: duration });
   const frames = [];
   let tStart = 0;
   let raf = 0;
@@ -875,36 +914,46 @@ function pursue() {
   };
   place(path(0));
 
+  function simRest() {
+    if (!S.simUser) return;
+    S.simUser.stopWobble();
+    S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+  }
+
   function finish() {
     S.onFrame = null;
     dot.remove();
     bar.remove();
-    if (S.simUser) S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+    simRest();
     const busy = el('<div class="sheet"><div class="loading"><div class="spinner"></div><span>جارٍ التعلّم من التسجيل…</span></div></div>');
     root.appendChild(busy);
     setTimeout(() => {
       if (gone) return;
       let out;
       try {
-        out = learnPursuit(frames, path, tStart);
+        out = learnPursuit(frames, path, tStart, { move, duration });
       } catch (e) {
         out = { ok: false, usable: 0, total: frames.length, error: String((e && e.message) || e) };
       }
       busy.remove();
+      const narrow = move && out.ok && !(out.spread.distCm[1] - out.spread.distCm[0] >= 3 || out.spread.tiltDeg >= 6);
       root.appendChild(el(out.ok
         ? `<div class="sheet">
-            <h2>تمت معايرة التتبّع</h2>
+            <h2>${move ? 'تمت المعايرة المتحركة' : 'تمت معايرة التتبّع'}</h2>
             <div class="big">${out.n} <small>عينة جديدة من ${out.total} إطارًا</small></div>
-            <div class="row"><span>تأخر العين عن النقطة</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? '' : ' (افتراضي)'}</b></div>
-            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك يتنافس نموذج صورة العين مع نماذج نقاط الوجه على النقاط نفسها.</p>
+            <div class="row"><span>تأخر العين</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? '' : ' (افتراضي)'}</b></div>
+            <div class="row"><span>المسافة</span><b><span dir="ltr">${out.spread.distCm[0]}–${out.spread.distCm[1]}</span> سم</b></div>
+            <div class="row"><span>مدى الميل</span><b><span dir="ltr">${out.spread.tiltDeg}°</span></b></div>
+            ${narrow ? '<p class="warn">الحركة كانت قليلة. أعدها بحركة أوسع ليتعلّم النموذج أثر الوضعية.</p>' : ''}
+            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك تتنافس النماذج كلها على النقاط نفسها.</p>
             <button class="btn primary" data-go="test">قياس الدقة</button>
             <button class="btn center" data-go="home">الرئيسية</button>
           </div>`
         : `<div class="sheet">
             <h2>لم يكتمل التسجيل</h2>
-            <p class="note">رأيت عينيك بوضوح في ${out.usable} من ${out.total} إطارًا فقط. أعد المحاولة في إضاءة أفضل والهاتف ثابت.</p>
+            <p class="note">رأيت عينيك بوضوح في ${out.usable} من ${out.total} إطارًا فقط. أعد المحاولة في إضاءة أفضل${move ? ' وبحركة أهدأ' : ' والهاتف ثابت'}.</p>
             ${out.error ? `<p class="detail">${esc(out.error)}</p>` : ''}
-            <button class="btn primary" data-go="pursue">إعادة المحاولة</button>
+            <button class="btn primary" data-go="${move ? 'pursueMove' : 'pursue'}">إعادة المحاولة</button>
             <button class="btn center" data-go="home">الرئيسية</button>
           </div>`));
     }, 60);
@@ -913,9 +962,9 @@ function pursue() {
   function step() {
     if (gone) return;
     const u = performance.now() - tStart;
-    if (u >= PURSUIT_MS) return finish();
+    if (u >= duration) return finish();
     place(path(Math.max(0, u)));
-    bar.style.width = `${(100 * Math.max(0, u)) / PURSUIT_MS}%`;
+    bar.style.width = `${(100 * Math.max(0, u)) / duration}%`;
     raf = requestAnimationFrame(step);
   }
 
@@ -926,9 +975,12 @@ function pursue() {
     tStart = performance.now() + 700;
     $('.hint', root).hidden = true;
     dot.classList.add('moving');
-    if (S.simUser) S.simUser.follow((t) => path(t - tStart), 120);
+    if (S.simUser) {
+      S.simUser.follow((t) => path(t - tStart), 120);
+      if (move) S.simUser.startWobble(tStart);
+    }
     S.onFrame = (f, t) => {
-      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null });
+      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0 });
     };
     raf = requestAnimationFrame(step);
   });
@@ -937,7 +989,7 @@ function pursue() {
     gone = true;
     cancelAnimationFrame(raf);
     S.onFrame = null;
-    if (S.simUser && tStart) S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+    if (tStart) simRest();
   };
   return root;
 }
@@ -1002,6 +1054,7 @@ function test() {
       return 450;
     },
     onDone: () => {
+      S.cal.flush(Date.now());
       const scored = trials.filter((r) => r.err != null);
       const med = median(scored.map((r) => r.err));
       const frozen = scored.filter((r) => r.frozenErr != null).map((r) => r.frozenErr);
@@ -1013,7 +1066,8 @@ function test() {
         <div class="row"><span>${S.cal.learning ? 'بالمعايرة وحدها' : 'التعلّم متوقف'}</span><b>${frozen.length ? cm(median(frozen)) + ' سم' : '—'}</b></div>
         <div class="row"><span>أفقي / عمودي</span><b>${cm(dx)} / ${cm(dy)} سم</b></div>
         <div class="row"><span>أسوأ ربع من النقاط فوق</span><b>${cm(percentile(scored.map((r) => r.err), 0.75))} سم</b></div>
-        <div class="row"><span>النماذج (سم)</span><b dir="ltr">${boardLine(modelBoard(scored))}</b></div>
+        <div class="row"><span>كل نموذج على النقاط نفسها (سم)</span></div>
+        <p class="board" dir="ltr">${boardLine(modelBoard(scored))}</p>
         <div class="row"><span>يقود الآن</span><b>${leadLabel()}</b></div>
         <button class="btn primary" data-go="test">إعادة القياس</button>
         <div class="btn-row"><button class="btn center" data-go="stats">النتائج الكاملة</button><button class="btn center" data-go="home">الرئيسية</button></div>
@@ -1122,6 +1176,9 @@ function free() {
 }
 
 // ---------- 4. look + tap: the eyes choose, the thumb confirms ----------
+// Nothing on this screen is touched where the eyes look, so the model gets no fresh labels here.
+// Two things bring them back: one dot to touch when the posture has changed since the last
+// labelled sample, and, after a wrong choice, the user's own correcting touch on the right square.
 function pick() {
   const levels = [[2, 3], [3, 4], [3, 5]];
   const root = el(`<section class="screen pick">
@@ -1134,27 +1191,72 @@ function pick() {
     </div>
   </section>`);
   const grid = $('.grid', root);
+  const statEl = $('#p-stat', root);
   let cells = [];
   let rects = [];
   let goal = -1;
   let t0 = 0;
   let busy = true;
   let alive = true;
+  let fixing = false;
+  let trace = [];
+  let votes = [];
+  let anchorDot = null;
 
   function stat() {
     const [c, r] = levels[S.pickLevel];
     const mine = S.picks.filter((p) => p.cols === c && p.rows === r);
     if (!mine.length) {
-      $('#p-stat', root).textContent = 'انظر إلى المربع الذي فيه الدائرة ثم اضغط «اختر»';
+      statEl.textContent = 'انظر إلى المربع الذي فيه الدائرة ثم اضغط «اختر»';
       return;
     }
     const ok = mine.filter((p) => p.ok).length;
     const sec = median(mine.map((p) => p.ms)) / 1000;
-    $('#p-stat', root).textContent = `صحيح ${ok} من ${mine.length} · ${sec.toFixed(1)} ث للاختيار`;
+    statEl.textContent = `صحيح ${ok} من ${mine.length} · ${sec.toFixed(1)} ث للاختيار`;
+  }
+
+  // Has the head moved, or has too long passed, since the model last saw a labelled sample?
+  function needAnchor() {
+    const a = S.anchor;
+    if (!a || performance.now() - a.t > 25000) return true;
+    if (!a.pose || !S.cal.pose) return false;
+    let d2 = 0;
+    for (let k = 0; k < a.pose.length; k++) d2 += ((S.cal.pose[k] - a.pose[k]) / POSE_SIGMA[k]) ** 2;
+    return d2 > 0.6 * 0.6;
+  }
+
+  function anchor() {
+    busy = true;
+    cells.forEach((c) => (c.className = 'cell'));
+    const box = root.getBoundingClientRect();
+    const g = grid.getBoundingClientRect();
+    const x = g.left + (0.2 + 0.6 * Math.random()) * g.width;
+    const y = g.top + (0.2 + 0.6 * Math.random()) * g.height;
+    statEl.textContent = 'انظر إلى النقطة والمسها لإعادة الضبط';
+    anchorDot = el('<div class="dot anchor" data-gaze="dot"><i></i></div>');
+    anchorDot.style.left = `${x - box.left}px`;
+    anchorDot.style.top = `${y - box.top}px`;
+    const shownAt = performance.now();
+    if (S.simUser) S.simUser.lookAt(x, y, shownAt);
+    anchorDot.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const t = eventTime(e);
+      if (t - shownAt < 450) return;
+      const rec = takeSample([x, y], 'anchor', t, 1, { since: shownAt + 250 });
+      if (!rec.ok) {
+        toast(rec.reason === 'blink' ? 'رمشت لحظة اللمس. أعد المحاولة' : 'لا أرى وجهك بوضوح');
+        return;
+      }
+      anchorDot.remove();
+      anchorDot = null;
+      setTimeout(trial, 200);
+    });
+    root.appendChild(anchorDot);
   }
 
   function trial() {
     if (!alive) return;
+    if (needAnchor()) return anchor();
     cells.forEach((c) => (c.className = 'cell'));
     let g = goal;
     while (g === goal) g = Math.floor(Math.random() * cells.length);
@@ -1162,18 +1264,26 @@ function pick() {
     cells[goal].classList.add('goal');
     S.selector.setTargets(rects);
     t0 = performance.now();
+    trace = [];
+    votes = [];
     if (S.simUser) S.simUser.lookAt(rects[goal].cx, rects[goal].cy, t0);
+    fixing = false;
     busy = false;
+    stat();
   }
 
   function build() {
     busy = true;
+    if (anchorDot) {
+      anchorDot.remove();
+      anchorDot = null;
+    }
     const [c, r] = levels[S.pickLevel];
     grid.style.gridTemplateColumns = `repeat(${c}, 1fr)`;
     grid.style.gridTemplateRows = `repeat(${r}, 1fr)`;
     grid.innerHTML = Array.from({ length: c * r }, () => '<div class="cell"></div>').join('');
     cells = Array.from(grid.children);
-    root.querySelectorAll('.seg').forEach((s, i) => s.setAttribute('aria-pressed', String(i === S.pickLevel)));
+    root.querySelectorAll('.seg').forEach((seg, i) => seg.setAttribute('aria-pressed', String(i === S.pickLevel)));
     goal = -1;
     stat();
     requestAnimationFrame(() => {
@@ -1187,32 +1297,64 @@ function pick() {
     });
   }
 
-  root.querySelectorAll('.seg').forEach((s) => s.addEventListener('click', () => {
-    S.pickLevel = Number(s.dataset.l);
+  root.querySelectorAll('.seg').forEach((seg) => seg.addEventListener('click', () => {
+    S.pickLevel = Number(seg.dataset.l);
     build();
   }));
 
   $('#p-go', root).addEventListener('click', () => {
-    if (busy) return;
+    if (busy || fixing) return;
     const best = S.gaze && S.selector ? S.selector.best() : null;
     if (!best) {
       toast('لا أرى عينيك الآن');
       return;
     }
     busy = true;
+    const now = performance.now();
     const [c, r] = levels[S.pickLevel];
     const ok = best.index === goal;
-    S.picks.push({ t: Date.now(), cols: c, rows: r, ok, ms: Math.round(performance.now() - t0), p: +best.p.toFixed(2), sigma: Math.round(sigmaPx()) });
+    // what the eyes had chosen 0.3 s before the tap, in case they leave for the button at the end
+    let early = null;
+    for (const v of votes) if (v[0] <= now - t0 - 300) early = v[1];
+    const g = rects[goal];
+    const lead = S.cal.activeModel();
+    S.picks.push({
+      t: Date.now(), cols: c, rows: r, goal, chosen: best.index, ok, early, okEarly: early === null ? null : early === goal,
+      ms: Math.round(now - t0), p: +best.p.toFixed(2), sigma: Math.round(sigmaPx()),
+      errPx: S.gaze ? Math.round(Math.hypot(S.gaze.x - g.cx, S.gaze.y - g.cy)) : null,
+      lead: lead ? lead.name : null,
+      sinceAnchorMs: S.anchor ? Math.round(now - S.anchor.t) : null,
+      cell: [Math.round(g.w), Math.round(g.h)], goalAt: [Math.round(g.cx), Math.round(g.cy)],
+      trace, // [ms since the squares appeared, gaze x, gaze y]
+    });
     cells.forEach((cell) => cell.classList.remove('sel'));
     cells[best.index].classList.add(ok ? 'right' : 'wrong');
     stat();
-    setTimeout(trial, 600);
+    if (ok) {
+      setTimeout(trial, 600);
+      return;
+    }
+    fixing = true;
+    statEl.textContent = 'اختيار خاطئ: المس المربع الصحيح';
   });
 
-  S.onGaze = () => {
+  grid.addEventListener('pointerdown', (e) => {
+    if (!fixing) return;
+    const cell = e.target.closest ? e.target.closest('.cell') : null;
+    if (!cell || cells.indexOf(cell) !== goal) return;
+    const g = rects[goal];
+    const rec = takeSample([g.cx, g.cy], 'pick-fix', eventTime(e), 0.9);
+    S.picks[S.picks.length - 1].fixed = !!rec.ok;
+    fixing = false;
+    setTimeout(trial, 300);
+  });
+
+  S.onGaze = (t) => {
     if (busy || !S.selector) return;
     const best = S.gaze ? S.selector.best() : null;
     for (let i = 0; i < cells.length; i++) cells[i].classList.toggle('sel', !!best && best.index === i);
+    if (S.gaze && trace.length < 240) trace.push([Math.round(t - t0), Math.round(S.gaze.x), Math.round(S.gaze.y)]);
+    if (best) votes.push([t - t0, best.index]);
   };
   S.cleanup = () => {
     alive = false;
@@ -1238,7 +1380,7 @@ function summary() {
     p75Px: percentile(last.map((r) => r.err), 0.75),
     looPx: S.looPx,
     bySrc,
-    pursuit: S.cal.samples.filter((x) => x.src === 'pursuit').length,
+    pursuit: S.cal.samples.filter((x) => x.src.startsWith('pursuit')).length,
     models: modelBoard(last).map((b) => ({ name: b.name, n: b.n, medPx: b.med, lead: b.lead, ready: b.ready })),
     lead: S.cal.activeModel() ? S.cal.activeModel().name : null,
     rejects: { ...S.rejects },
@@ -1260,7 +1402,7 @@ function pickSummary() {
 function summaryText() {
   const s = summary();
   const picks = Object.entries(pickSummary()).map(([k, g]) => `${k}: ${g.ok}/${g.n}`).join(' · ');
-  const srcNames = { bootstrap: '9 نقاط', 'test-dot': 'نقاط القياس', 'touch-target': 'لمس أهداف', 'touch-free': 'لمس حر' };
+  const srcNames = { bootstrap: '9 نقاط', 'test-dot': 'نقاط القياس', 'touch-target': 'لمس أهداف', 'touch-free': 'لمس حر', anchor: 'إعادة ضبط', 'pick-fix': 'تصحيح اختيار' };
   return [
     `GazeCal web ${VERSION}${S.sim ? ' (محاكاة)' : ''}`,
     `الشاشة ${S.W}×${S.H} · DPR ${window.devicePixelRatio || 1} · ${s.fps} إطار/ث · ${S.delegate}`,
@@ -1331,7 +1473,7 @@ function stats() {
         const spec = S.cal.model(m.name);
         return `<div class="row"><span>${m.name} · ${spec.label}${m.lead ? ' <i class="tag">يقود</i>' : ''}</span><b>${m.n ? cm(m.medPx) + ' سم' : m.ready ? '—' : 'ينتظر عينات'}</b></div>`;
       }).join('')}
-      <p class="note">كل عينة تُختبر على النماذج الأربعة قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
+      <p class="note">كل عينة تُختبر على النماذج كلها قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
     </div>
     <div class="card"><h2>الخطأ مع توالي اللمسات (سم)</h2>${curveSvg()}</div>
     <div class="card"><h2>الخطأ حسب المنطقة (سم)</h2>${has ? heatHtml() : '<p class="note">تظهر الخريطة بعد أول قياس.</p>'}</div>
@@ -1362,12 +1504,16 @@ function stats() {
       pxPerCm: S.pxPerCm,
       sim: S.sim,
       delegate: S.delegate,
-      format: 2,
+      format: 3,
       video: S.video,
       features: FEATURE_NAMES,
+      // tx, ty, tz, nxz, nyz: the head as the camera's face fit reports it, in cm (x toward image-right, y up,
+      // tz = distance) and the slopes of the face direction. Model G computes the head's share from these.
+      geometry: { pxPerCm: S.pxPerCm, touchBoost: TOUCH_BOOST },
       // rec.pix / frame.q: PIX_W×PIX_H values per eye (right then left), row by row, int8 = value×32 after
       // removing the cut-out's mean and dividing by its spread. rec.eye / frame.e: the larger grey
       // cut-outs, hiW×hiH bytes per eye. Each cut-out spans `span` eye lengths, levelled to the corner line.
+      // In `calibration.samples` the packed part holds two pictures: plain brightness, then log-brightness.
       eyeImages: { w: PIX_W, h: PIX_H, hiW: HI_W, hiH: HI_H, span: CROP_SPAN, encoding: 'base64' },
       models: S.cal.leaderboard(),
       settings: S.settings,
@@ -1414,7 +1560,7 @@ function stats() {
   return root;
 }
 
-const SCREENS = { home, boot, pursue, test, free, pick, stats };
+const SCREENS = { home, boot, pursue: () => pursue(false), pursueMove: () => pursue(true), test, free, pick, stats };
 
 // ---------- rotation: each orientation keeps its own calibration ----------
 let resizeTimer = 0;

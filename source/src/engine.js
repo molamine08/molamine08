@@ -183,12 +183,13 @@ export function summarizeWindow(frames, { minFrames = 3, blinkMax = 0.5 } = {}) 
 }
 
 // How much to trust a window: steady eyes and a steady device count for more.
-export function windowWeight(summary, { eyeRef = [0.006, 0.008], motionRef = 60 } = {}) {
+export function windowWeight(summary, { eyeRef = [0.006, 0.008], motionRef = 45 } = {}) {
   let q = 0;
   for (let j = 0; j < eyeRef.length; j++) q += summary.spread[j] / eyeRef[j];
   q /= eyeRef.length;
   const steady = 1 / (1 + q * q);
-  const still = summary.motion > motionRef ? 0.35 : 1;
+  const m = summary.motion / motionRef; // device rotation rate against the rate at which pictures start to smear
+  const still = 1 / (1 + m * m);
   return clamp(steady * still, 0.05, 1);
 }
 
@@ -395,8 +396,11 @@ export class RidgeMap {
 // One candidate mapping from the full feature vector to the screen.
 // Candidates differ in which features they use (expand) and how they are tuned.
 export class GazeModel {
-  constructor({ name, label = name, expand, nFeat, stdFloor, lambda = 1, lambdas = undefined, autoLambda = false, poseLocal = false, centered = false, robust = true, borrow = null, minFit = 6, needs = 0 }) {
+  constructor({ name, label = name, expand, nFeat, stdFloor, lambda = 1, lambdas = undefined, autoLambda = false, poseLocal = false, centered = false, robust = true, borrow = null, minFit = 6, needs = 0, offset = null }) {
     this.name = name;
+    // offset(phi) -> [x, y]: a part of the answer that is computed, not learned (the head's own share).
+    // It is taken out of the targets before fitting and added back to every prediction.
+    this.offset = offset;
     this.borrow = borrow; // name of a robust model whose outlier verdicts this one reuses
     this.robust = robust; // false = one pass, for wide models where refits must stay cheap
     this.lambdas = lambdas;
@@ -432,13 +436,21 @@ export class GazeModel {
       for (let j = 0; j < n; j++) c[j] /= sw;
       this.center = c;
     }
-    const rows = samples.map((s) => ({ phi: this.expand(s.phi, this.center), y: s.y }));
+    const rows = samples.map((s) => {
+      if (!this.offset) return { phi: this.expand(s.phi, this.center), y: s.y };
+      const o = this.offset(s.phi);
+      return { phi: this.expand(s.phi, this.center), y: [s.y[0] - o[0], s.y[1] - o[1]] };
+    });
     if (cv && this.autoLambda) return this.map.fitCV(rows, weights, { lambdas: this.lambdas, robust: this.robust });
     return this.robust ? this.map.fitRobust(rows, weights) : this.map.fit(rows, weights);
   }
 
   predict(phi) {
-    return this.map.ready && phi.length >= this.needs ? this.map.predict(this.expand(phi, this.center)) : null;
+    if (!this.map.ready || phi.length < this.needs) return null;
+    const p = this.map.predict(this.expand(phi, this.center));
+    if (!this.offset) return p;
+    const o = this.offset(phi);
+    return [p[0] + o[0], p[1] + o[1]];
   }
 
   // A frozen copy that keeps predicting the same way while the original learns on.
@@ -446,10 +458,17 @@ export class GazeModel {
     const map = this.map.clone();
     const center = this.center ? Float64Array.from(this.center) : null;
     const expand = this.expand;
+    const offset = this.offset;
+    const raw = (phi) => {
+      const q = map.predict(expand(phi, center));
+      if (!offset) return q;
+      const o = offset(phi);
+      return [q[0] + o[0], q[1] + o[1]];
+    };
     return {
       name: this.name,
       ready: map.ready,
-      predict: (phi) => (map.ready && phi.length >= this.needs ? map.predict(expand(phi, center)) : null),
+      predict: (phi) => (map.ready && phi.length >= this.needs ? raw(phi) : null),
       toJSON: () => ({ name: this.name, map: map.toJSON(), center: center ? Array.from(center) : null }),
     };
   }
@@ -465,7 +484,7 @@ export class Calibrator {
   constructor({
     models, poseIdx = [], poseSigma = [], defaultModel = null,
     maxSamples = 900, halfLifeMs = 20 * 60000, recencyFloor = 0.25, poseFloor = 0.2,
-    window = 30, minScored = 8, cvEvery = 12, deferCv = false,
+    window = 30, minScored = 8, cvEvery = 12, deferCv = false, deferFit = false, poseRefitMs = 400,
   }) {
     this.models = models;
     this.poseIdx = poseIdx;
@@ -479,6 +498,8 @@ export class Calibrator {
     this.minScored = minScored;
     this.cvEvery = cvEvery;
     this.deferCv = deferCv; // true: the lambda search runs from tick(), never inside addSample()
+    this.deferFit = deferFit; // true: addSample() only stores; tick() or flush() does the refit
+    this.poseRefitMs = poseRefitMs; // shortest pause between refits caused by head movement alone
     this.learning = true;
     this.reset();
   }
@@ -497,6 +518,8 @@ export class Calibrator {
     this.fitPose = null;
     this.lastFitT = -Infinity;
     this.sinceCv = 0;
+    this.dirty = false;
+    this.cvCursor = 0;
   }
 
   model(name) {
@@ -548,7 +571,15 @@ export class Calibrator {
     });
   }
 
-  refit({ cv = false, nowT = Date.now(), only = null } = {}) {
+  // Refit now if samples arrived since the last fit (only matters with deferFit).
+  flush(nowT = Date.now()) {
+    if (!this.dirty) return false;
+    this.dirty = false;
+    this.refit({ nowT });
+    return true;
+  }
+
+  refit({ cv = false, nowT = Date.now(), only = null, countCv = true } = {}) {
     for (const m of this.models) {
       if (only && !only(m)) continue;
       let w = this.weightsFor(m, nowT);
@@ -558,16 +589,24 @@ export class Calibrator {
     }
     this.fitPose = this.pose ? Float64Array.from(this.pose) : null;
     this.lastFitT = nowT;
-    if (cv) this.sinceCv = 0;
+    if (cv && countCv) this.sinceCv = 0;
   }
 
   // Call a few times a second: runs a pending lambda search, and refits the pose-aware models once the head has moved.
   tick(nowT = Date.now()) {
+    if (this.flush(nowT)) return true;
     if (this.deferCv && this.sinceCv >= this.cvEvery && this.samples.length) {
-      this.refit({ cv: true, nowT });
+      // one model per call, so no single pause is long
+      const auto = this.models.filter((m) => m.autoLambda);
+      const m = auto[this.cvCursor];
+      if (m) this.refit({ cv: true, nowT, only: (x) => x === m, countCv: false });
+      if (++this.cvCursor >= auto.length) {
+        this.cvCursor = 0;
+        this.sinceCv = 0;
+      }
       return true;
     }
-    if (!this.pose || !this.fitPose || nowT - this.lastFitT < 400 || !this.samples.length) return false;
+    if (!this.pose || !this.fitPose || nowT - this.lastFitT < this.poseRefitMs || !this.samples.length) return false;
     let d2 = 0;
     for (let k = 0; k < this.pose.length; k++) {
       const d = (this.pose[k] - this.fitPose[k]) / this.poseSigma[k];
@@ -595,9 +634,12 @@ export class Calibrator {
     const pred = lead ? lead.predict(sample.phi) : null;
     const fpred = this.frozen ? this.frozen.predict(sample.phi) : null;
     const errs = {};
+    const preds = {};
     for (const m of this.models) {
-      const e = dist(m.predict(sample.phi));
+      const q = m.predict(sample.phi);
+      const e = dist(q);
       errs[m.name] = e;
+      preds[m.name] = q ? [Math.round(q[0]), Math.round(q[1])] : null;
       if (e != null) {
         this.scores[m.name].push(e);
         if (this.scores[m.name].length > 200) this.scores[m.name].shift();
@@ -612,6 +654,7 @@ export class Calibrator {
       pred,
       err: dist(pred),
       errs,
+      preds,
       frozenPred: fpred,
       frozenErr: dist(fpred),
       learned: false,
@@ -621,7 +664,8 @@ export class Calibrator {
       this.samples.push({ phi: Float64Array.from(sample.phi), y: [sample.y[0], sample.y[1]], w: sample.w, src: sample.src, t: sample.t });
       this.trim();
       this.sinceCv++;
-      this.refit({ cv: !this.deferCv && this.sinceCv >= this.cvEvery, nowT: sample.t });
+      if (this.deferFit) this.dirty = true;
+      else this.refit({ cv: !this.deferCv && this.sinceCv >= this.cvEvery, nowT: sample.t });
       rec.learned = true;
     }
     return rec;
@@ -633,6 +677,7 @@ export class Calibrator {
       this.samples.push({ phi: Float64Array.from(s.phi), y: [s.y[0], s.y[1]], w: s.w, src: s.src, t: s.t });
     }
     this.trim();
+    this.dirty = false;
     this.refit({ cv: true, nowT });
   }
 
@@ -680,7 +725,7 @@ export class Calibrator {
     const weights = this.weightsFor(lead, nowT);
     const probe = new GazeModel({
       name: 'loo', expand: lead.expand, nFeat: lead.map.n, stdFloor: lead.map.stdFloor,
-      lambda: lead.map.lambda, centered: lead.centered, minFit: lead.minFit,
+      lambda: lead.map.lambda, centered: lead.centered, minFit: lead.minFit, offset: lead.offset,
     });
     const out = [];
     for (let i = 0; i < N; i++) {
@@ -731,7 +776,13 @@ export class Calibrator {
         const map = RidgeMap.fromJSON(o.frozen.map, src.map.stdFloor);
         const center = o.frozen.center ? Float64Array.from(o.frozen.center) : null;
         const frozenJson = o.frozen;
-        this.frozen = { name: src.name, ready: true, predict: (phi) => map.predict(src.expand(phi, center)), toJSON: () => frozenJson };
+        const raw = (phi) => {
+          const q = map.predict(src.expand(phi, center));
+          if (!src.offset) return q;
+          const o = src.offset(phi);
+          return [q[0] + o[0], q[1] + o[1]];
+        };
+        this.frozen = { name: src.name, ready: true, predict: (phi) => (phi.length >= src.needs ? raw(phi) : null), toJSON: () => frozenJson };
       }
     }
     return true;

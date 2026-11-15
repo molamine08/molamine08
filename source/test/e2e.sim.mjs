@@ -92,6 +92,23 @@ await shot('04b-pursue-hint');
   console.log('pursuit state:', JSON.stringify(st));
 }
 
+// moving calibration: the synthetic user keeps shifting the phone while following the dot
+await tapSel('.sheet [data-go="home"]');
+await sleep(300);
+await shot('04e-home-after-pursuit');
+await tapSel('[data-go="pursueMove"]');
+await sleep(300);
+await shot('04f-move-hint');
+{
+  const dot = page.locator('.dot[data-gaze="dot"]');
+  const b = await dot.boundingBox();
+  await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+  await page.waitForSelector('.sheet h2', { timeout: 45000 });
+  await sleep(150);
+  await shot('04g-move-done');
+  console.log('moving sheet:', (await page.locator('.sheet').innerText()).replace(/\n+/g, ' | '));
+}
+
 // accuracy test
 await tapSel('.sheet [data-go="test"]');
 await sleep(300);
@@ -132,26 +149,42 @@ console.log('free stat:', await page.locator('#f-stat').innerText());
 // look + tap
 await tapSel('#back');
 await sleep(250);
+await page.evaluate(() => { window.__gazecal.S.anchor = null; }); // as if the posture had changed: the screen must ask for one touch first
 await tapSel('[data-go="pick"]');
 await sleep(500);
-for (let i = 0; i < 8; i++) {
+let anchors = 0;
+let fixes = 0;
+async function pickOnce(i, shots) {
+  const a = page.locator('.dot.anchor');
+  if (await a.count()) {
+    anchors++;
+    const b = await a.boundingBox();
+    await sleep(560);
+    if (shots) await shot('11a-pick-anchor');
+    await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+    await sleep(450);
+  }
   await sleep(750);
-  if (i === 2) await shot('11-pick-2x3');
+  if (shots && i === 2) await shot('11-pick-2x3');
   await tapSel('#p-go');
   await sleep(250);
-  if (i === 2) await shot('12-pick-feedback');
-  await sleep(450);
+  if (await page.locator('.cell.wrong').count()) {
+    fixes++;
+    if (fixes === 1) await shot('12b-pick-wrong');
+    await tapSel('.cell.goal');
+    await sleep(500);
+  } else {
+    if (shots && i === 2) await shot('12-pick-feedback');
+    await sleep(500);
+  }
 }
+for (let i = 0; i < 8; i++) await pickOnce(i, true);
 console.log('pick 2x3:', await page.locator('#p-stat').innerText());
 await tapSel('.seg[data-l="2"]');
 await sleep(400);
-for (let i = 0; i < 8; i++) {
-  await sleep(750);
-  await tapSel('#p-go');
-  await sleep(700);
-}
+for (let i = 0; i < 10; i++) await pickOnce(i, false);
 await shot('13-pick-3x5');
-console.log('pick 3x5:', await page.locator('#p-stat').innerText());
+console.log('pick 3x5:', await page.locator('#p-stat').innerText(), `| anchors ${anchors}, corrections ${fixes}`);
 
 // results
 await tapSel('.close');
@@ -176,7 +209,9 @@ console.log('\n' + await page.evaluate(() => window.__gazecal.summaryText()));
   const rec = d.log[d.log.length - 1];
   console.log(`\nexport: ${(statSync(file).size / 1024).toFixed(0)} KB · app ${d.app} · format ${d.format} · log ${d.log.length} · pursuit runs ${d.pursuit.length} (${d.pursuit[0].frames.length} frames)` +
     ` · calibration v${d.calibration.v} with ${d.calibration.samples.length} samples of ${d.calibration.nFeat} features · last rec errs ${JSON.stringify(rec.errs)} pix ${rec.pix ? rec.pix.length : 0} chars`);
-  if (d.format !== 2 || d.calibration.v !== 3 || !d.pursuit[0].frames[30].q || !rec.pix) problems.push('export is missing 0.2 fields');
+  const pk = d.picks[d.picks.length - 1];
+  console.log(`export 0.3: runs ${d.pursuit.map((r) => `${r.mode} ${r.samples} (dist ${r.spread.distCm.join('–')} cm, tilt ${r.spread.tiltDeg}°)`).join('; ')} · last pick ${JSON.stringify({ goal: pk.goal, chosen: pk.chosen, ok: pk.ok, okEarly: pk.okEarly, errPx: pk.errPx, trace: pk.trace.length })} · preds ${JSON.stringify(rec.preds)} · by src ${JSON.stringify(d.summary.bySrc)}`);
+  if (d.format !== 3 || d.calibration.v !== 3 || d.calibration.nFeat !== 315 || d.pursuit.length !== 2 || !d.pursuit[1].frames[30].q || !rec.pix || !rec.preds || !pk.trace.length || rec.phi.length !== 27) problems.push('export is missing 0.3 fields');
 }
 
 // reset flow

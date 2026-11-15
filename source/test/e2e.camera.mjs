@@ -89,15 +89,17 @@ await page.screenshot({ path: `${SHOTS}/22-real-home.png` });
   const pixInfo = await page.evaluate(() => {
     const { S } = window.__gazecal;
     const f = S.ring.frames[S.ring.frames.length - 1];
-    const pix = Array.from(f.phi.slice(22));
+    const pix = Array.from(f.phi.slice(27, 171));
+    const pixl = Array.from(f.phi.slice(171));
     const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
     const sd = (a) => Math.sqrt(mean(a.map((v) => (v - mean(a)) ** 2)));
     const grid = (o) => Array.from({ length: 6 }, (_, r) => pix.slice(o + r * 12, o + r * 12 + 12).map((v) => (v < -1 ? '#' : v < -0.3 ? '+' : v < 0.5 ? '.' : ' ')).join('')).join('\n');
-    return { len: f.phi.length, hi: f.hi ? f.hi.length : 0, meanR: +mean(pix.slice(0, 72)).toFixed(3), sdR: +sd(pix.slice(0, 72)).toFixed(3), sdL: +sd(pix.slice(72)).toFixed(3), right: grid(0), left: grid(72) };
+    return { geo: Array.from(f.phi.slice(22, 27), (v) => +v.toFixed(3)), sdLog: +sd(pixl.slice(0, 72)).toFixed(3), len: f.phi.length, hi: f.hi ? f.hi.length : 0, meanR: +mean(pix.slice(0, 72)).toFixed(3), sdR: +sd(pix.slice(0, 72)).toFixed(3), sdL: +sd(pix.slice(72)).toFixed(3), right: grid(0), left: grid(72) };
   });
-  console.log(`eye features: phi ${pixInfo.len}, hi ${pixInfo.hi} bytes, right mean ${pixInfo.meanR} sd ${pixInfo.sdR}, left sd ${pixInfo.sdL}`);
+  console.log(`eye features: phi ${pixInfo.len}, hi ${pixInfo.hi} bytes, right mean ${pixInfo.meanR} sd ${pixInfo.sdR}, left sd ${pixInfo.sdL}, log picture sd ${pixInfo.sdLog}`);
+  console.log(`head in space (tx, ty, tz cm; slopes of the face direction): ${JSON.stringify(pixInfo.geo)}`);
   console.log('right eye 12×6 (dark = #):\n' + pixInfo.right + '\nleft eye:\n' + pixInfo.left);
-  if (pixInfo.len !== 166 || pixInfo.hi !== 2304 || Math.abs(pixInfo.sdR - 1) > 0.01) problems.push('eye image features look wrong');
+  if (pixInfo.len !== 315 || pixInfo.hi !== 2304 || Math.abs(pixInfo.sdR - 1) > 0.01 || Math.abs(pixInfo.sdLog - 1) > 0.01 || !(pixInfo.geo[2] > 15 && pixInfo.geo[2] < 90)) problems.push('eye image or head features look wrong');
 }
 
 const info = await page.evaluate(() => {
@@ -180,7 +182,7 @@ await page.waitForSelector('[data-go="pursue"]', { timeout: 60000 });
 await sleep(1500);
 const back = await page.evaluate(() => {
   const { S } = window.__gazecal;
-  return { ready: S.cal.ready, samples: S.cal.samples.length, feat: S.cal.samples[0] ? S.cal.samples[0].phi.length : 0, lead: S.cal.active, stored: Math.round((localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('gazecal:v2:'))) || '').length / 1024) };
+  return { ready: S.cal.ready, samples: S.cal.samples.length, feat: S.cal.samples[0] ? S.cal.samples[0].phi.length : 0, lead: S.cal.active, stored: Math.round((localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('gazecal:v3:'))) || '').length / 1024) };
 });
 console.log('after reload:', JSON.stringify(back));
 if (!back.ready || back.samples !== state.samples) problems.push('profile did not survive a reload');

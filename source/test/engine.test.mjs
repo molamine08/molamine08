@@ -371,7 +371,7 @@ test('tournament: the eye-image model leads only when the images really carry th
     const cost = [];
     for (const seed of seeds) {
       const { cal, recs } = runSession({ seed, pixels, withPursuit: true, touches: 90, shiftAt: 1e9, outlierRate: 0.1 });
-      if (cal.active === 'D') leadD++;
+      if ('DEG'.includes(cal.active)) leadD++;
       const eB = median(cleanModel(recs, 20, 90, 'B'));
       const eD = median(cleanModel(recs, 20, 90, 'D'));
       const eLead = median(clean(recs, 20, 90, 'err'));
@@ -381,13 +381,13 @@ test('tournament: the eye-image model leads only when the images really carry th
     }
     console.log(rows.splice(0).join('\n'));
     if (pixels === 'good') {
-      assert.ok(leadD >= 4, `D led in only ${leadD}/${seeds.length} sessions with informative images`);
+      assert.ok(leadD >= 4, `an eye-image model led in only ${leadD}/${seeds.length} sessions with informative images`);
       assert.ok(median(ratio) < 0.9, `D/B error ratio ${median(ratio).toFixed(2)}`);
     } else {
-      assert.equal(leadD, 0, 'D must never lead when the images are noise');
+      assert.equal(leadD, 0, 'no eye-image model may lead when the images are noise');
     }
     // what the user saw is close to the better of the two, whichever that was
-    assert.ok(median(cost) < 1.12, `${pixels}: shown error is ${median(cost).toFixed(2)}× the best model`);
+    assert.ok(median(cost) < 1.15, `${pixels}: shown error is ${median(cost).toFixed(2)}× the better of B and D`);
   }
 });
 
@@ -438,7 +438,7 @@ test('posture memory: coming back to a known posture is cheaper than meeting a n
           const s = touch(sim, ring, cal, t, target);
           t += 900;
           if (!s.ok) continue;
-          e.push(cal.addSample({ phi: s.phi, y: target, w: weightOf(s) * 0.9, src: 'touch', t }).err);
+          e.push(cal.addSample({ phi: s.phi, y: target, w: weightOf(s) * 0.9, src: 'touch', t }).errs.B); // B is pose-weighted in one arm only
         }
         return e;
       };
@@ -467,7 +467,7 @@ test('calibrator survives a save / load round trip, eye images included', () => 
   const { cal, t } = runSession({ seed: 31, touches: 40, withPursuit: true });
   const json = JSON.stringify(cal.toJSON({ nBase: N_BASE }));
   const perSample = json.length / cal.samples.length;
-  assert.ok(perSample < 520, `${perSample.toFixed(0)} characters per stored sample`);
+  assert.ok(perSample < 800, `${perSample.toFixed(0)} characters per stored sample`);
   const copy = makeCal();
   assert.ok(copy.load(JSON.parse(json), { nFeat: N_FULL, nowT: t }));
   assert.equal(copy.samples.length, cal.samples.length);
@@ -489,7 +489,7 @@ test('calibrator survives a save / load round trip, eye images included', () => 
 test('a user without eye images still gets the landmark models', () => {
   const { cal, recs } = runSession({ seed: 71, pixels: 'none', touches: 40, shiftAt: 1e9 });
   assert.equal(cal.model('D').ready, false);
-  assert.notEqual(cal.active, 'D');
+  assert.ok(!cal.model('E').ready && !cal.model('G').ready && 'AB'.includes(cal.active));
   assert.ok(median(clean(recs, 10, 40, 'err')) < 150);
 });
 
@@ -507,4 +507,59 @@ test('cost of the widest model stays small', () => {
   const cvMs = performance.now() - t0;
   console.log(`\nmodel D on 900 samples: refit ${fitMs.toFixed(0)} ms, refit with λ search ${cvMs.toFixed(0)} ms (this machine)\n`);
   assert.ok(fitMs < 250 && cvMs < 1500);
+});
+
+test('GazeModel offset: the computed share is added back, far outside what was seen in training', () => {
+  const rand = mulberry32(12);
+  const samples = [];
+  for (let i = 0; i < 60; i++) {
+    const a = rand() - 0.5;
+    const h = rand() * 200;
+    samples.push({ phi: Float64Array.of(a, h), y: [100 + 300 * a + h, 50 + 2 * h] });
+  }
+  const m = new GazeModel({ name: 't', expand: (p) => p.subarray(0, 1), nFeat: 1, stdFloor: [1e-3], lambda: 1e-6, robust: false, offset: (p) => [p[1], 2 * p[1]] });
+  assert.ok(m.fit(samples, samples.map(() => 1)));
+  for (const f of [m, m.snapshot()]) {
+    const q = f.predict(Float64Array.of(0.2, 500));
+    assert.ok(Math.abs(q[0] - 660) < 0.5 && Math.abs(q[1] - 1050) < 0.5, `${q}`);
+  }
+});
+
+test('with deferFit a touch is stored at once and learned on the next tick', () => {
+  const sim = new SimUser({ W, H, seed: 5 });
+  const cal = makeCal(MODEL_SPECS, { deferFit: true });
+  let t = 1000;
+  for (const [x, y] of [[40, 80], [200, 80], [350, 80], [40, 420], [200, 420], [350, 420], [40, 760], [200, 760], [350, 760]]) {
+    sim.lookAt(x, y, t);
+    const f = sim.frame(t + 600);
+    cal.addSample({ phi: f.phi, y: [x, y], w: 1, src: 'bootstrap', t: t + 600 }, { force: true });
+    t += 900;
+  }
+  assert.equal(cal.samples.length, 9);
+  assert.equal(cal.ready, false);
+  assert.ok(cal.tick(t));
+  assert.equal(cal.ready, true);
+  assert.equal(cal.tick(t + 10), false);
+});
+
+test('a posture change with no touch after it: computed geometry and the log picture hold up better', () => {
+  const rows = [];
+  for (const seed of [91, 92, 93, 94, 95, 96]) {
+    const sim = new SimUser({ W, H, seed });
+    const ring = new FrameRing();
+    const cal = makeCal();
+    let t = pursuit(sim, cal, 1000).t;
+    const before = evalDots(sim, ring, cal, t, 25, mulberry32(seed + 5));
+    sim.shiftPosture(1.3);
+    const after = evalDots(sim, ring, cal, before.t, 25, mulberry32(seed + 6));
+    const m = (e) => Object.fromEntries('BDEG'.split('').map((k) => [k, median(e[k])]));
+    rows.push({ seed, before: m(before.errs), after: m(after.errs) });
+  }
+  console.log('\nseed | same posture: B / D / E / G | after a posture shift, no touch: B / D / E / G   (px)');
+  for (const r of rows) console.log(`${String(r.seed).padStart(4)} | ${'BDEG'.split('').map((k) => f0(r.before[k])).join(' /')} | ${'BDEG'.split('').map((k) => f0(r.after[k])).join(' /')}`);
+  const med = (w, k) => median(rows.map((r) => r[w][k]));
+  console.log(`median — same: ${'BDEG'.split('').map((k) => f0(med('before', k))).join(' /')}   shifted: ${'BDEG'.split('').map((k) => f0(med('after', k))).join(' /')}\n`);
+  assert.ok(med('after', 'G') < med('after', 'D') * 0.7, 'geometry should absorb most of the posture change');
+  assert.ok(med('after', 'E') < med('after', 'D'), 'the log picture should suffer less from the lighting change');
+  assert.ok(med('before', 'G') < med('before', 'D') * 1.4, 'geometry must not cost much in a fixed posture');
 });

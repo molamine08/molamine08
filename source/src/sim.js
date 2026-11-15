@@ -4,7 +4,7 @@
 // It checks that the calibration code works; it is not a prediction of real accuracy.
 // In particular, how much cleaner the eye images are than the landmarks is an assumption made here.
 
-import { N_BASE, N_FULL, PIX_W, PIX_H } from './features.js';
+import { N_BASE, N_FULL, PIX_W, PIX_H, OFF_PIX, OFF_LOG } from './features.js';
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -46,6 +46,10 @@ export class SimUser {
     // blendshapes come out of the same fit, so they share it: averaging them does not remove it.
     this.lm = { h: 0, v: 0 };
     this.cropSlow = [0, 0, 0, 0]; // slow misalignment of each eye cut-out (x, y per eye)
+    // Lighting falls across the eye as a gentle ramp, and changes when the user shifts posture.
+    // Assumed here: it distorts the plain eye picture and leaves the log picture alone.
+    this.light = [0, 0];
+    this.wobble = null; // { t0 } while the user keeps moving the phone (the moving calibration)
   }
 
   gauss() {
@@ -77,6 +81,16 @@ export class SimUser {
     this.head.x += 1.2 * g();
     this.head.y += 1.2 * g();
     this.head.d = Math.min(45, Math.max(24, this.head.d + 3 * g()));
+    this.light[0] += 0.3 * g();
+    this.light[1] += 0.2 * g();
+  }
+
+  startWobble(tMs) {
+    this.wobble = { t0: tMs };
+  }
+
+  stopWobble() {
+    this.wobble = null;
   }
 
   frame(tMs) {
@@ -106,7 +120,12 @@ export class SimUser {
     this.lm.h = rhoLm * this.lm.h + kickLm * n(0.017);
     this.lm.v = rhoLm * this.lm.v + kickLm * n(0.035);
     this.slow.t = tMs;
-    const hd = this.head;
+    let hd = this.head;
+    if (this.wobble) {
+      const u = (tMs - this.wobble.t0) / 1000;
+      const sw = (period, phase) => Math.sin((2 * Math.PI * u) / period + phase);
+      hd = { ...hd, d: hd.d + 3.5 * sw(9, 0), x: hd.x + sw(7, 1), y: hd.y + sw(11, 2), yaw: hd.yaw + 0.05 * sw(8, 3), pitch: hd.pitch + 0.05 * sw(10, 4) };
+    }
     const us = this.user;
 
     // Camera sits 0.8 cm above the top edge, centred.
@@ -146,16 +165,19 @@ export class SimUser {
       0.45 + hd.y / (1.5 * hd.d) + n(0.003),
       5.67 / hd.d + n(0.002)
     );
-    let phi = base;
+    // the head in space as the camera reports it: position in cm, and the slopes of the face direction
+    const phi = new Float64Array(this.pixels === 'none' ? N_BASE : N_FULL);
+    phi.set(base);
+    phi.set([-hd.x + n(0.1), -hd.y + n(0.1), hd.d + n(0.3), -Math.tan(headYaw) + n(0.01), -Math.tan(headPitch) + n(0.012)], 22);
     if (this.pixels !== 'none') {
-      phi = new Float64Array(N_FULL);
-      phi.set(base);
       for (let e = 0; e < 2; e++) {
         const pj = this.pixelJitter;
         for (let k = 0; k < 2; k++) this.cropSlow[e * 2 + k] = rho * this.cropSlow[e * 2 + k] + kick * n((k ? 0.0045 : 0.003) * pj);
         const x0 = -us.gainH * Math.sin(eH + (e ? 0.01 : 0)) + (e ? 0.02 : 0) + this.cropSlow[e * 2] + n(0.004 * pj);
         const y0 = us.gainV * Math.sin(eV) + this.cropSlow[e * 2 + 1] + n(0.004 * pj);
-        this.eyeImage(phi, N_BASE + e * PIX_W * PIX_H, x0, y0, blinking ? 0.3 : -0.2 + 0.25 * eV, n);
+        const lid = blinking ? 0.3 : -0.2 + 0.25 * eV;
+        this.eyeImage(phi, OFF_PIX + e * PIX_W * PIX_H, x0, y0, lid, n, this.light);
+        this.eyeImage(phi, OFF_LOG + e * PIX_W * PIX_H, x0, y0, lid, n, null);
       }
     }
     return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null };
@@ -163,7 +185,7 @@ export class SimUser {
 
   // A tiny picture of one eye: bright sclera, dark iris at (x0, y0), darker above the upper lid.
   // Coordinates are in eye widths from the middle of the eye, like the real cut-out.
-  eyeImage(out, o, x0, y0, lidY, n) {
+  eyeImage(out, o, x0, y0, lidY, n, light) {
     const N = PIX_W * PIX_H;
     let mean = 0;
     for (let r = 0; r < PIX_H; r++) {
@@ -177,6 +199,7 @@ export class SimUser {
           const d2 = (x - x0) * (x - x0) + (y - y0) * (y - y0);
           v = 1 - 0.75 * Math.exp(-d2 / (2 * 0.13 * 0.13));
           v *= 1 - 0.5 / (1 + Math.exp((y - lidY) / 0.04));
+          if (light) v += light[0] * x + light[1] * y;
           v += n(0.03);
         }
         out[o + r * PIX_W + c] = v;

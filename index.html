@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="robots" content="noindex">
-<title>GazeCal 0.2 · معايرة النظر</title>
+<title>GazeCal 0.3 · معايرة النظر</title>
 <style>
 :root {
   --bg: #0b0d10;
@@ -874,6 +874,15 @@ body {
   white-space: nowrap;
 }
 
+/* ---- 0.3 ---- */
+.board {
+  margin: -4px 0 2px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 </style>
 </head>
 <body>
@@ -991,12 +1000,13 @@ function summarizeWindow(frames, { minFrames = 3, blinkMax = 0.5 } = {}) {
   for (const f of open) if (f.motion > motion) motion = f.motion;
   return { ok: true, phi, spread, n: open.length, motion };
 }
-function windowWeight(summary2, { eyeRef = [6e-3, 8e-3], motionRef = 60 } = {}) {
+function windowWeight(summary2, { eyeRef = [6e-3, 8e-3], motionRef = 45 } = {}) {
   let q = 0;
   for (let j = 0; j < eyeRef.length; j++) q += summary2.spread[j] / eyeRef[j];
   q /= eyeRef.length;
   const steady = 1 / (1 + q * q);
-  const still = summary2.motion > motionRef ? 0.35 : 1;
+  const m = summary2.motion / motionRef;
+  const still = 1 / (1 + m * m);
   return clamp(steady * still, 0.05, 1);
 }
 var RidgeMap = class _RidgeMap {
@@ -1185,8 +1195,9 @@ var RidgeMap = class _RidgeMap {
   }
 };
 var GazeModel = class {
-  constructor({ name, label = name, expand, nFeat, stdFloor, lambda = 1, lambdas = void 0, autoLambda = false, poseLocal = false, centered = false, robust = true, borrow = null, minFit = 6, needs = 0 }) {
+  constructor({ name, label = name, expand, nFeat, stdFloor, lambda = 1, lambdas = void 0, autoLambda = false, poseLocal = false, centered = false, robust = true, borrow = null, minFit = 6, needs = 0, offset = null }) {
     this.name = name;
+    this.offset = offset;
     this.borrow = borrow;
     this.robust = robust;
     this.lambdas = lambdas;
@@ -1220,22 +1231,37 @@ var GazeModel = class {
       for (let j = 0; j < n; j++) c[j] /= sw;
       this.center = c;
     }
-    const rows = samples.map((s) => ({ phi: this.expand(s.phi, this.center), y: s.y }));
+    const rows = samples.map((s) => {
+      if (!this.offset) return { phi: this.expand(s.phi, this.center), y: s.y };
+      const o = this.offset(s.phi);
+      return { phi: this.expand(s.phi, this.center), y: [s.y[0] - o[0], s.y[1] - o[1]] };
+    });
     if (cv && this.autoLambda) return this.map.fitCV(rows, weights, { lambdas: this.lambdas, robust: this.robust });
     return this.robust ? this.map.fitRobust(rows, weights) : this.map.fit(rows, weights);
   }
   predict(phi) {
-    return this.map.ready && phi.length >= this.needs ? this.map.predict(this.expand(phi, this.center)) : null;
+    if (!this.map.ready || phi.length < this.needs) return null;
+    const p = this.map.predict(this.expand(phi, this.center));
+    if (!this.offset) return p;
+    const o = this.offset(phi);
+    return [p[0] + o[0], p[1] + o[1]];
   }
   // A frozen copy that keeps predicting the same way while the original learns on.
   snapshot() {
     const map = this.map.clone();
     const center = this.center ? Float64Array.from(this.center) : null;
     const expand = this.expand;
+    const offset = this.offset;
+    const raw = (phi) => {
+      const q = map.predict(expand(phi, center));
+      if (!offset) return q;
+      const o = offset(phi);
+      return [q[0] + o[0], q[1] + o[1]];
+    };
     return {
       name: this.name,
       ready: map.ready,
-      predict: (phi) => map.ready && phi.length >= this.needs ? map.predict(expand(phi, center)) : null,
+      predict: (phi) => map.ready && phi.length >= this.needs ? raw(phi) : null,
       toJSON: () => ({ name: this.name, map: map.toJSON(), center: center ? Array.from(center) : null })
     };
   }
@@ -1253,7 +1279,9 @@ var Calibrator = class {
     window: window2 = 30,
     minScored = 8,
     cvEvery = 12,
-    deferCv = false
+    deferCv = false,
+    deferFit = false,
+    poseRefitMs = 400
   }) {
     this.models = models;
     this.poseIdx = poseIdx;
@@ -1267,6 +1295,8 @@ var Calibrator = class {
     this.minScored = minScored;
     this.cvEvery = cvEvery;
     this.deferCv = deferCv;
+    this.deferFit = deferFit;
+    this.poseRefitMs = poseRefitMs;
     this.learning = true;
     this.reset();
   }
@@ -1284,6 +1314,8 @@ var Calibrator = class {
     this.fitPose = null;
     this.lastFitT = -Infinity;
     this.sinceCv = 0;
+    this.dirty = false;
+    this.cvCursor = 0;
   }
   model(name) {
     return this.models.find((m) => m.name === name) || null;
@@ -1327,7 +1359,14 @@ var Calibrator = class {
       return w;
     });
   }
-  refit({ cv = false, nowT = Date.now(), only = null } = {}) {
+  // Refit now if samples arrived since the last fit (only matters with deferFit).
+  flush(nowT = Date.now()) {
+    if (!this.dirty) return false;
+    this.dirty = false;
+    this.refit({ nowT });
+    return true;
+  }
+  refit({ cv = false, nowT = Date.now(), only = null, countCv = true } = {}) {
     for (const m of this.models) {
       if (only && !only(m)) continue;
       let w = this.weightsFor(m, nowT);
@@ -1337,15 +1376,22 @@ var Calibrator = class {
     }
     this.fitPose = this.pose ? Float64Array.from(this.pose) : null;
     this.lastFitT = nowT;
-    if (cv) this.sinceCv = 0;
+    if (cv && countCv) this.sinceCv = 0;
   }
   // Call a few times a second: runs a pending lambda search, and refits the pose-aware models once the head has moved.
   tick(nowT = Date.now()) {
+    if (this.flush(nowT)) return true;
     if (this.deferCv && this.sinceCv >= this.cvEvery && this.samples.length) {
-      this.refit({ cv: true, nowT });
+      const auto = this.models.filter((m2) => m2.autoLambda);
+      const m = auto[this.cvCursor];
+      if (m) this.refit({ cv: true, nowT, only: (x) => x === m, countCv: false });
+      if (++this.cvCursor >= auto.length) {
+        this.cvCursor = 0;
+        this.sinceCv = 0;
+      }
       return true;
     }
-    if (!this.pose || !this.fitPose || nowT - this.lastFitT < 400 || !this.samples.length) return false;
+    if (!this.pose || !this.fitPose || nowT - this.lastFitT < this.poseRefitMs || !this.samples.length) return false;
     let d2 = 0;
     for (let k = 0; k < this.pose.length; k++) {
       const d = (this.pose[k] - this.fitPose[k]) / this.poseSigma[k];
@@ -1371,9 +1417,12 @@ var Calibrator = class {
     const pred = lead ? lead.predict(sample.phi) : null;
     const fpred = this.frozen ? this.frozen.predict(sample.phi) : null;
     const errs = {};
+    const preds = {};
     for (const m of this.models) {
-      const e = dist(m.predict(sample.phi));
+      const q = m.predict(sample.phi);
+      const e = dist(q);
       errs[m.name] = e;
+      preds[m.name] = q ? [Math.round(q[0]), Math.round(q[1])] : null;
       if (e != null) {
         this.scores[m.name].push(e);
         if (this.scores[m.name].length > 200) this.scores[m.name].shift();
@@ -1388,6 +1437,7 @@ var Calibrator = class {
       pred,
       err: dist(pred),
       errs,
+      preds,
       frozenPred: fpred,
       frozenErr: dist(fpred),
       learned: false
@@ -1397,7 +1447,8 @@ var Calibrator = class {
       this.samples.push({ phi: Float64Array.from(sample.phi), y: [sample.y[0], sample.y[1]], w: sample.w, src: sample.src, t: sample.t });
       this.trim();
       this.sinceCv++;
-      this.refit({ cv: !this.deferCv && this.sinceCv >= this.cvEvery, nowT: sample.t });
+      if (this.deferFit) this.dirty = true;
+      else this.refit({ cv: !this.deferCv && this.sinceCv >= this.cvEvery, nowT: sample.t });
       rec.learned = true;
     }
     return rec;
@@ -1408,6 +1459,7 @@ var Calibrator = class {
       this.samples.push({ phi: Float64Array.from(s.phi), y: [s.y[0], s.y[1]], w: s.w, src: s.src, t: s.t });
     }
     this.trim();
+    this.dirty = false;
     this.refit({ cv: true, nowT });
   }
   pickActive() {
@@ -1456,7 +1508,8 @@ var Calibrator = class {
       stdFloor: lead.map.stdFloor,
       lambda: lead.map.lambda,
       centered: lead.centered,
-      minFit: lead.minFit
+      minFit: lead.minFit,
+      offset: lead.offset
     });
     const out = [];
     for (let i = 0; i < N; i++) {
@@ -1505,7 +1558,13 @@ var Calibrator = class {
         const map = RidgeMap.fromJSON(o.frozen.map, src.map.stdFloor);
         const center = o.frozen.center ? Float64Array.from(o.frozen.center) : null;
         const frozenJson = o.frozen;
-        this.frozen = { name: src.name, ready: true, predict: (phi) => map.predict(src.expand(phi, center)), toJSON: () => frozenJson };
+        const raw = (phi) => {
+          const q = map.predict(src.expand(phi, center));
+          if (!src.offset) return q;
+          const o2 = src.offset(phi);
+          return [q[0] + o2[0], q[1] + o2[1]];
+        };
+        this.frozen = { name: src.name, ready: true, predict: (phi) => phi.length >= src.needs ? raw(phi) : null, toJSON: () => frozenJson };
       }
     }
     return true;
@@ -1746,14 +1805,24 @@ var FEATURE_NAMES = [
   "roll",
   "cx",
   "cy",
-  "scale"
+  "scale",
   // head pose and where the face sits in the frame
+  // The head in space, as the camera sees it: position in cm (x toward image-right, y up, z = distance)
+  // and the direction the face points, as slopes against the viewing axis.
+  "tx",
+  "ty",
+  "tz",
+  "nxz",
+  "nyz"
 ];
+var N_LM = 22;
 var N_BASE = FEATURE_NAMES.length;
 var PIX_W = 12;
 var PIX_H = 6;
 var N_PIX = 2 * PIX_W * PIX_H;
-var N_FULL = N_BASE + N_PIX;
+var OFF_PIX = N_BASE;
+var OFF_LOG = N_BASE + N_PIX;
+var N_FULL = N_BASE + 2 * N_PIX;
 var STD_FLOOR = [
   6e-3,
   8e-3,
@@ -1778,53 +1847,58 @@ var STD_FLOOR = [
   0.02,
   0.01
 ];
+var PIX_FLOOR = new Array(N_PIX).fill(0.08);
 var POSE_IDX = [16, 17, 18, 19, 20, 21];
 var POSE_SIGMA = [0.1, 0.1, 0.08, 0.06, 0.06, 0.03];
 var EYE_REF = [6e-3, 8e-3, 6e-3, 8e-3];
+var geometry = { pxPerCm: 60 };
+function setGeometry(g) {
+  Object.assign(geometry, g);
+}
+function headRay(p) {
+  const k = -geometry.pxPerCm;
+  return [k * (p[22] + p[24] * p[25]), k * (p[23] + p[24] * p[26])];
+}
 var FLOOR_A = [6e-3, 8e-3, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02, 0.02, 0.01];
 var lookH = (p) => (p[9] - p[8] + p[12] - p[13]) / 2;
 var lookV = (p) => (p[10] - p[11] + p[14] - p[15]) / 2;
 function expandA(p) {
   return Float64Array.of((p[0] + p[2]) / 2, (p[1] + p[3]) / 2, lookH(p), lookV(p), p[16], p[17], p[18], p[19], p[20], p[21]);
 }
-var expandB = (p) => p.length === N_BASE ? p : p.subarray(0, N_BASE);
-var FLOOR_Q = [2e-4, 3e-4, 2e-4, 3e-4, 3e-4, 3e-4, 3e-4];
-function expandC(p, c) {
-  const out = new Float64Array(N_BASE + 7);
-  out.set(p.length === N_BASE ? p : p.subarray(0, N_BASE));
-  const h = (p[0] + p[2]) / 2 - (c ? (c[0] + c[2]) / 2 : 0.5);
-  const v = (p[1] + p[3]) / 2 - (c ? (c[1] + c[3]) / 2 : 0);
-  const yaw = p[16] - (c ? c[16] : 0);
-  const pitch = p[17] - (c ? c[17] : 0);
-  const sc = p[21] - (c ? c[21] : 0.17);
-  out[N_BASE] = h * h;
-  out[N_BASE + 1] = v * v;
-  out[N_BASE + 2] = h * v;
-  out[N_BASE + 3] = h * yaw;
-  out[N_BASE + 4] = v * pitch;
-  out[N_BASE + 5] = h * sc;
-  out[N_BASE + 6] = v * sc;
+function withPicture(p, off) {
+  const out = new Float64Array(N_LM + N_PIX);
+  out.set(p.subarray(0, N_LM));
+  out.set(p.subarray(off, off + N_PIX), N_LM);
   return out;
 }
+var Z_REF = 30;
+var N_EYE = 16;
+function expandG(p, c) {
+  const k = p[24] / Z_REF;
+  const out = new Float64Array(N_EYE + N_PIX + 1);
+  for (let j = 0; j < N_EYE; j++) out[j] = (p[j] - (c ? c[j] : 0)) * k;
+  for (let j = 0; j < N_PIX; j++) out[N_EYE + j] = (p[OFF_LOG + j] - (c ? c[OFF_LOG + j] : 0)) * k;
+  out[N_EYE + N_PIX] = k;
+  return out;
+}
+var WIDE = { lambda: 30, lambdas: [3, 10, 30, 100, 300, 1e3], autoLambda: true, robust: false, borrow: "B", minFit: 30 };
 var DEFAULT_MODEL = "B";
 var MODEL_SPECS = [
   { name: "A", label: "أساسي (0.1)", expand: expandA, nFeat: 10, stdFloor: FLOOR_A, lambda: 1, minFit: 5 },
-  { name: "B", label: "خصائص غنية", expand: expandB, nFeat: N_BASE, stdFloor: STD_FLOOR, lambda: 3, autoLambda: true, poseLocal: true, minFit: 8 },
-  { name: "C", label: "غنية + غير خطي", expand: expandC, nFeat: N_BASE + 7, stdFloor: [...STD_FLOOR, ...FLOOR_Q], lambda: 3, autoLambda: true, poseLocal: true, centered: true, minFit: 8 },
+  { name: "B", label: "نقاط الوجه", expand: (p) => p.subarray(0, N_LM), nFeat: N_LM, stdFloor: STD_FLOOR, lambda: 3, autoLambda: true, poseLocal: true, minFit: 8 },
+  { name: "D", label: "صورة العين", expand: (p) => withPicture(p, OFF_PIX), nFeat: N_LM + N_PIX, needs: OFF_PIX + N_PIX, stdFloor: [...STD_FLOOR, ...PIX_FLOOR], poseLocal: true, ...WIDE },
+  { name: "E", label: "عين مقاومة للإضاءة", expand: (p) => withPicture(p, OFF_LOG), nFeat: N_LM + N_PIX, needs: N_FULL, stdFloor: [...STD_FLOOR, ...PIX_FLOOR], poseLocal: true, ...WIDE },
   {
-    name: "D",
-    label: "صورة العين + الخصائص",
-    expand: (p) => p,
-    nFeat: N_FULL,
+    name: "G",
+    label: "هندسي",
+    expand: expandG,
+    nFeat: N_EYE + N_PIX + 1,
     needs: N_FULL,
-    stdFloor: [...STD_FLOOR, ...new Array(N_PIX).fill(0.08)],
-    lambda: 30,
-    lambdas: [3, 10, 30, 100, 300, 1e3],
-    autoLambda: true,
-    poseLocal: true,
-    robust: false,
-    borrow: "B",
-    minFit: 30
+    stdFloor: [...STD_FLOOR.slice(0, N_EYE), ...PIX_FLOOR, 0.03],
+    offset: headRay,
+    centered: true,
+    poseLocal: false,
+    ...WIDE
   }
 ];
 var R_OUTER = 33;
@@ -1894,6 +1968,26 @@ function extractFeatures(result, imgW, imgH) {
     yaw = (lm[NOSE_TIP].x * imgW - (L.cx + R.cx) / 2) / ipd;
     pitch = (lm[NOSE_TIP].y * imgH - (L.cy + R.cy) / 2) / ipd;
   }
+  const cxn = (L.cx + R.cx) / 2 / imgW;
+  const cyn = (L.cy + R.cy) / 2 / imgH;
+  let tx;
+  let ty;
+  let tz;
+  let nxz;
+  let nyz;
+  if (d && d.length === 16 && Math.abs(d[10]) > 0.2 && d[14] < 0) {
+    tx = d[12];
+    ty = d[13];
+    tz = -d[14];
+    nxz = d[8] / d[10];
+    nyz = d[9] / d[10];
+  } else {
+    tz = scale > 0 ? 5.68 / scale : 30;
+    tx = (cxn - 0.5) * tz / 0.902;
+    ty = -(cyn - 0.5) * (imgH / imgW) * tz / 0.902;
+    nxz = Math.tan(yaw);
+    nyz = -Math.tan(pitch);
+  }
   return {
     face: true,
     phi: Float64Array.of(
@@ -1916,9 +2010,14 @@ function extractFeatures(result, imgW, imgH) {
       yaw,
       pitch,
       roll,
-      (L.cx + R.cx) / 2 / imgW,
-      (L.cy + R.cy) / 2 / imgH,
-      scale
+      cxn,
+      cyn,
+      scale,
+      tx,
+      ty,
+      tz,
+      nxz,
+      nyz
     ),
     blink,
     // Rough viewing distance, assuming a 63 mm eye spacing and a ~58° wide lens.
@@ -1968,6 +2067,8 @@ var SimUser = class {
     this.slow = { hR: 0, hL: 0, vR: 0, vL: 0, t: null };
     this.lm = { h: 0, v: 0 };
     this.cropSlow = [0, 0, 0, 0];
+    this.light = [0, 0];
+    this.wobble = null;
   }
   gauss() {
     const u = Math.max(1e-12, this.rand());
@@ -1995,6 +2096,14 @@ var SimUser = class {
     this.head.x += 1.2 * g();
     this.head.y += 1.2 * g();
     this.head.d = Math.min(45, Math.max(24, this.head.d + 3 * g()));
+    this.light[0] += 0.3 * g();
+    this.light[1] += 0.2 * g();
+  }
+  startWobble(tMs) {
+    this.wobble = { t0: tMs };
+  }
+  stopWobble() {
+    this.wobble = null;
   }
   frame(tMs) {
     if (this.pursuit) {
@@ -2023,7 +2132,12 @@ var SimUser = class {
     this.lm.h = rhoLm * this.lm.h + kickLm * n(0.017);
     this.lm.v = rhoLm * this.lm.v + kickLm * n(0.035);
     this.slow.t = tMs;
-    const hd = this.head;
+    let hd = this.head;
+    if (this.wobble) {
+      const u = (tMs - this.wobble.t0) / 1e3;
+      const sw = (period, phase) => Math.sin(2 * Math.PI * u / period + phase);
+      hd = { ...hd, d: hd.d + 3.5 * sw(9, 0), x: hd.x + sw(7, 1), y: hd.y + sw(11, 2), yaw: hd.yaw + 0.05 * sw(8, 3), pitch: hd.pitch + 0.05 * sw(10, 4) };
+    }
     const us = this.user;
     const dxCm = (this.gx - this.W / 2) / this.ppc - hd.x;
     const dyCm = this.gy / this.ppc + 0.8 - hd.y;
@@ -2060,23 +2174,25 @@ var SimUser = class {
       0.45 + hd.y / (1.5 * hd.d) + n(3e-3),
       5.67 / hd.d + n(2e-3)
     );
-    let phi = base;
+    const phi = new Float64Array(this.pixels === "none" ? N_BASE : N_FULL);
+    phi.set(base);
+    phi.set([-hd.x + n(0.1), -hd.y + n(0.1), hd.d + n(0.3), -Math.tan(headYaw) + n(0.01), -Math.tan(headPitch) + n(0.012)], 22);
     if (this.pixels !== "none") {
-      phi = new Float64Array(N_FULL);
-      phi.set(base);
       for (let e = 0; e < 2; e++) {
         const pj = this.pixelJitter;
         for (let k = 0; k < 2; k++) this.cropSlow[e * 2 + k] = rho * this.cropSlow[e * 2 + k] + kick * n((k ? 45e-4 : 3e-3) * pj);
         const x0 = -us.gainH * Math.sin(eH + (e ? 0.01 : 0)) + (e ? 0.02 : 0) + this.cropSlow[e * 2] + n(4e-3 * pj);
         const y0 = us.gainV * Math.sin(eV) + this.cropSlow[e * 2 + 1] + n(4e-3 * pj);
-        this.eyeImage(phi, N_BASE + e * PIX_W * PIX_H, x0, y0, blinking ? 0.3 : -0.2 + 0.25 * eV, n);
+        const lid2 = blinking ? 0.3 : -0.2 + 0.25 * eV;
+        this.eyeImage(phi, OFF_PIX + e * PIX_W * PIX_H, x0, y0, lid2, n, this.light);
+        this.eyeImage(phi, OFF_LOG + e * PIX_W * PIX_H, x0, y0, lid2, n, null);
       }
     }
     return { face: true, phi, blink: blinking ? 0.9 : 0.05 + 0.05 * this.rand(), distCm: hd.d, eyes: null };
   }
   // A tiny picture of one eye: bright sclera, dark iris at (x0, y0), darker above the upper lid.
   // Coordinates are in eye widths from the middle of the eye, like the real cut-out.
-  eyeImage(out, o, x0, y0, lidY, n) {
+  eyeImage(out, o, x0, y0, lidY, n, light) {
     const N = PIX_W * PIX_H;
     let mean = 0;
     for (let r = 0; r < PIX_H; r++) {
@@ -2090,6 +2206,7 @@ var SimUser = class {
           const d2 = (x - x0) * (x - x0) + (y - y0) * (y - y0);
           v = 1 - 0.75 * Math.exp(-d2 / (2 * 0.13 * 0.13));
           v *= 1 - 0.5 / (1 + Math.exp((y - lidY) / 0.04));
+          if (light) v += light[0] * x + light[1] * y;
           v += n(0.03);
         }
         out[o + r * PIX_W + c] = v;
@@ -2105,9 +2222,11 @@ var SimUser = class {
 };
 
 // src/app.js
-var VERSION = "0.2";
-var T0 = Date.now() - performance.now();
+var VERSION = "0.3";
+var wall = (tPerf) => Date.now() - (performance.now() - tPerf);
 var PURSUIT_MS = 2e4;
+var MOVE_MS = 3e4;
+var TOUCH_BOOST = 3;
 var MP_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3";
 var MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 var SIM_URL = /\bsim\b/.test(location.search + location.hash);
@@ -2118,16 +2237,18 @@ var EMBEDDED = (() => {
     return true;
   }
 })() || !/^https?:$/.test(location.protocol);
-var TITLES = { home: "معايرة النظر", boot: "معايرة 9 نقاط", pursue: "معايرة بالتتبّع", test: "قياس الدقة", free: "استخدام حر", pick: "نظر + لمس", stats: "النتائج" };
-var IMMERSIVE = { boot: true, pursue: true, test: true, pick: true };
+var TITLES = { home: "معايرة النظر", boot: "معايرة 9 نقاط", pursue: "معايرة بالتتبّع", pursueMove: "معايرة متحركة", test: "قياس الدقة", free: "استخدام حر", pick: "نظر + لمس", stats: "النتائج" };
+var IMMERSIVE = { boot: true, pursue: true, pursueMove: true, test: true, pick: true };
 var makeCal = () => new Calibrator({
   models: MODEL_SPECS.map((spec) => new GazeModel(spec)),
   poseIdx: POSE_IDX,
   poseSigma: POSE_SIGMA,
   defaultModel: DEFAULT_MODEL,
   cvEvery: 24,
-  deferCv: true
-  // the slow part of learning waits for the idle timer instead of delaying a touch
+  deferCv: true,
+  // learning waits for the idle timer instead of delaying a touch
+  deferFit: true,
+  poseRefitMs: 1e3
 });
 function guessPxPerCm() {
   const ua = navigator.userAgent;
@@ -2156,6 +2277,8 @@ var S = {
   gaze: null,
   video: null,
   pursuitLog: [],
+  anchor: null,
+  // when and in which head pose the last labelled sample was taken
   onFrame: null,
   settings: { cursor: true, learn: true, preview: true, gpu: false, motion: false },
   log: [],
@@ -2171,6 +2294,7 @@ var S = {
   selector: null,
   pickLevel: 0
 };
+setGeometry({ pxPerCm: S.pxPerCm });
 var $ = (sel, root = document) => root.querySelector(sel);
 function el(html) {
   const t = document.createElement("template");
@@ -2202,7 +2326,7 @@ function shuffle(a, rand = Math.random) {
   }
   return a;
 }
-var profileKey = () => `gazecal:v2:${S.W}:${S.H >= S.W ? "p" : "l"}`;
+var profileKey = () => `gazecal:v3:${S.W}:${S.H >= S.W ? "p" : "l"}`;
 var saveTimer = 0;
 function save() {
   if (S.sim) return;
@@ -2220,12 +2344,13 @@ function load() {
   if (S.sim) return;
   try {
     const s = JSON.parse(localStorage.getItem("gazecal:settings") || "null");
+    const motion = S.settings.motion;
     if (s) Object.assign(S.settings, s);
+    S.settings.motion = motion;
     const p = JSON.parse(localStorage.getItem(profileKey()) || "null");
     if (p && p.cal && S.cal.load(p.cal, { nFeat: N_FULL, nowT: Date.now() })) S.looPx = Number.isFinite(p.loo) ? p.loo : NaN;
   } catch (e) {
   }
-  S.settings.motion = false;
   S.cal.learning = S.settings.learn;
 }
 var sigmaPx = () => clamp(S.errMap.recentMedian(12) || 90, 45, 220);
@@ -2242,7 +2367,7 @@ function onFrame(f, t) {
   if (!S.face) {
     S.gaze = null;
     S.smooth.reset();
-  } else if (S.cal.ready && !(f.blink > 0.5)) {
+  } else if (S.cal.ready && !(f.blink > 0.5) && !(t - S.motionT < 400 && S.motion > 80)) {
     const p = S.cal.predict(f.phi);
     if (p) {
       S.smooth.radius = clamp(sigmaPx(), 70, 160);
@@ -2285,7 +2410,8 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
     S.rejects[sum.reason] = (S.rejects[sum.reason] || 0) + 1;
     return { ok: false, reason: sum.reason };
   }
-  const rec = S.cal.addSample({ phi: sum.phi, y: target, w: baseW * windowWeight(sum, { eyeRef: EYE_REF }), src, t: Math.round(tMs + T0) }, { force });
+  const rec = S.cal.addSample({ phi: sum.phi, y: target, w: TOUCH_BOOST * baseW * windowWeight(sum, { eyeRef: EYE_REF }), src, t: Math.round(wall(tMs)) }, { force });
+  S.anchor = { t: tMs, pose: S.cal.pose ? Float64Array.from(S.cal.pose) : null };
   rec.ok = true;
   rec.screen = S.screen;
   rec.frames = sum.n;
@@ -2293,7 +2419,7 @@ function takeSample(target, src, tMs, baseW, { force = false, since = -Infinity 
   rec.w = +rec.w.toFixed(3);
   for (const k in rec.errs) if (rec.errs[k] != null) rec.errs[k] = Math.round(rec.errs[k] * 10) / 10;
   rec.phi = Array.from(sum.phi.subarray(0, N_BASE), r5);
-  if (sum.phi.length > N_BASE) rec.pix = packInt8(sum.phi.subarray(N_BASE));
+  if (sum.phi.length >= OFF_PIX + N_PIX) rec.pix = packInt8(sum.phi.subarray(OFF_PIX, OFF_PIX + N_PIX));
   const eye = meanEyes(frames);
   if (eye) rec.eye = eye;
   if (rec.err != null) S.errMap.add(target[0] / S.W, target[1] / S.H, rec.err);
@@ -2426,6 +2552,7 @@ function eyeImages(video, eyes) {
     const px = cropCtx.getImageData(0, 0, 2 * HI_W, HI_H).data;
     const hi = new Uint8Array(2 * HI_W * HI_H);
     const pix = new Float64Array(2 * PIX_W * PIX_H);
+    const pixl = new Float64Array(2 * PIX_W * PIX_H);
     const bx = HI_W / PIX_W;
     const by = HI_H / PIX_H;
     for (let e = 0; e < 2; e++) {
@@ -2435,19 +2562,23 @@ function eyeImages(video, eyes) {
           const i = (y * 2 * HI_W + e * HI_W + x) * 4;
           const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
           hi[e * HI_W * HI_H + y * HI_W + x] = g;
-          pix[lo + Math.floor(y / by) * PIX_W + Math.floor(x / bx)] += g;
+          const cell = lo + Math.floor(y / by) * PIX_W + Math.floor(x / bx);
+          pix[cell] += g;
+          pixl[cell] += Math.log(g + 8);
         }
       }
-      let mean = 0;
-      for (let i = 0; i < PIX_W * PIX_H; i++) mean += pix[lo + i];
-      mean /= PIX_W * PIX_H;
-      let sd = 0;
-      for (let i = 0; i < PIX_W * PIX_H; i++) sd += (pix[lo + i] - mean) * (pix[lo + i] - mean);
-      sd = Math.sqrt(sd / (PIX_W * PIX_H));
-      for (let i = 0; i < PIX_W * PIX_H; i++) pix[lo + i] = sd > bx * by ? (pix[lo + i] - mean) / sd : 0;
+      for (const [arr, floor] of [[pix, bx * by], [pixl, 1e-3 * bx * by]]) {
+        let mean = 0;
+        for (let i = 0; i < PIX_W * PIX_H; i++) mean += arr[lo + i];
+        mean /= PIX_W * PIX_H;
+        let sd = 0;
+        for (let i = 0; i < PIX_W * PIX_H; i++) sd += (arr[lo + i] - mean) * (arr[lo + i] - mean);
+        sd = Math.sqrt(sd / (PIX_W * PIX_H));
+        for (let i = 0; i < PIX_W * PIX_H; i++) arr[lo + i] = sd > floor ? (arr[lo + i] - mean) / sd : 0;
+      }
     }
     cropFailures = 0;
-    return { pix, hi };
+    return { pix, pixl, hi };
   } catch (e) {
     cropFailures++;
     return null;
@@ -2473,7 +2604,10 @@ function loop() {
     const img = eyeImages(video, f.eyes);
     const phi = new Float64Array(N_FULL);
     phi.set(f.phi);
-    if (img) phi.set(img.pix, N_BASE);
+    if (img) {
+      phi.set(img.pix, OFF_PIX);
+      phi.set(img.pixl, OFF_LOG);
+    }
     f.phi = phi;
     f.hi = img ? img.hi : null;
   }
@@ -2564,6 +2698,7 @@ async function start() {
   if (!window.isSecureContext) return renderStart("insecure");
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return renderStart("unsupported");
   renderStart("cam");
+  S.settings.motion = await enableMotion();
   const video = $("#cam");
   try {
     if (!video.srcObject) {
@@ -2624,7 +2759,7 @@ function tick() {
   }
   chip.textContent = text;
   chip.className = "chip " + cls;
-  if (S.screen !== "pursue") S.cal.tick(Date.now());
+  if (S.screen !== "pursue" && S.screen !== "pursueMove") S.cal.tick(Date.now());
   const st = $("#st-state");
   if (!st) return;
   st.textContent = S.sim ? "محاكاة" : stale ? "الكاميرا متوقفة" : !S.face ? "لا يوجد وجه" : S.cal.ready ? "يتتبع النظر" : "ينتظر المعايرة";
@@ -2690,8 +2825,9 @@ function home() {
       <div class="slot" id="cam-slot" ${S.settings.preview && !S.sim ? "" : "hidden"}></div>
     </div>
     <div class="scroll">
-      <button class="btn ${ready ? "" : "primary"}" data-go="pursue"><span>${ready ? "معايرة بالتتبّع" : "ابدأ: معايرة بالتتبّع"}</span><small>${ready ? "تضيف 20 ثانية" : "20 ثانية"}</small></button>
-      <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>${ready ? "تبدأ من الصفر" : "بديل سريع"}</small></button>
+      <button class="btn ${ready ? "" : "primary"}" data-go="pursue"><span>${ready ? "معايرة بالتتبّع" : "ابدأ: معايرة بالتتبّع"}</span><small>20 ثانية، الهاتف ثابت</small></button>
+      <button class="btn" data-go="pursueMove"><span>معايرة متحركة</span><small>30 ثانية وأنت تحرّك الهاتف</small></button>
+      <button class="btn" data-go="boot"><span>معايرة 9 نقاط</span><small>تضيف 9 عينات</small></button>
       <button class="btn" data-go="test" ${ready ? "" : "disabled"}><span>قياس الدقة</span><small>20 نقطة</small></button>
       <button class="btn" data-go="free"><span>استخدام حر</span><small>يتعلّم من لمساتك</small></button>
       <button class="btn" data-go="pick" ${ready ? "" : "disabled"}><span>نظر + لمس</span><small>اختيار بالعين</small></button>
@@ -2798,10 +2934,6 @@ function boot() {
     <div class="hud hint">انظر إلى النقطة الخضراء ثم المسها</div>
     <div class="hud prog"></div>
   </section>`);
-  S.cal.reset();
-  S.errMap.reset();
-  S.looPx = NaN;
-  S.smooth.reset();
   const xs = [0.1, 0.5, 0.9];
   const ys = [0.09, 0.5, 0.91];
   const rest = [];
@@ -2815,13 +2947,14 @@ function boot() {
       return 120;
     },
     onDone: () => {
+      S.cal.flush(Date.now());
       S.cal.freeze();
       const loo = S.cal.looErrors(40, Date.now());
-      S.looPx = loo.length ? median(loo) : NaN;
+      if (loo.length) S.looPx = median(loo);
       save();
       root.appendChild(el(S.cal.ready ? `<div class="sheet">
             <h2>تمت معايرة 9 نقاط</h2>
-            <div class="big">${cm(S.looPx)} <small>سم خطأ متوقع، تقدير من 9 نقاط</small></div>
+            ${loo.length ? `<div class="big">${cm(S.looPx)} <small>سم خطأ متوقع، تقدير من 9 نقاط</small></div>` : `<div class="big">${S.cal.samples.length} <small>عينة في الذاكرة الآن</small></div>`}
             <p class="note">9 نقاط لا تكفي نموذج صورة العين. «معايرة بالتتبّع» تعطيه مئات العينات في 20 ثانية.</p>
             <button class="btn primary" data-go="pursue">معايرة بالتتبّع</button>
             <div class="btn-row"><button class="btn center" data-go="test">قياس الدقة</button><button class="btn center" data-go="home">الرئيسية</button></div>
@@ -2835,48 +2968,62 @@ function boot() {
   });
   return root;
 }
-function learnPursuit(frames, path, tStart) {
+var spreadOf = (values) => {
+  const a = values.filter(Number.isFinite);
+  return a.length ? [percentile(a, 0.05), percentile(a, 0.95)] : [NaN, NaN];
+};
+function learnPursuit(frames, path, tStart, { move, duration }) {
   const usable = frames.filter((f) => f.face && f.phi && !(f.blink > 0.5) && f.t > 800);
   const out = { ok: false, usable: usable.length, total: frames.length };
   if (usable.length < 200) return out;
   const lag = estimateLag(usable, path, MODEL_SPECS.filter((m) => m.name === "B" || m.name === "D"));
-  const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: T0 + tStart });
+  const samples = pursuitSamples(frames, path, { lagMs: lag.lagMs, wallT0: wall(tStart), src: move ? "pursuit-move" : "pursuit" });
   if (samples.length < 80) return out;
   S.cal.addBatch(samples, { nowT: Date.now() });
   S.cal.freeze();
   S.smooth.reset();
+  S.anchor = { t: performance.now(), pose: S.cal.pose ? Float64Array.from(S.cal.pose) : null };
+  const dist = spreadOf(usable.map((f) => f.phi[24]));
+  const deg = (v) => Math.atan(v) * 180 / Math.PI;
+  const tiltX = spreadOf(usable.map((f) => deg(f.phi[25])));
+  const tiltY = spreadOf(usable.map((f) => deg(f.phi[26])));
+  const spread = { distCm: dist.map((v) => Math.round(v * 10) / 10), tiltDeg: Math.round(Math.max(tiltX[1] - tiltX[0], tiltY[1] - tiltY[0]) * 10) / 10 };
   S.pursuitLog.push({
-    at: new Date(T0 + tStart).toISOString(),
-    durationMs: PURSUIT_MS,
-    path: { W: S.W, H: S.H, marginX: 0.1, marginY: 0.08, cyclesX: 5, cyclesY: 2, formula: "x = W/2 + W(0.5-marginX) sin(2π cyclesX u), y = H/2 + H(0.5-marginY) cos(2π cyclesY u), u = t/durationMs" },
+    at: new Date(wall(tStart)).toISOString(),
+    mode: move ? "moving" : "still",
+    durationMs: duration,
+    path: { W: S.W, H: S.H, marginX: 0.1, marginY: 0.08, cyclesX: move ? 7 : 5, cyclesY: move ? 3 : 2, formula: "x = W/2 + W(0.5-marginX) sin(2π cyclesX u), y = H/2 + H(0.5-marginY) cos(2π cyclesY u), u = t/durationMs" },
     lagMs: lag.lagMs,
     lagSure: lag.sure,
     lagModel: lag.model,
     lagCurve: lag.curve.map((v) => Math.round(v * 10) / 10),
     samples: samples.length,
-    // every frame keeps its features; every second one also keeps the larger eye picture
+    spread,
+    // every frame keeps its numbers and the plain eye picture; every second one also the larger picture
     frames: frames.map((f, i) => ({
       t: Math.round(f.t),
       k: Math.round(f.blink * 100) / 100,
+      m: Math.round(f.motion || 0),
       b: f.phi ? Array.from(f.phi.subarray(0, N_BASE), r5) : null,
-      q: f.phi && f.phi.length > N_BASE ? packInt8(f.phi.subarray(N_BASE)) : null,
+      q: f.phi && f.phi.length >= OFF_PIX + N_PIX ? packInt8(f.phi.subarray(OFF_PIX, OFF_PIX + N_PIX)) : null,
       e: f.hi && i % 2 === 0 ? b64(f.hi) : null
     }))
   });
-  if (S.pursuitLog.length > 2) S.pursuitLog.shift();
+  if (S.pursuitLog.length > 3) S.pursuitLog.shift();
   save();
-  return { ...out, ok: S.cal.ready, n: samples.length, lag };
+  return { ...out, ok: S.cal.ready, n: samples.length, lag, spread };
 }
-function pursue() {
+function pursue(move = false) {
+  const duration = move ? MOVE_MS : PURSUIT_MS;
   const root = el(`<section class="screen full">
     <button class="close" data-gaze="ignore" data-go="home" aria-label="إغلاق">✕</button>
     <div class="pbar"></div>
-    <div class="hud hint">المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small></div>
+    <div class="hud hint">${move ? "المس النقطة ثم تابعها بعينيك<br><small>وحرّك الهاتف ببطء طوال 30 ثانية: قرّبه، أبعده، أمِله قليلًا.</small>" : "المس النقطة ثم تابعها بعينيك فقط<br><small>20 ثانية. أبقِ الهاتف ورأسك ثابتين.</small>"}</div>
     <div class="dot" data-gaze="dot"><i></i></div>
   </section>`);
   const dot = $(".dot", root);
   const bar = $(".pbar", root);
-  const path = pursuitPath(S.W, S.H, { durationMs: PURSUIT_MS });
+  const path = pursuitPath(S.W, S.H, move ? { durationMs: duration, cyclesX: 7, cyclesY: 3 } : { durationMs: duration });
   const frames = [];
   let tStart = 0;
   let raf = 0;
@@ -2886,34 +3033,43 @@ function pursue() {
     dot.style.top = `${pt[1]}px`;
   };
   place(path(0));
+  function simRest() {
+    if (!S.simUser) return;
+    S.simUser.stopWobble();
+    S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+  }
   function finish() {
     S.onFrame = null;
     dot.remove();
     bar.remove();
-    if (S.simUser) S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+    simRest();
     const busy = el('<div class="sheet"><div class="loading"><div class="spinner"></div><span>جارٍ التعلّم من التسجيل…</span></div></div>');
     root.appendChild(busy);
     setTimeout(() => {
       if (gone) return;
       let out;
       try {
-        out = learnPursuit(frames, path, tStart);
+        out = learnPursuit(frames, path, tStart, { move, duration });
       } catch (e) {
         out = { ok: false, usable: 0, total: frames.length, error: String(e && e.message || e) };
       }
       busy.remove();
+      const narrow = move && out.ok && !(out.spread.distCm[1] - out.spread.distCm[0] >= 3 || out.spread.tiltDeg >= 6);
       root.appendChild(el(out.ok ? `<div class="sheet">
-            <h2>تمت معايرة التتبّع</h2>
+            <h2>${move ? "تمت المعايرة المتحركة" : "تمت معايرة التتبّع"}</h2>
             <div class="big">${out.n} <small>عينة جديدة من ${out.total} إطارًا</small></div>
-            <div class="row"><span>تأخر العين عن النقطة</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? "" : " (افتراضي)"}</b></div>
-            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك يتنافس نموذج صورة العين مع نماذج نقاط الوجه على النقاط نفسها.</p>
+            <div class="row"><span>تأخر العين</span><b>${out.lag.lagMs} مللي ثانية${out.lag.sure ? "" : " (افتراضي)"}</b></div>
+            <div class="row"><span>المسافة</span><b><span dir="ltr">${out.spread.distCm[0]}–${out.spread.distCm[1]}</span> سم</b></div>
+            <div class="row"><span>مدى الميل</span><b><span dir="ltr">${out.spread.tiltDeg}°</span></b></div>
+            ${narrow ? '<p class="warn">الحركة كانت قليلة. أعدها بحركة أوسع ليتعلّم النموذج أثر الوضعية.</p>' : ""}
+            <p class="note">الرقم الحقيقي يأتي من «قياس الدقة»: هناك تتنافس النماذج كلها على النقاط نفسها.</p>
             <button class="btn primary" data-go="test">قياس الدقة</button>
             <button class="btn center" data-go="home">الرئيسية</button>
           </div>` : `<div class="sheet">
             <h2>لم يكتمل التسجيل</h2>
-            <p class="note">رأيت عينيك بوضوح في ${out.usable} من ${out.total} إطارًا فقط. أعد المحاولة في إضاءة أفضل والهاتف ثابت.</p>
+            <p class="note">رأيت عينيك بوضوح في ${out.usable} من ${out.total} إطارًا فقط. أعد المحاولة في إضاءة أفضل${move ? " وبحركة أهدأ" : " والهاتف ثابت"}.</p>
             ${out.error ? `<p class="detail">${esc(out.error)}</p>` : ""}
-            <button class="btn primary" data-go="pursue">إعادة المحاولة</button>
+            <button class="btn primary" data-go="${move ? "pursueMove" : "pursue"}">إعادة المحاولة</button>
             <button class="btn center" data-go="home">الرئيسية</button>
           </div>`));
     }, 60);
@@ -2921,9 +3077,9 @@ function pursue() {
   function step() {
     if (gone) return;
     const u = performance.now() - tStart;
-    if (u >= PURSUIT_MS) return finish();
+    if (u >= duration) return finish();
     place(path(Math.max(0, u)));
-    bar.style.width = `${100 * Math.max(0, u) / PURSUIT_MS}%`;
+    bar.style.width = `${100 * Math.max(0, u) / duration}%`;
     raf = requestAnimationFrame(step);
   }
   dot.addEventListener("pointerdown", (e) => {
@@ -2932,9 +3088,12 @@ function pursue() {
     tStart = performance.now() + 700;
     $(".hint", root).hidden = true;
     dot.classList.add("moving");
-    if (S.simUser) S.simUser.follow((t) => path(t - tStart), 120);
+    if (S.simUser) {
+      S.simUser.follow((t) => path(t - tStart), 120);
+      if (move) S.simUser.startWobble(tStart);
+    }
     S.onFrame = (f, t) => {
-      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null });
+      if (t >= tStart) frames.push({ t: t - tStart, face: !!f.face, phi: f.face ? f.phi : null, blink: f.blink || 0, hi: f.hi || null, motion: t - S.motionT < 400 ? S.motion : 0 });
     };
     raf = requestAnimationFrame(step);
   });
@@ -2942,7 +3101,7 @@ function pursue() {
     gone = true;
     cancelAnimationFrame(raf);
     S.onFrame = null;
-    if (S.simUser && tStart) S.simUser.lookAt(S.W / 2, S.H / 2, performance.now());
+    if (tStart) simRest();
   };
   return root;
 }
@@ -3002,6 +3161,7 @@ function test() {
       return 450;
     },
     onDone: () => {
+      S.cal.flush(Date.now());
       const scored = trials.filter((r) => r.err != null);
       const med = median(scored.map((r) => r.err));
       const frozen = scored.filter((r) => r.frozenErr != null).map((r) => r.frozenErr);
@@ -3013,7 +3173,8 @@ function test() {
         <div class="row"><span>${S.cal.learning ? "بالمعايرة وحدها" : "التعلّم متوقف"}</span><b>${frozen.length ? cm(median(frozen)) + " سم" : "—"}</b></div>
         <div class="row"><span>أفقي / عمودي</span><b>${cm(dx)} / ${cm(dy)} سم</b></div>
         <div class="row"><span>أسوأ ربع من النقاط فوق</span><b>${cm(percentile(scored.map((r) => r.err), 0.75))} سم</b></div>
-        <div class="row"><span>النماذج (سم)</span><b dir="ltr">${boardLine(modelBoard(scored))}</b></div>
+        <div class="row"><span>كل نموذج على النقاط نفسها (سم)</span></div>
+        <p class="board" dir="ltr">${boardLine(modelBoard(scored))}</p>
         <div class="row"><span>يقود الآن</span><b>${leadLabel()}</b></div>
         <button class="btn primary" data-go="test">إعادة القياس</button>
         <div class="btn-row"><button class="btn center" data-go="stats">النتائج الكاملة</button><button class="btn center" data-go="home">الرئيسية</button></div>
@@ -3124,25 +3285,67 @@ function pick() {
     </div>
   </section>`);
   const grid = $(".grid", root);
+  const statEl = $("#p-stat", root);
   let cells = [];
   let rects = [];
   let goal = -1;
   let t0 = 0;
   let busy = true;
   let alive = true;
+  let fixing = false;
+  let trace = [];
+  let votes = [];
+  let anchorDot = null;
   function stat() {
     const [c, r] = levels[S.pickLevel];
     const mine = S.picks.filter((p) => p.cols === c && p.rows === r);
     if (!mine.length) {
-      $("#p-stat", root).textContent = "انظر إلى المربع الذي فيه الدائرة ثم اضغط «اختر»";
+      statEl.textContent = "انظر إلى المربع الذي فيه الدائرة ثم اضغط «اختر»";
       return;
     }
     const ok = mine.filter((p) => p.ok).length;
     const sec = median(mine.map((p) => p.ms)) / 1e3;
-    $("#p-stat", root).textContent = `صحيح ${ok} من ${mine.length} · ${sec.toFixed(1)} ث للاختيار`;
+    statEl.textContent = `صحيح ${ok} من ${mine.length} · ${sec.toFixed(1)} ث للاختيار`;
+  }
+  function needAnchor() {
+    const a = S.anchor;
+    if (!a || performance.now() - a.t > 25e3) return true;
+    if (!a.pose || !S.cal.pose) return false;
+    let d2 = 0;
+    for (let k = 0; k < a.pose.length; k++) d2 += ((S.cal.pose[k] - a.pose[k]) / POSE_SIGMA[k]) ** 2;
+    return d2 > 0.6 * 0.6;
+  }
+  function anchor() {
+    busy = true;
+    cells.forEach((c) => c.className = "cell");
+    const box = root.getBoundingClientRect();
+    const g = grid.getBoundingClientRect();
+    const x = g.left + (0.2 + 0.6 * Math.random()) * g.width;
+    const y = g.top + (0.2 + 0.6 * Math.random()) * g.height;
+    statEl.textContent = "انظر إلى النقطة والمسها لإعادة الضبط";
+    anchorDot = el('<div class="dot anchor" data-gaze="dot"><i></i></div>');
+    anchorDot.style.left = `${x - box.left}px`;
+    anchorDot.style.top = `${y - box.top}px`;
+    const shownAt = performance.now();
+    if (S.simUser) S.simUser.lookAt(x, y, shownAt);
+    anchorDot.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const t = eventTime(e);
+      if (t - shownAt < 450) return;
+      const rec = takeSample([x, y], "anchor", t, 1, { since: shownAt + 250 });
+      if (!rec.ok) {
+        toast(rec.reason === "blink" ? "رمشت لحظة اللمس. أعد المحاولة" : "لا أرى وجهك بوضوح");
+        return;
+      }
+      anchorDot.remove();
+      anchorDot = null;
+      setTimeout(trial, 200);
+    });
+    root.appendChild(anchorDot);
   }
   function trial() {
     if (!alive) return;
+    if (needAnchor()) return anchor();
     cells.forEach((c) => c.className = "cell");
     let g = goal;
     while (g === goal) g = Math.floor(Math.random() * cells.length);
@@ -3150,17 +3353,25 @@ function pick() {
     cells[goal].classList.add("goal");
     S.selector.setTargets(rects);
     t0 = performance.now();
+    trace = [];
+    votes = [];
     if (S.simUser) S.simUser.lookAt(rects[goal].cx, rects[goal].cy, t0);
+    fixing = false;
     busy = false;
+    stat();
   }
   function build() {
     busy = true;
+    if (anchorDot) {
+      anchorDot.remove();
+      anchorDot = null;
+    }
     const [c, r] = levels[S.pickLevel];
     grid.style.gridTemplateColumns = `repeat(${c}, 1fr)`;
     grid.style.gridTemplateRows = `repeat(${r}, 1fr)`;
     grid.innerHTML = Array.from({ length: c * r }, () => '<div class="cell"></div>').join("");
     cells = Array.from(grid.children);
-    root.querySelectorAll(".seg").forEach((s, i) => s.setAttribute("aria-pressed", String(i === S.pickLevel)));
+    root.querySelectorAll(".seg").forEach((seg, i) => seg.setAttribute("aria-pressed", String(i === S.pickLevel)));
     goal = -1;
     stat();
     requestAnimationFrame(() => {
@@ -3173,30 +3384,71 @@ function pick() {
       trial();
     });
   }
-  root.querySelectorAll(".seg").forEach((s) => s.addEventListener("click", () => {
-    S.pickLevel = Number(s.dataset.l);
+  root.querySelectorAll(".seg").forEach((seg) => seg.addEventListener("click", () => {
+    S.pickLevel = Number(seg.dataset.l);
     build();
   }));
   $("#p-go", root).addEventListener("click", () => {
-    if (busy) return;
+    if (busy || fixing) return;
     const best = S.gaze && S.selector ? S.selector.best() : null;
     if (!best) {
       toast("لا أرى عينيك الآن");
       return;
     }
     busy = true;
+    const now = performance.now();
     const [c, r] = levels[S.pickLevel];
     const ok = best.index === goal;
-    S.picks.push({ t: Date.now(), cols: c, rows: r, ok, ms: Math.round(performance.now() - t0), p: +best.p.toFixed(2), sigma: Math.round(sigmaPx()) });
+    let early = null;
+    for (const v of votes) if (v[0] <= now - t0 - 300) early = v[1];
+    const g = rects[goal];
+    const lead = S.cal.activeModel();
+    S.picks.push({
+      t: Date.now(),
+      cols: c,
+      rows: r,
+      goal,
+      chosen: best.index,
+      ok,
+      early,
+      okEarly: early === null ? null : early === goal,
+      ms: Math.round(now - t0),
+      p: +best.p.toFixed(2),
+      sigma: Math.round(sigmaPx()),
+      errPx: S.gaze ? Math.round(Math.hypot(S.gaze.x - g.cx, S.gaze.y - g.cy)) : null,
+      lead: lead ? lead.name : null,
+      sinceAnchorMs: S.anchor ? Math.round(now - S.anchor.t) : null,
+      cell: [Math.round(g.w), Math.round(g.h)],
+      goalAt: [Math.round(g.cx), Math.round(g.cy)],
+      trace
+      // [ms since the squares appeared, gaze x, gaze y]
+    });
     cells.forEach((cell) => cell.classList.remove("sel"));
     cells[best.index].classList.add(ok ? "right" : "wrong");
     stat();
-    setTimeout(trial, 600);
+    if (ok) {
+      setTimeout(trial, 600);
+      return;
+    }
+    fixing = true;
+    statEl.textContent = "اختيار خاطئ: المس المربع الصحيح";
   });
-  S.onGaze = () => {
+  grid.addEventListener("pointerdown", (e) => {
+    if (!fixing) return;
+    const cell = e.target.closest ? e.target.closest(".cell") : null;
+    if (!cell || cells.indexOf(cell) !== goal) return;
+    const g = rects[goal];
+    const rec = takeSample([g.cx, g.cy], "pick-fix", eventTime(e), 0.9);
+    S.picks[S.picks.length - 1].fixed = !!rec.ok;
+    fixing = false;
+    setTimeout(trial, 300);
+  });
+  S.onGaze = (t) => {
     if (busy || !S.selector) return;
     const best = S.gaze ? S.selector.best() : null;
     for (let i = 0; i < cells.length; i++) cells[i].classList.toggle("sel", !!best && best.index === i);
+    if (S.gaze && trace.length < 240) trace.push([Math.round(t - t0), Math.round(S.gaze.x), Math.round(S.gaze.y)]);
+    if (best) votes.push([t - t0, best.index]);
   };
   S.cleanup = () => {
     alive = false;
@@ -3220,7 +3472,7 @@ function summary() {
     p75Px: percentile(last.map((r) => r.err), 0.75),
     looPx: S.looPx,
     bySrc,
-    pursuit: S.cal.samples.filter((x) => x.src === "pursuit").length,
+    pursuit: S.cal.samples.filter((x) => x.src.startsWith("pursuit")).length,
     models: modelBoard(last).map((b) => ({ name: b.name, n: b.n, medPx: b.med, lead: b.lead, ready: b.ready })),
     lead: S.cal.activeModel() ? S.cal.activeModel().name : null,
     rejects: { ...S.rejects },
@@ -3240,7 +3492,7 @@ function pickSummary() {
 function summaryText() {
   const s = summary();
   const picks = Object.entries(pickSummary()).map(([k, g]) => `${k}: ${g.ok}/${g.n}`).join(" · ");
-  const srcNames = { bootstrap: "9 نقاط", "test-dot": "نقاط القياس", "touch-target": "لمس أهداف", "touch-free": "لمس حر" };
+  const srcNames = { bootstrap: "9 نقاط", "test-dot": "نقاط القياس", "touch-target": "لمس أهداف", "touch-free": "لمس حر", anchor: "إعادة ضبط", "pick-fix": "تصحيح اختيار" };
   return [
     `GazeCal web ${VERSION}${S.sim ? " (محاكاة)" : ""}`,
     `الشاشة ${S.W}×${S.H} · DPR ${window.devicePixelRatio || 1} · ${s.fps} إطار/ث · ${S.delegate}`,
@@ -3306,7 +3558,7 @@ function stats() {
     const spec = S.cal.model(m.name);
     return `<div class="row"><span>${m.name} · ${spec.label}${m.lead ? ' <i class="tag">يقود</i>' : ""}</span><b>${m.n ? cm(m.medPx) + " سم" : m.ready ? "—" : "ينتظر عينات"}</b></div>`;
   }).join("")}
-      <p class="note">كل عينة تُختبر على النماذج الأربعة قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
+      <p class="note">كل عينة تُختبر على النماذج كلها قبل أن يتعلم منها أيٌّ منها. الأرقام وسيط آخر ${Math.min(20, s.scored)} عينة، والأقل خطأً يقود المؤشر.</p>
     </div>
     <div class="card"><h2>الخطأ مع توالي اللمسات (سم)</h2>${curveSvg()}</div>
     <div class="card"><h2>الخطأ حسب المنطقة (سم)</h2>${has ? heatHtml() : '<p class="note">تظهر الخريطة بعد أول قياس.</p>'}</div>
@@ -3333,12 +3585,16 @@ function stats() {
       pxPerCm: S.pxPerCm,
       sim: S.sim,
       delegate: S.delegate,
-      format: 2,
+      format: 3,
       video: S.video,
       features: FEATURE_NAMES,
+      // tx, ty, tz, nxz, nyz: the head as the camera's face fit reports it, in cm (x toward image-right, y up,
+      // tz = distance) and the slopes of the face direction. Model G computes the head's share from these.
+      geometry: { pxPerCm: S.pxPerCm, touchBoost: TOUCH_BOOST },
       // rec.pix / frame.q: PIX_W×PIX_H values per eye (right then left), row by row, int8 = value×32 after
       // removing the cut-out's mean and dividing by its spread. rec.eye / frame.e: the larger grey
       // cut-outs, hiW×hiH bytes per eye. Each cut-out spans `span` eye lengths, levelled to the corner line.
+      // In `calibration.samples` the packed part holds two pictures: plain brightness, then log-brightness.
       eyeImages: { w: PIX_W, h: PIX_H, hiW: HI_W, hiH: HI_H, span: CROP_SPAN, encoding: "base64" },
       models: S.cal.leaderboard(),
       settings: S.settings,
@@ -3383,7 +3639,7 @@ function stats() {
   });
   return root;
 }
-var SCREENS = { home, boot, pursue, test, free, pick, stats };
+var SCREENS = { home, boot, pursue: () => pursue(false), pursueMove: () => pursue(true), test, free, pick, stats };
 var resizeTimer = 0;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
