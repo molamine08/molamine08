@@ -83,7 +83,7 @@ body.kb .footer{padding-bottom:12px}
 /* top bar */
 .topbar{position:absolute;top:0;left:0;right:0;z-index:5;transition:transform .25s var(--ease);will-change:transform;background:#fff;border-radius:0 0 20px 20px;box-shadow:0 4px 12px rgba(0,0,0,.04)}
 .title-row{display:flex;align-items:center;gap:16px;padding:16px 20px 12px}
-.backbtn{width:32px;height:32px;border-radius:999px;background:var(--bg);padding:4px}
+.backbtn{width:40px;height:40px;border-radius:999px;background:#fff;border:1px solid var(--border);padding:7px;flex:none;color:var(--lighter)}
 .backbtn .ic{width:24px;height:24px;transform:rotate(180deg)}
 .title-row h1{flex:1;margin:0;font-size:16px;font-weight:700;line-height:1.875}
 .logo{width:63px;height:20px;border-radius:4px;overflow:hidden;position:relative;flex:none}
@@ -101,7 +101,7 @@ body.kb .footer{padding-bottom:12px}
 .st.done{cursor:pointer}
 /* pages */
 .vp{position:absolute;inset:0;overflow:hidden}
-.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:117px 0 220px;display:flex;flex-direction:column;gap:4px;scrollbar-width:none}
+.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:125px 0 220px;display:flex;flex-direction:column;gap:4px;scrollbar-width:none}
 .page::-webkit-scrollbar{display:none}
 .page.anim{transition:transform .3s var(--ease)}
 .sec{background:#fff;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px}
@@ -531,8 +531,8 @@ function onPageScroll(e){ const pg=e.currentTarget, max=pg.scrollHeight-pg.clien
   const y=Math.max(0,Math.min(max,pg.scrollTop)), d=y-(pg._y||0); pg._y=y;
   if(y<=8){ pg._up=0; if(barHidden) showBar(true); return; }
   if(pg._lock>Date.now() || y>=max-2 && d<0) return;          // ignore programmatic scrolls and bottom bounce
-  if(d>0){ pg._up=0; if(!barHidden && y>60) showBar(false); }
-  else if(d<0){ pg._up=(pg._up||0)-d; if(barHidden && pg._up>36) showBar(true); } }
+  if(d>0){ pg._up=0; if(!barHidden && y>16) showBar(false); }
+  else if(d<0){ pg._up=(pg._up||0)-d; if(barHidden && pg._up>12) showBar(true); } }
 /* ---------- pages ---------- */
 let curPage = null;
 function show(html, dir=0){
