@@ -286,7 +286,8 @@ body.kb .footer{padding-bottom:12px}
 .ov.show .scrim{opacity:1}
 .sheet{position:relative;width:100%;max-height:92%;overflow-y:auto;background:#fff;border-radius:24px 24px 0 0;padding:12px 16px 32px;display:flex;flex-direction:column;gap:16px;transform:translateY(100%);transition:transform .35s var(--sheet);scrollbar-width:none}
 .ov.show .sheet{transform:none}
-.handle{width:40px;height:4px;border-radius:2px;background:var(--bh);align-self:center;flex:none}
+.handle{width:40px;height:4px;border-radius:2px;background:var(--bh);align-self:center;flex:none;position:relative;cursor:grab}
+.handle::before{content:"";position:absolute;inset:-12px -60px}
 .shead{display:flex;align-items:center;justify-content:space-between}
 .xbtn{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;color:var(--dark)}
 .dialog{position:relative;margin:auto;width:300px;background:#fff;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;text-align:center;transform:scale(.94);opacity:0;transition:all .25s var(--ease)}
@@ -661,16 +662,33 @@ function after(){
 function openSheet(html, cls=''){
   const ov = document.createElement('div'); ov.className='ov '+cls;
   ov.innerHTML = `<div class="scrim" data-a="close"></div>${cls.includes('center')?html:`<div class="sheet">${html}</div>`}`;
-  layer.appendChild(ov); ov.getBoundingClientRect(); ov.classList.add('show'); return ov;
+  layer.appendChild(ov); ov.getBoundingClientRect(); ov.classList.add('show');
+  const sh=ov.querySelector('.sheet'); if(sh) dragToClose(ov, sh);
+  return ov;
 }
-function closeSheet(cb){ const ov = layer.lastElementChild; if(!ov){ cb&&cb(); return; } ov.classList.remove('show'); setTimeout(()=>{ ov.remove(); cb&&cb(); }, 300); }
+function dragToClose(ov, sh){
+  const scrim=ov.querySelector('.scrim'); let st=null;
+  const fits=()=>sh.scrollHeight<=sh.clientHeight+1;
+  const zone=e=>!e.target.closest('input,textarea,.map,.methods,.cmenu') && (e.target.closest('.handle,.shead') || fits() || sh.scrollTop<=0);
+  setTimeout(()=>{ if(fits()) sh.style.touchAction='none'; sh.querySelectorAll('.handle,.shead').forEach(n=>n.style.touchAction='none'); },400);
+  sh.addEventListener('pointerdown',e=>{ if(e.button>0||!zone(e)) return; st={y:e.clientY,t:Date.now(),dy:0,on:false,id:e.pointerId}; });
+  sh.addEventListener('pointermove',e=>{ if(!st||e.pointerId!==st.id) return; const k=parseFloat(phone.dataset.scale||1), dy=(e.clientY-st.y)/k;
+    if(!st.on){ if(dy>6 && sh.scrollTop<=0){ st.on=true; sh.setPointerCapture(e.pointerId); sh.style.transition='none'; scrim.style.transition='none'; } else if(dy<-6){ st=null; } return; }
+    st.dy=Math.max(0,dy); sh.style.transform=`translateY(${st.dy}px)`; scrim.style.opacity=String(Math.max(0,1-st.dy/sh.offsetHeight)); e.preventDefault(); });
+  const end=e=>{ if(!st) return; const was=st; st=null; if(!was.on) return;
+    const v=was.dy/Math.max(1,Date.now()-was.t); sh.style.transition=''; scrim.style.transition='';
+    if(was.dy>110 || v>0.6){ sh.style.transform=''; scrim.style.opacity=''; sh._noClick=true; setTimeout(()=>sh._noClick=false,50); closeSheet(); }
+    else { sh.style.transform=''; scrim.style.opacity=''; sh._noClick=true; setTimeout(()=>sh._noClick=false,50); } };
+  sh.addEventListener('pointerup',end); sh.addEventListener('pointercancel',end);
+  sh.addEventListener('click',e=>{ if(sh._noClick){ e.stopPropagation(); e.preventDefault(); } },true);
+}
+function closeSheet(cb){ const ov = layer.lastElementChild; if(!ov){ cb&&cb(); return; } const shx=ov.querySelector('.sheet'); if(shx){ shx.style.transform=''; shx.style.transition=''; } ov.classList.remove('show'); setTimeout(()=>{ ov.remove(); cb&&cb(); }, 300); }
 const sheetHead = (t, x=true) => `<div class="handle"></div><div class="shead"><p class="h2">${t}</p>${x?`<button class="xbtn" data-a="close" aria-label="إغلاق">×</button>`:''}</div>`;
 
 function otpSheet(){ const code = String(Math.floor(1000+Math.random()*9000)); S.otp=code;
   openSheet(`${sheetHead('رمز التحقق')}<p class="sm c-l">أرسلنا رمزًا من 4 أرقام إلى <span dir="ltr">+966 ${S.phone}</span></p>
   <label class="inp" id="otpbox"><input id="otp" inputmode="numeric" maxlength="4" placeholder="••••" style="text-align:center;letter-spacing:8px;direction:ltr"></label>
   <div id="otperr"></div><button class="btn" data-a="otpOk" style="flex:none">تحقّق</button>`);
-  setTimeout(()=>toast(`رسالة نصية · رمز التحقق الخاص بك: <b>${code}</b>`,6000),500);
   setTimeout(()=>{ const o=$('#otp'); o&&o.focus(); o&&(o.oninput=e=>{e.target.value=e.target.value.replace(/\D/g,''); if(e.target.value.length===4) act('otpOk');}); },380);
 }
 function permDialog(){ openSheet(`<div class="dialog"><p class="base w7">يريد store.salla.sa معرفة موقعك</p><p class="sm c-l">نستخدم موقعك لتحديد عنوان التوصيل بدقة.</p>
@@ -786,8 +804,8 @@ function cardsSheet(kind, startSel=0){ const list=CARDS[kind]; let sel=Math.min(
   bind();
   ov._menu=i=>{ menu = menu===i?null:i; const v=$('#cvv')?$('#cvv').value:''; sh.innerHTML=draw(); bind(); if($('#cvv')) $('#cvv').value=v; };
   ov._del=i=>{ const c=list[i]; list.splice(i,1); menu=null; if(S.payLabel[kind]&&S.payLabel[kind].endsWith(c.last)){ delete S.payLabel[kind]; if(S.pay===kind) S.pay=null; rerender(); }
-    if(!list.length){ closeSheet(()=>{ toast('حذفنا البطاقة'); addCardSheet(kind); }); return; }
-    if(sel>=list.length) sel=list.length-1; else if(i<sel) sel--; sh.innerHTML=draw(); bind(); toast(`حذفنا البطاقة •••• ${c.last}`); };
+    if(!list.length){ closeSheet(()=>{ 0; addCardSheet(kind); }); return; }
+    if(sel>=list.length) sel=list.length-1; else if(i<sel) sel--; sh.innerHTML=draw(); bind(); 0; };
   ov._edit=i=>{ menu=null; closeSheet(()=>editCardSheet(kind,i)); };
   ov._pick=i=>{ if(menu!==null){ menu=null; sh.innerHTML=draw(); bind(); } if(i===sel) return; sel=i; cvvErr=false; sh.innerHTML=draw(); bind(); setTimeout(()=>$('#cvv')&&$('#cvv').focus(),50); };
   ov._ok=()=>{ const c=$('#cvv'); if(!c||c.value.length!==3){ cvvErr=true; sh.innerHTML=draw(); bind(); const cc=$('#cvv'); cc.classList.add('shake'); cc.focus(); return; }
@@ -893,7 +911,7 @@ function act(a, el){
   case 'details': detailsSheet(); break;
   case 'close': closeSheet(); break;
   case 'email': toast('تسجيل الدخول بالبريد غير مفعّل في هذا النموذج. استخدم رقم الجوال.'); break;
-  case 'guest': case 'social': loading(null, ()=>{ toast(a==='guest'?'تكمل كضيف':'تم تسجيل الدخول'); startAddressStep(1); }); break;
+  case 'guest': case 'social': loading(null, ()=>{ 0; startAddressStep(1); }); break;
   case 'otpOk': { const o=$('#otp'); if(!o||ov.dataset.done) break; if(/^\d{4}$/.test(o.value)){ ov.dataset.done=1; closeSheet(()=>startAddressStep(1)); $('#toast').classList.remove('show'); }
     else { $('#otperr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل رمز التحقق المكوّن من 4 أرقام.</div>`; $('#otpbox').classList.add('err','shake'); setTimeout(()=>$('#otpbox')&&$('#otpbox').classList.remove('shake'),400); } } break;
   case 'pickup': toast('الاستلام من الفرع غير متاح في هذا النموذج.'); break;
@@ -901,7 +919,7 @@ function act(a, el){
   case 'pickNat': S.picked=NATIONAL[+el.dataset.i]; S.loc={lat:21.3895,lng:39.8275}; S.nq=S.picked.code; S.ddOpen=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); break;
   case 'editNat': S.screen='N0'; S.ddOpen=true; render(); setTimeout(()=>{const n=$('#nq'); n&&n.focus();},50); break;
   case 'locate': permDialog(); break;
-  case 'allow': closeSheet(()=>{ toast('جارٍ تحديد موقعك…',1500);
+  case 'allow': closeSheet(()=>{ 0;
     const done=()=>{ S.screen='L2'; S.addrErr=false; render(); };
     if(LIVE && navigator.geolocation){ navigator.geolocation.getCurrentPosition(async pos=>{ const {latitude:lat,longitude:lng}=pos.coords;
         if(!inRiyadh(lat,lng)){ toast('موقعك الحالي خارج نطاق التوصيل (مكة المكرمة). حدّد موقعك على الخريطة.'); mapSheet(); return; }
@@ -913,7 +931,7 @@ function act(a, el){
   case 'zin': ov._zoom(1.5); break;
   case 'zout': ov._zoom(1/1.5); break;
   case 'mapClear': { const q=$('#mapq'); q.value=''; const r=$('#mres'); if(r) r.hidden=true; q.focus(); } break;
-  case 'mapOk': if(LIVE && S.mapPick && S.mapPick.ok===false){ toast('هذا الموقع خارج نطاق التوصيل. حرّك الدبوس داخل مكة المكرمة.'); break; } if(LIVE && S.mapLoc) S.loc=S.mapLoc; closeSheet(()=>{ if(S.screen==='N0'){ S.screen='L2'; S.addrErr=false; S.cameFromSaved = S.user==='old'; render(); } else if(S.screen==='L2') render(); else toast('حدّثنا موقع الدبوس'); }); break;
+  case 'mapOk': if(LIVE && S.mapPick && S.mapPick.ok===false){ toast('هذا الموقع خارج نطاق التوصيل. حرّك الدبوس داخل مكة المكرمة.'); break; } if(LIVE && S.mapLoc) S.loc=S.mapLoc; closeSheet(()=>{ if(S.screen==='N0'){ S.screen='L2'; S.addrErr=false; S.cameFromSaved = S.user==='old'; render(); } else if(S.screen==='L2') render(); else 0; }); break;
   case 'savedsheet': savedSheet(); break;
   case 'pickSaved': ov._set(+el.dataset.i); break;
   case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
@@ -924,12 +942,12 @@ function act(a, el){
     $('#rnb').classList.toggle('err', n.length<3); $('#rpb').classList.toggle('err', !/^5\d{8}$/.test(p));
     if(er.length){ $('#rerr').innerHTML=`<div class="errtxt">${ic('alert')}${er.join('، و')}</div>`; break; }
     S.recipient={name:n, phone:p}; closeSheet(()=>rerender()); } break;
-  case 'recipDel': S.recipient=null; closeSheet(()=>{ rerender(); toast('حذفنا المستلم'); }); break;
-  case 'invDel': S.invoice=null; closeSheet(()=>{ rerender(); toast('حذفنا بيانات المنشأة'); }); break;
+  case 'recipDel': S.recipient=null; closeSheet(()=>{ rerender(); 0; }); break;
+  case 'invDel': S.invoice=null; closeSheet(()=>{ rerender(); 0; }); break;
   case 'speed': S.speed=el.dataset.id; rerender(); break;
   case 'wallet': S.wallet=!S.wallet; rerender(); renderFoot(); padBottom(); break;
   case 'gift': S.giftOpen=!S.giftOpen; rerender(); break;
-  case 'giftApply': { const v=($('#giftc').value||'').trim(); if(v.length<4){ $('#giftc').parentNode.classList.add('err','shake'); break; } S.walletBal+=150; S.giftOpen=false; rerender(); renderFoot(); padBottom(); toast('أضفنا 150 ريالًا إلى محفظتك'); } break;
+  case 'giftApply': { const v=($('#giftc').value||'').trim(); if(v.length<4){ $('#giftc').parentNode.classList.add('err','shake'); break; } S.walletBal+=150; S.giftOpen=false; rerender(); renderFoot(); padBottom(); 0; } break;
   case 'points': S.pointsOpen=!S.pointsOpen; rerender(); break;
   case 'ptsMok': S.ptsMok=!S.ptsMok; rerender(); renderFoot(); break;
   case 'ptsQit': S.ptsQit=!S.ptsQit; rerender(); renderFoot(); break;
@@ -944,7 +962,7 @@ function act(a, el){
   case 'cardEditBack': { const k=el.dataset.k, i=+el.dataset.i; closeSheet(()=>cardsSheet(k,i)); } break;
   case 'cardEditOk': { const k=el.dataset.k, i=+el.dataset.i, e=$('#ee').value, m=+e.slice(0,2), y=+e.slice(3);
     if(!/^\d\d\/\d\d$/.test(e)||m<1||m>12||y<26){ $('#eerr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل تاريخ انتهاء صالحًا (MM/YY)</div>`; $('#ee').parentNode.classList.add('err'); break; }
-    CARDS[k][i].exp=e.slice(0,2)+'/20'+e.slice(3); CARDS[k][i].nick=$('#enick').value.trim(); closeSheet(()=>{ cardsSheet(k,i); toast('حفظنا تعديلات البطاقة'); }); } break;
+    CARDS[k][i].exp=e.slice(0,2)+'/20'+e.slice(3); CARDS[k][i].nick=$('#enick').value.trim(); closeSheet(()=>{ cardsSheet(k,i); 0; }); } break;
   case 'cardOk': ov._ok(); break;
   case 'addCard': closeSheet(()=>addCardSheet(el.dataset.k)); break;
   case 'cardSave': { const n=$('#cn').value.replace(/\s/g,''), e=$('#ce').value, c=$('#cv').value, nm=$('#cnm').value.trim(); const er=[];
@@ -953,7 +971,7 @@ function act(a, el){
     if(er.length){ $('#cerr').innerHTML=`<div class="errtxt">${ic('alert')}أكمل: ${er.join('، ')}</div>`; break; }
     const kind = /^(4|5)/.test(n) && !/^(44|58|96)/.test(n) ? 'visa' : 'mada';
     CARDS[kind].unshift({last:n.slice(-4)}); S.pay=kind; S.payErr=false; S.payLabel[kind]=(kind==='mada'?'مدى':'فيزا')+' •••• '+n.slice(-4);
-    closeSheet(()=>{ rerender(); toast('أضفنا البطاقة واخترناها للدفع'); }); } break;
+    closeSheet(()=>{ rerender(); 0; }); } break;
   case 'earnM': S.earnM=!S.earnM; rerender(); break;
   case 'earnQ': S.earnQ=!S.earnQ; rerender(); break;
   case 'invoice': invoiceSheet(); break;
@@ -961,7 +979,7 @@ function act(a, el){
     if(n.length<3||!/^3\d{14}$/.test(v)){ $('#ierr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل اسم المنشأة، ورقمًا ضريبيًا من 15 رقمًا يبدأ بـ 3</div>`; break; }
     S.invoice={name:n, vat:v}; closeSheet(()=>rerender()); } break;
   case 'ack': S.ack=!S.ack; if(S.ack) S.ackErr=false; rerender(); break;
-  case 'cpnApply': { const v=($('#cpn').value||'').trim().toLowerCase(); if(!v){ S.cpnErr='أدخل رمز الكوبون'; } else if(v==='summer'){ S.coupon='summer'; S.cpnErr=''; toast('تم تطبيق الكوبون summer'); } else S.cpnErr='هذا الكوبون غير صالح أو منتهي.';
+  case 'cpnApply': { const v=($('#cpn').value||'').trim().toLowerCase(); if(!v){ S.cpnErr='أدخل رمز الكوبون'; } else if(v==='summer'){ S.coupon='summer'; S.cpnErr=''; 0; } else S.cpnErr='هذا الكوبون غير صالح أو منتهي.';
     ov._redraw(); renderFoot(); if(S.step===4) rerender(); } break;
   case 'cpnDel': S.coupon=null; ov._redraw(); renderFoot(); if(S.step===4) rerender(); break;
   }
