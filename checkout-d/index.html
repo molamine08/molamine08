@@ -269,7 +269,10 @@ body.kb .footer{padding-bottom:12px}
 .saving .amt{font-weight:500}
 .invrow{background:#fff;padding:20px;display:flex;align-items:center;justify-content:space-between;width:100%;font-size:14px;line-height:20px}
 .invrow .ic{width:20px;height:20px}
-.ackrow{display:flex;flex-direction:column;gap:6px}
+.ackrow,.acksec{display:flex;flex-direction:column;gap:6px}
+.acksec{background:#fff;padding:20px}
+.acksec .ackline{padding:2px 0}
+.saving.foot{margin:-20px -20px 0;padding:12px 20px}
 .ackline{display:flex;gap:8px;align-items:flex-start;width:100%;text-align:right}
 .ackline .cb{margin-top:3px}
 .ackline p{flex:1;font-size:14px;line-height:1.875;color:#444}
@@ -442,11 +445,8 @@ function btnLabel(){
 function renderFoot(){
   if(!S.step){ footer.hidden = true; return; }
   footer.hidden = false;
-  const ack = S.step===4 ? `<div class="ackrow" id="ackrow"><button class="ackline" data-a="ack">
-      <span class="cb ${S.ack?'on':''} ${S.ackErr&&!S.ack?'err':''}">${ic('check')}</span>
-      <p>بالمتابعة، فإنك توافق على <u>سياسة الاستبدال والاسترجاع والتوصيل</u> <span class="req">(مطلوب)</span></p></button>
-      ${S.ackErr&&!S.ack?`<div class="errtxt">${ic('alert')}الموافقة على الإقرار مطلوبة لإتمام الطلب</div>`:''}</div>` : '';
-  footer.innerHTML = `${ack}<div class="paybar">
+  const band = S.step===4 ? `<div class="saving foot">${ic('coins')}وفّرت ${amt(SAVE_BASE+(S.coupon?9.13:0))} في هذا الطلب</div>` : '';
+  footer.innerHTML = `${band}<div class="paybar">
     <button class="summary" data-a="details"><span class="amt big">${ic('riyal','ry')}<span id="tot">${fmt(total())}</span></span>
       <span class="detlink">عرض التفاصيل ${ic('up')}</span></button>
     <button class="btn" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
@@ -612,9 +612,12 @@ pay(){ const tiles = [
   </div>
   <div class="earn"><button class="erow" data-a="earnM"><span class="cb ${S.earnM?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx">اكسب نقاط مكافأة الراجحي على هذا الطلب</span></button>
    <button class="erow" data-a="earnQ"><span class="cb ${S.earnQ?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx">اكسب نقاط قطاف على هذا الطلب</span></button></div>
-  <div class="saving">${ic('coins')}وفّرت ${amt(SAVE_BASE+(S.coupon?9.13:0))} في هذا الطلب</div>
   </div>
   <button class="invrow" data-a="invoice"><span>${S.invoice?`فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b>`:'تحتاج فاتورة ضريبية باسم منشأة؟ أضف بيانات المنشأة'}</span>${ic('plus')}</button>
+  <div class="acksec" id="ackrow"><button class="ackline" data-a="ack">
+      <span class="cb ${S.ack?'on':''} ${S.ackErr&&!S.ack?'err':''}">${ic('check')}</span>
+      <p>بالمتابعة، فإنك توافق على <u>سياسة الاستبدال والاسترجاع والتوصيل</u> <span class="req">(مطلوب)</span></p></button>
+      ${S.ackErr&&!S.ack?`<div class="errtxt">${ic('alert')}الموافقة على الإقرار مطلوبة لإتمام الطلب</div>`:''}</div>
   <div class="info"><div class="tg"><p class="tl">${ic('lock')}دفع آمن ومشفر</p><p class="bd">اتصالك مشفّر، وكل عملية دفع بالبطاقة يتحقق منها البنك المُصدر لبطاقتك.</p></div>
    <div class="marks"><span class="plogo" style="width:32px">${I.mcard}</span><span class="plogo">${I.visa}</span><span class="plogo">${I.madaL}</span></div></div>`; },
 
@@ -842,7 +845,8 @@ function next(){
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
     if(!S.pay && !covered()){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
-    if(!S.ack){ S.ackErr=true; renderFoot(); padBottom(); $('#ackrow').classList.add('shake'); return; }
+    if(!S.ack){ S.ackErr=true; rerender(); const a=curPage.querySelector('#ackrow'); const fr=footer.getBoundingClientRect(), ar=a.getBoundingClientRect(), k=parseFloat(phone.dataset.scale||1);
+      curPage.scrollBy({top:(ar.bottom-fr.top)/k+16, behavior:'smooth'}); a.classList.add('shake'); return; }
     loading(b, ()=>{ S.orderNo=String(Math.floor(100000+Math.random()*899999)); S.paid=total(); go(0,'done',1); }, 1400); }
 }
 function loading(b, cb, ms=700){ if(!b) return cb(); b.classList.add('loading'); const t=b.innerHTML; b.innerHTML='<span class="spin"></span>'; setTimeout(()=>{ b.classList.remove('loading'); b.innerHTML=t; cb(); }, ms); }
@@ -920,7 +924,7 @@ function act(a, el){
   case 'invOk': { const n=$('#iname').value.trim(), v=$('#ivat').value.replace(/\D/g,'');
     if(n.length<3||!/^3\d{14}$/.test(v)){ $('#ierr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل اسم المنشأة، ورقمًا ضريبيًا من 15 رقمًا يبدأ بـ 3</div>`; break; }
     S.invoice={name:n, vat:v}; closeSheet(()=>rerender()); } break;
-  case 'ack': S.ack=!S.ack; if(S.ack) S.ackErr=false; renderFoot(); padBottom(); break;
+  case 'ack': S.ack=!S.ack; if(S.ack) S.ackErr=false; rerender(); break;
   case 'cpnApply': { const v=($('#cpn').value||'').trim().toLowerCase(); if(!v){ S.cpnErr='أدخل رمز الكوبون'; } else if(v==='summer'){ S.coupon='summer'; S.cpnErr=''; toast('تم تطبيق الكوبون summer'); } else S.cpnErr='هذا الكوبون غير صالح أو منتهي.';
     ov._redraw(); renderFoot(); if(S.step===4) rerender(); } break;
   case 'cpnDel': S.coupon=null; ov._redraw(); renderFoot(); if(S.step===4) rerender(); break;
