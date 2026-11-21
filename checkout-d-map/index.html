@@ -310,10 +310,19 @@ body.kb .footer{padding-bottom:12px}
 .acksec{background:#fff;padding:20px}
 .acksec .ackline{padding:2px 0}
 .saving.foot{margin:-20px -20px 0;padding:12px 20px}
+.footer.sv{background:transparent;border-top:0;box-shadow:none;padding-top:0}
+.footer.sv .saving.foot>.ic{width:24px;height:24px;padding:4px;border-radius:99px;background:#c3eedc}
+.footer.sv .saving.foot{margin:0 -20px -36px;padding:12px 20px 32px;border-radius:20px 20px 0 0;box-shadow:0 -4px 12px rgba(0,0,0,.04)}
+.footer.sv .paybar{position:relative;background:#fff;margin:0 -20px -24px;padding:20px 20px 24px;border-radius:20px 20px 0 0}
+body.kb .footer.sv .paybar{margin-bottom:-12px;padding-bottom:12px}
+
 .ackline{display:flex;gap:8px;align-items:flex-start;width:100%;text-align:right}
 .ackline .cb{margin-top:3px}
 .ackline p{flex:1;font-size:14px;line-height:1.875;color:#444}
 .ackline u{text-underline-position:from-font}
+.acklist{margin:0;padding:0 18px 0 0;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:22px;color:var(--dark)}
+.btn.big{min-height:56px;background:#000;color:#fff;font-size:18px}
+
 .ackline .req{color:var(--muted)}
 .tamnote{font-size:12px;line-height:16px;color:var(--light)}
 /* overlays */
@@ -497,6 +506,7 @@ function renderFoot(){
   if(!S.step){ footer.hidden = true; return; }
   footer.hidden = false;
   const band = S.step===4 ? `<div class="saving foot">${ic('coins')}وفّرت ${amt(SAVE_BASE+(S.coupon?9.13:0))} في هذا الطلب</div>` : '';
+  footer.classList.toggle('sv', !!band);
   footer.innerHTML = `${band}<div class="paybar">
     <button class="summary" data-a="details"><span class="amt big">${ic('riyal','ry')}<span id="tot">${fmt(total())}</span></span>
       <span class="detlink">عرض التفاصيل ${ic('up')}</span></button>
@@ -856,6 +866,11 @@ function savedSheet(){ let sel=S.saved;
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
   const ov=openSheet(draw()); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
 }
+function ackSheet(){
+  openSheet(`${sheetHead('الموافقة على سياسة المتجر')}<p class="sm c-l" style="margin-top:-8px">لإتمام الطلب، وافق على سياسة الاستبدال والاسترجاع والتوصيل.</p>
+  <ul class="acklist"><li>الاستبدال والاسترجاع خلال المدة التي يحددها المتجر من تاريخ الاستلام.</li><li>المنتج يُعاد بحالته الأصلية وفي تغليفه.</li><li>مدة التوصيل تبدأ من تأكيد الطلب.</li></ul>
+  <button class="btn big" data-a="ackOk" style="flex:none">أوافق</button>`);
+}
 function recipSheet(){ const r=S.recipient||{name:'',phone:''};
   openSheet(`${sheetHead(S.recipient?'تعديل المستلم':'سيستلم الطلب شخص آخر')}<p class="xs c-l" style="margin-top:-8px">أضف اسم المستلم وجواله ليتواصل معه المندوب عند التوصيل.</p>
   <div class="field"><span class="label w4">اسم المستلم</span><label class="inp soft" id="rnb"><input id="rname" placeholder="الاسم الكامل" value="${r.name}"></label></div>
@@ -965,8 +980,7 @@ function next(){
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
     if(!S.pay && !covered()){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
-    if(!S.ack){ S.ackErr=true; rerender(); const a=curPage.querySelector('#ackrow'); const fr=footer.getBoundingClientRect(), ar=a.getBoundingClientRect(), k=parseFloat(phone.dataset.scale||1);
-      curPage.scrollBy({top:(ar.bottom-fr.top)/k+16, behavior:'smooth'}); a.classList.add('shake'); return; }
+    if(!S.ack){ ackSheet(); return; }
     loading(b, ()=>{ S.orderNo=String(Math.floor(100000+Math.random()*899999)); S.paid=total(); go(0,'done',1); }, 1400); }
 }
 function loading(b, cb, ms=700){ if(!b) return cb(); b.classList.add('loading'); const t=b.innerHTML; b.innerHTML='<span class="spin"></span>'; setTimeout(()=>{ b.classList.remove('loading'); b.innerHTML=t; cb(); }, ms); }
@@ -1054,6 +1068,7 @@ function act(a, el){
     if(n.length<3||!/^3\d{14}$/.test(v)){ $('#ierr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل اسم المنشأة، ورقمًا ضريبيًا من 15 رقمًا يبدأ بـ 3</div>`; break; }
     S.invoice={name:n, vat:v}; closeSheet(()=>rerender()); } break;
   case 'ack': S.ack=!S.ack; if(S.ack) S.ackErr=false; rerender(); break;
+  case 'ackOk': S.ack=true; S.ackErr=false; closeSheet(()=>{ rerender(); next(); }); break;
   case 'cpnApply': { const v=($('#cpn').value||'').trim().toLowerCase(); if(!v){ S.cpnErr='أدخل رمز الكوبون'; } else if(v==='summer'){ S.coupon='summer'; S.cpnErr=''; 0; } else S.cpnErr='هذا الكوبون غير صالح أو منتهي.';
     ov._redraw(); renderFoot(); if(S.step===4) rerender(); } break;
   case 'cpnDel': S.coupon=null; ov._redraw(); renderFoot(); if(S.step===4) rerender(); break;
