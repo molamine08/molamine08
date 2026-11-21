@@ -27,6 +27,7 @@ html,body{margin:0;height:100%}
 body{background:#1d1d1f;font-family:"InterNum","Ping",system-ui,sans-serif;color:var(--dark);overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
 button,input,textarea{font:inherit;color:inherit}
 button{background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
+button:focus{outline:none}button:focus-visible{outline:2px solid var(--p);outline-offset:2px}
 p{margin:0}
 .stage{position:relative;transform-origin:top center}
 .phone{position:relative;width:428px;height:926px;overflow:hidden;background:var(--bg)}
@@ -240,9 +241,9 @@ p{margin:0}
 .expand{display:flex;flex-direction:column;gap:10px;padding-top:12px;margin-top:12px;border-top:1px solid var(--border)}
 .prow{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px}
 .prow .tx{flex:1;display:flex;flex-direction:column}
-.methods{display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px;scrollbar-width:none}
+.methods{display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-inline:20px}
 .methods::-webkit-scrollbar{display:none}
-.tile{flex:none;width:129px;height:84px;border:1px solid var(--border);border-radius:16px;background:#fff;padding:10px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;position:relative;transition:border-color .15s}
+.tile{flex:none;width:118px;scroll-snap-align:start;height:84px;border:1px solid var(--border);border-radius:16px;background:#fff;padding:10px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;position:relative;transition:border-color .15s}
 .tile.on{border-color:var(--p)}
 .methods.off{opacity:.4;pointer-events:none}
 .tile .tl{font-size:12px;line-height:16px;font-weight:500;white-space:nowrap}
