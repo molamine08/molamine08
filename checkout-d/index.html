@@ -765,7 +765,7 @@ function cardsSheet(kind){ const list=CARDS[kind]; let sel=0, cvvErr=false;
     <button class="addcard" data-a="addCard" data-k="${kind}"><span class="pl">${ic('add')}</span>إضافة بطاقة جديدة</button></div>
     <button class="btn" data-a="cardOk" style="flex:none">استخدم هذه البطاقة</button>`;
   const ov=openSheet(draw()); const sh=ov.querySelector('.sheet');
-  const bind=()=>{const c=$('#cvv'); if(c){ c.oninput=e=>{e.target.value=e.target.value.replace(/\D/g,''); if(cvvErr&&e.target.value.length===3){cvvErr=false; const v=e.target.value; sh.innerHTML=draw(); bind(); $('#cvv').value=v;}}; } };
+  const bind=()=>{const c=$('#cvv'); if(c){ c.oninput=e=>{e.target.value=e.target.value.replace(/\D/g,''); if(e.target.value.length===3){ c.blur(); setTimeout(()=>ov._ok(),180); }}; } };
   bind();
   ov._pick=i=>{ if(i===sel) return; sel=i; cvvErr=false; sh.innerHTML=draw(); bind(); setTimeout(()=>$('#cvv')&&$('#cvv').focus(),50); };
   ov._ok=()=>{ const c=$('#cvv'); if(!c||c.value.length!==3){ cvvErr=true; sh.innerHTML=draw(); bind(); const cc=$('#cvv'); cc.classList.add('shake'); cc.focus(); return; }
