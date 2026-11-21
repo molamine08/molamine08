@@ -36,7 +36,7 @@ p{margin:0}
 .mmap{position:absolute;inset:0;overflow:hidden;touch-action:none}
 .mhead{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:20px}
 .mhead .msrch{position:relative;flex:1;min-width:0}
-.msearch.static{position:relative;left:auto;right:auto;top:auto;background:#fff;border-color:var(--div)}
+.msearch.static{position:relative;left:auto;right:auto;top:auto;background:#fff;border-color:var(--div);box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .msrch .mres{top:56px;left:0;right:0}
 .mtip{position:absolute;left:50%;top:50%;transform:translate(-50%,calc(-100% - 61px));z-index:3;display:flex;flex-direction:column;align-items:center;color:var(--succ);pointer-events:none;transition:opacity .15s,transform .15s}
 .mtip b{display:block;background:currentColor;border-radius:10px;padding:8px 12px;box-shadow:0 4px 12px rgba(0,0,0,.18);white-space:nowrap}
@@ -46,17 +46,17 @@ p{margin:0}
 .pill.bad{background:#f55157;color:#fff}
 .mbtns{display:flex;gap:8px}
 .mbtns .btn{flex:1;min-height:48px;padding:0 12px;font-size:14px;line-height:20px}
-.mback{flex:none;display:flex;padding:10px;border-radius:999px;background:#fff}
+.mback{flex:none;display:flex;padding:10px;border-radius:999px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .mback .ic{width:24px;height:24px;transform:rotate(180deg)}
 .mbtns .btn.off{opacity:1;background:var(--div);color:#bbb}
 .btn.ghost2{background:#fff;color:var(--dark);border:1px solid var(--div);font-size:14px;line-height:20px}
 .mtip.hide{opacity:0;transform:translate(-50%,calc(-100% - 67px))}
 .mmap .pin{z-index:3}
 .pshadow{position:absolute;left:50%;top:50%;width:10px;height:4px;border-radius:50%;background:rgba(0,0,0,.25);transform:translate(-50%,-50%);z-index:2;pointer-events:none}
-.locate{position:absolute;right:12px;bottom:208px;z-index:3;width:44px;height:44px;border-radius:22px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;color:var(--dark)}
+.locate{position:absolute;right:12px;bottom:164px;z-index:3;width:44px;height:44px;border-radius:22px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;color:var(--dark)}
 .locate .ic,.locate svg{width:22px;height:22px}
 .locate.busy{animation:sp 1s linear infinite}
-.mfull .leaflet-control-attribution{margin-bottom:184px!important}
+.mfull .leaflet-control-attribution{margin-bottom:152px!important}
 .mpanel{position:absolute;left:0;right:0;bottom:0;z-index:4;background:#fff;border-radius:20px 20px 0 0;padding:16px 20px 20px;display:flex;flex-direction:column;gap:20px;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
 .maddr{display:flex;align-items:center;gap:10px}
 .maddr .mi{flex:none;display:flex;padding:12px;border-radius:999px;background:var(--bg);color:var(--dark)}
