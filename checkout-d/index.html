@@ -276,15 +276,15 @@ p{margin:0}
 .ov.center{align-items:center;justify-content:center}
 .sbtns{display:flex;flex-direction:column;gap:8px}
 .btn.sec{background:#fff;color:var(--dark);border:1px solid var(--border)}
-.scard{border:1px solid var(--border);border-radius:12px;background:#fefefe;min-height:56px;padding:4px 12px 4px 8px;display:flex;align-items:center;gap:16px;width:100%;transition:border-color .15s}
+.scard{border:1px solid var(--border);border-radius:12px;background:#fefefe;min-height:56px;padding:8px 12px 8px 8px;display:flex;align-items:center;gap:16px;width:100%;transition:border-color .15s}
 .scard.on{border-color:var(--bgray)}
 .scard .main{flex:1;display:flex;align-items:center;gap:10px}
 .scard .num{font-size:16px;line-height:1.875;color:#444;direction:ltr}
 .scard .exp{font-size:14px;line-height:20px;color:var(--light)}
 .micon{height:24px;padding:5.7px;border-radius:8px;background:#fff;display:flex;align-items:center}
 .micon img{height:13px;width:43.4px;object-fit:cover;display:block}
-.cvv{width:107px;height:36px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px 12px;font-size:14px;text-align:right;outline:0;direction:ltr}
-.cvv::placeholder{color:var(--muted);direction:rtl}
+.cvv{width:120px;height:40px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px 12px;font-size:14px;line-height:20px;text-align:right;outline:0;direction:ltr;flex:none}
+.cvv::placeholder{color:var(--muted)}
 .cvv:focus{border-color:var(--dark)}
 .cvv.err{border-color:var(--danger)}
 .addcard{display:flex;align-items:center;gap:10px;height:56px;padding:16px 12px;border:1px dashed var(--bh);border-radius:12px;background:#fff;font-size:14px;line-height:20px;font-weight:700;width:100%}
@@ -718,7 +718,7 @@ function cardsSheet(kind){ const list=CARDS[kind]; let sel=0, cvvErr=false;
   const title = kind==='mada'?'بطاقات مدى المحفوظة':'بطاقات فيزا وماستركارد المحفوظة';
   const draw=()=>`${sheetHead(title,false)}<div class="adlist">${list.map((c,i)=>`<div class="scard ${sel===i?'on':''}" data-a="pickCard" data-i="${i}" role="button">
       <span class="radio ${sel===i?'on':''}"></span><span class="main"><span class="micon"><img src="${kind==='mada'?IMG.mada:IMG.visamc}" alt="" style="${kind==='visa'?'object-fit:contain':''}"></span><span class="num">*** ${c.last}</span>${c.exp&&sel!==i?`<span class="exp">تنتهي ${c.exp}</span>`:''}</span>
-      ${sel===i?`<input class="cvv ${cvvErr?'err':''}" id="cvv" inputmode="numeric" maxlength="3" placeholder="رمز (CVV)" autocomplete="off">`:`<span class="ic" style="width:24px;height:24px">${I.more}</span>`}</div>
+      ${sel===i?`<input class="cvv ${cvvErr?'err':''}" id="cvv" inputmode="numeric" maxlength="3" placeholder="CVV" autocomplete="off">`:`<span class="ic" style="width:24px;height:24px">${I.more}</span>`}</div>
       ${sel===i&&cvvErr?`<div class="errtxt" style="margin-top:-4px">${ic('alert')}أدخل رمز CVV لاستخدام هذه البطاقة</div>`:''}`).join('')}
     <button class="addcard" data-a="addCard" data-k="${kind}"><span class="pl">${ic('add')}</span>إضافة بطاقة جديدة</button></div>
     <button class="btn" data-a="cardOk" style="flex:none">استخدم هذه البطاقة</button>`;
