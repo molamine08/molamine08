@@ -31,6 +31,8 @@ button:focus{outline:none}button:focus-visible{outline:2px solid var(--p);outlin
 p{margin:0}
 .stage{position:absolute;top:0;left:50%;margin-left:-214px;transform-origin:top center}
 @media (max-width:500px){html,body{background:#fff}}
+body.kb .sheet,body.kb .sheet.tall{padding-bottom:12px}
+body.kb .footer{padding-bottom:12px}
 .phone{position:relative;width:428px;height:926px;overflow:hidden;background:var(--bg)}
 .xs{font-size:12px;line-height:16px}.sm{font-size:14px;line-height:20px}.base{font-size:16px;line-height:1.875}.lg{font-size:18px;line-height:28px}
 .smn{font-size:14px;line-height:1.875}.xsn{font-size:12px;line-height:1.875}
@@ -940,6 +942,7 @@ function fit(){ const st=$('#stage'), vw=VV?Math.min(innerWidth,Math.round(VV.wi
   if(vw<=500){ s=vw/428; h=Math.round(vh/s); off=VV?VV.offsetTop:0; st.style.top='0'; }
   else { s=Math.min(1,(innerHeight-24)/926,(vw-24)/428); st.style.top=Math.max(0,(innerHeight-926*s)/2)+'px'; }
   phone.style.height=h+'px'; st.style.transform=`translateY(${off}px) scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
+  document.body.classList.toggle('kb', !!VV && vw<=500 && VV.height < innerHeight-120);
   if(curPage && S.step) padBottom(); keepFocus(); }
 function keepFocus(){ const el=document.activeElement; if(!el||!/^(INPUT|TEXTAREA)$/.test(el.tagName)||!phone.contains(el)) return;
   clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ if(curPage) curPage._lock=Date.now()+700; const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
