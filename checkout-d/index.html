@@ -241,6 +241,7 @@ p{margin:0}
 .methods::-webkit-scrollbar{display:none}
 .tile{flex:none;width:129px;height:84px;border:1px solid var(--border);border-radius:16px;background:#fff;padding:10px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;position:relative;transition:border-color .15s}
 .tile.on{border-color:var(--p)}
+.methods.off{opacity:.4;pointer-events:none}
 .tile .tl{font-size:12px;line-height:16px;font-weight:500;white-space:nowrap}
 .tile .lgo{width:76px;height:23px;position:relative}
 .tile .lgo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -401,6 +402,8 @@ const S = {
 };
 const fmt = n => (Math.round(n*100)/100).toFixed(2);
 const ship = () => SPEEDS.find(s=>s.id===S.speed).price;
+const deduct = () => (S.wallet?S.walletBal:0)+(S.ptsMok?25:0)+(S.ptsQit?25:0);
+const covered = () => deduct() >= BASE + ship() - (S.coupon?9.13:0);
 const total = () => Math.max(0, BASE + ship() - (S.coupon?9.13:0) - (S.wallet?Math.min(S.walletBal, BASE+ship()):0) - (S.ptsMok?25:0) - (S.ptsQit?25:0));
 const amt = (n, big) => `<span class="amt${big?' big':''}">${ic('riyal','ry')}${fmt(n)}</span>`;
 const amtInt = n => `<span class="amt">${ic('riyal','ry')}${n}</span>`;
@@ -492,10 +495,7 @@ const VIEWS = {
 start(){ return `<div class="start">
   <div><h2>خطوة العنوان · النموذج D</h2><p class="sub" style="font-size:14px;margin-top:8px">اختر نوع العميل</p></div>
   <div class="sbtns"><button class="btn" data-a="startNew">عميل جديد</button><button class="btn" data-a="startOld">عميل لديه عناوين محفوظة</button></div>
-  <div><p class="sub" style="margin-bottom:10px">اللون الأساسي</p><div class="themes">
-    <button class="thm ${S.theme==='black'?'on':''}" data-a="theme" data-t="black"><i style="background:#333"></i>أسود</button>
-    <button class="thm ${S.theme==='miniso'?'on':''}" data-a="theme" data-t="miniso"><i style="background:#e60012"></i>MINISO</button>
-    <label class="thm ${S.theme==='custom'?'on':''}"><i style="background:${S.custom}"></i>لون آخر<input type="color" id="pickc" value="${S.custom}"></label></div></div></div>`; },
+</div>`; },
 
 login(){ return `<div class="sec" style="gap:20px;border-radius:0 0 16px 16px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
   <div style="display:flex;flex-direction:column;gap:24px">
@@ -572,7 +572,12 @@ pay(){ const tiles = [
     {id:'add', t:'إضافة بطاقة'}];
   return `<div class="sec" style="gap:20px" id="paysec">
   <p class="h2">اختر طريقة الدفع</p>
-  ${S.payErr&&!S.pay?`<div class="note err" id="payerr">${ic('alert')}اختر طريقة الدفع لإكمال طلبك</div>`:''}
+  ${S.payErr&&!S.pay&&!covered()?`<div class="note err" id="payerr">${ic('alert')}اختر طريقة الدفع لإكمال طلبك</div>`:''}
+  ${covered()?`<div class="note ok">${ic('check')}رصيدك ونقاطك تغطي الطلب كاملًا، لا تحتاج وسيلة دفع.</div>`:''}
+  <div class="methods ${covered()?'off':''}">${tiles.map(t=>`<button class="tile ${S.pay===t.id?'on':''}" data-a="tile" data-id="${t.id}"><span class="tl">${t.t}</span>${t.img?`<span class="lgo"><img class="${t.ct?'ct':''}" src="${t.img}" alt=""></span>`:''}${S.pay===t.id?`<span class="tick">${ic('check')}</span>`:''}</button>`).join('')}</div>
+  ${S.pay==='tamara'&&!covered()?`<div class="tamcard"><div class="tx"><p class="sm">4 دفعات شهرية، ${amt(total()/4)} /شهريًا</p><p class="sm c-ll">بدون رسوم تأخير.</p></div><img src="${IMG.tamara}" alt="تمارا"></div>`:''}
+  ${S.pay==='stc'&&!covered()?`<p class="tamnote">سيصلك إشعار في تطبيق STC Pay لتأكيد الدفع.</p>`:''}
+  <p class="smn w5" style="margin-top:4px">استخدم رصيدك ونقاطك</p>
   <div style="display:flex;flex-direction:column;gap:8px">
    <div class="card"><div class="wmain"><span class="wicon">${ic('wallet')}</span>
      <div class="wtx"><span class="wtitle">رصيد المحفظة: ${amtInt(S.walletBal)}</span><span class="xs c-l">${S.wallet?'سيُخصم الرصيد من إجمالي الطلب.':'فعّل الخيار لخصم الرصيد من إجمالي الطلب.'}</span></div>
@@ -586,10 +591,6 @@ pay(){ const tiles = [
        <div class="prow"><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx"><span>مكافأة الراجحي</span><span class="xs c-l">2,500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsMok?'on':''}" data-a="ptsMok"></button></div>
        <div class="prow"><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx"><span>قطاف</span><span class="xs c-l">500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsQit?'on':''}" data-a="ptsQit"></button></div></div>`:''}</div>
   </div>
-  <p class="smn w5">وسيلة الدفع</p>
-  <div class="methods">${tiles.map(t=>`<button class="tile ${S.pay===t.id?'on':''}" data-a="tile" data-id="${t.id}"><span class="tl">${t.t}</span>${t.img?`<span class="lgo"><img class="${t.ct?'ct':''}" src="${t.img}" alt=""></span>`:''}${S.pay===t.id?`<span class="tick">${ic('check')}</span>`:''}</button>`).join('')}</div>
-  ${S.pay==='tamara'?`<div class="tamcard"><div class="tx"><p class="sm">4 دفعات شهرية، ${amt(total()/4)} /شهريًا</p><p class="sm c-ll">بدون رسوم تأخير.</p></div><img src="${IMG.tamara}" alt="تمارا"></div>`:''}
-  ${S.pay==='stc'?`<p class="tamnote">سيصلك إشعار في تطبيق STC Pay لتأكيد الدفع.</p>`:''}
   <div class="earn"><button class="erow" data-a="earnM"><span class="cb ${S.earnM?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx">اكسب نقاط مكافأة الراجحي على هذا الطلب</span></button>
    <button class="erow" data-a="earnQ"><span class="cb ${S.earnQ?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx">اكسب نقاط قطاف على هذا الطلب</span></button></div>
   <div class="saving">${ic('coins')}وفّرت ${amt(SAVE_BASE+(S.coupon?9.13:0))} في هذا الطلب</div>
@@ -819,7 +820,7 @@ function next(){
     loading(b, ()=>go(3,'ship',1), 450); return; }
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
-    if(!S.pay){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
+    if(!S.pay && !covered()){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
     if(!S.ack){ S.ackErr=true; renderFoot(); padBottom(); $('#ackrow').classList.add('shake'); return; }
     loading(b, ()=>{ S.orderNo=String(Math.floor(100000+Math.random()*899999)); S.paid=total(); go(0,'done',1); }, 1400); }
 }
@@ -872,9 +873,9 @@ function act(a, el){
     S.recipient={name:n, phone:p}; closeSheet(()=>rerender()); } break;
   case 'recipDel': S.recipient=null; closeSheet(()=>rerender()); break;
   case 'speed': S.speed=el.dataset.id; rerender(); break;
-  case 'wallet': S.wallet=!S.wallet; rerender(); refreshTotal(); break;
+  case 'wallet': S.wallet=!S.wallet; rerender(); renderFoot(); padBottom(); break;
   case 'gift': S.giftOpen=!S.giftOpen; rerender(); break;
-  case 'giftApply': { const v=($('#giftc').value||'').trim(); if(v.length<4){ $('#giftc').parentNode.classList.add('err','shake'); break; } S.walletBal+=50; S.giftOpen=false; rerender(); toast('أضفنا 50 ريالًا إلى محفظتك'); } break;
+  case 'giftApply': { const v=($('#giftc').value||'').trim(); if(v.length<4){ $('#giftc').parentNode.classList.add('err','shake'); break; } S.walletBal+=150; S.giftOpen=false; rerender(); renderFoot(); padBottom(); toast('أضفنا 150 ريالًا إلى محفظتك'); } break;
   case 'points': S.pointsOpen=!S.pointsOpen; rerender(); break;
   case 'ptsMok': S.ptsMok=!S.ptsMok; rerender(); renderFoot(); break;
   case 'ptsQit': S.ptsQit=!S.ptsQit; rerender(); renderFoot(); break;
