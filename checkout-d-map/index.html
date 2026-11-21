@@ -81,7 +81,7 @@ body.kb .footer{padding-bottom:12px}
 .amt{display:inline-flex;align-items:center;gap:2px;direction:ltr;white-space:nowrap}
 .amt .ry{width:12px;height:12px}.amt.big .ry{width:14px;height:14px}
 /* top bar */
-.topbar{position:absolute;top:0;left:0;right:0;z-index:5;transition:transform .25s var(--ease);will-change:transform;background:#fff;border-bottom:1px solid var(--bl);box-shadow:0 4px 8px rgba(0,0,0,.02)}
+.topbar{position:absolute;top:0;left:0;right:0;z-index:5;transition:transform .25s var(--ease);will-change:transform;background:#fff;border-radius:0 0 20px 20px;box-shadow:0 4px 12px rgba(0,0,0,.04)}
 .title-row{display:flex;align-items:center;gap:16px;padding:16px 20px 12px}
 .backbtn{width:32px;height:32px;border-radius:999px;background:var(--bg);padding:4px}
 .backbtn .ic{width:24px;height:24px;transform:rotate(180deg)}
@@ -109,7 +109,7 @@ body.kb .footer{padding-bottom:12px}
 .h2{font-size:16px;font-weight:700;line-height:1.875;color:var(--dark)}
 .sub{font-size:12px;line-height:16px;color:var(--light)}
 /* footer */
-.footer{position:absolute;left:0;right:0;bottom:0;z-index:5;background:#fff;border-top:1px solid var(--bl);box-shadow:0 -4px 8px rgba(0,0,0,.02);padding:20px 20px 24px;display:flex;flex-direction:column;gap:16px}
+.footer{position:absolute;left:0;right:0;bottom:0;z-index:5;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -4px 12px rgba(0,0,0,.04);padding:20px 20px 24px;display:flex;flex-direction:column;gap:16px}
 .paybar{display:flex;align-items:stretch;gap:16px}
 .summary{display:flex;flex-direction:column;align-items:flex-start;flex:none}
 .summary .amt{font-size:18px;line-height:28px;font-weight:700;color:var(--dark)}
@@ -148,6 +148,9 @@ body.kb .footer{padding-bottom:12px}
 .tab.on{background:#fff;color:var(--dark)}
 .sms{display:flex;gap:4px;font-size:14px;line-height:1.875;color:var(--light)}
 .sms b{font-weight:500;color:var(--dark);text-decoration:underline;cursor:pointer}
+.btn2.t14{font-size:14px;line-height:20px}
+.btn2.soc{background:var(--bg);border-color:transparent}
+.cc.lg{gap:6px;font-size:14px;line-height:20px;color:var(--light);direction:ltr}
 .orline{display:flex;align-items:center;gap:12px;padding:4px 0;font-size:12px;line-height:16px;color:var(--lighter)}
 .orline i{flex:1;height:1px;background:var(--bg)}
 .opts{border:1px solid var(--border);border-radius:20px;overflow:hidden}
@@ -582,18 +585,18 @@ start(){ return `<div class="start">
   <div class="sbtns"><button class="btn" data-a="startNew">عميل جديد</button><button class="btn" data-a="startOld">عميل لديه عناوين محفوظة</button></div>
 </div>`; },
 
-login(){ return `<div class="sec" style="gap:20px;border-radius:0 0 16px 16px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
+login(){ return `<div class="sec" style="gap:20px;border-radius:20px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
   <div style="display:flex;flex-direction:column;gap:24px">
   <div class="field"><span class="label w4">رقم الجوال</span>
-    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc">+966</span>
+    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg"><span class="flag"><img src="${IMG.flag}" alt=""></span>+966</span>
     <input id="phonein" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${S.phone}" autocomplete="tel"></label>
     ${S.loginErr?`<div class="errtxt">${ic('alert')}${S.loginErr}</div>`:''}</div>
   <div style="display:flex;flex-direction:column;gap:16px">
-    <div style="display:flex;flex-direction:column;gap:8px"><button class="btn2" data-a="email">تسجيل الدخول بالبريد الإلكتروني</button><button class="btn2" data-a="guest">الشراء كضيف</button></div>
+    <div style="display:flex;gap:12px"><button class="btn2 t14" data-a="email" style="flex:1">الدخول بالبريد الإلكتروني</button><button class="btn2 t14" data-a="guest" style="flex:1">الشراء كضيف</button></div>
     <div class="orline"><i></i>او سجل دخول من خلال<i></i></div>
-    <div style="display:flex;gap:12px"><button class="btn2" data-a="social" style="flex:1"><span class="ic" style="width:17px;height:20px">${I.apple}</span></button>
-      <button class="btn2" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.google}</span></button>
-      <button class="btn2" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.fb}</span></button></div>
+    <div style="display:flex;gap:12px"><button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:17px;height:20px">${I.apple}</span></button>
+      <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.google}</span></button>
+      <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.fb}</span></button></div>
   </div></div></div>`; },
 
 N0(){ const pk = S.picked; const results = S.nq.length>=2 ? NATIONAL.filter(n=>n.code.includes(S.nq)) : [];
