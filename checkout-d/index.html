@@ -455,11 +455,12 @@ function refreshTotal(){ const t=$('#tot'); if(t) t.textContent = fmt(total()); 
 /* ---------- hide-on-scroll title row ---------- */
 let barHidden=false;
 function showBar(on){ barHidden=!on; const tr=topbar.querySelector('.title-row'); topbar.style.transform = on||!tr ? 'none' : `translateY(-${tr.offsetHeight}px)`; }
-function onPageScroll(e){ const pg=e.currentTarget, y=pg.scrollTop, d=y-(pg._y||0);
-  if(y<20){ if(barHidden) showBar(true); }
-  else if(d>6 && !barHidden) showBar(false);
-  else if(d<-6 && barHidden) showBar(true);
-  if(Math.abs(d)>6||y<20) pg._y=y; }
+function onPageScroll(e){ const pg=e.currentTarget, max=pg.scrollHeight-pg.clientHeight;
+  const y=Math.max(0,Math.min(max,pg.scrollTop)), d=y-(pg._y||0); pg._y=y;
+  if(y<=8){ pg._up=0; if(barHidden) showBar(true); return; }
+  if(pg._lock>Date.now() || y>=max-2 && d<0) return;          // ignore programmatic scrolls and bottom bounce
+  if(d>0){ pg._up=0; if(!barHidden && y>60) showBar(false); }
+  else if(d<0){ pg._up=(pg._up||0)-d; if(barHidden && pg._up>36) showBar(true); } }
 /* ---------- pages ---------- */
 let curPage = null;
 function show(html, dir=0){
@@ -941,7 +942,7 @@ function fit(){ const st=$('#stage'), vw=VV?Math.min(innerWidth,Math.round(VV.wi
   phone.style.height=h+'px'; st.style.transform=`translateY(${off}px) scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
   if(curPage && S.step) padBottom(); keepFocus(); }
 function keepFocus(){ const el=document.activeElement; if(!el||!/^(INPUT|TEXTAREA)$/.test(el.tagName)||!phone.contains(el)) return;
-  clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
+  clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ if(curPage) curPage._lock=Date.now()+700; const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
 addEventListener('resize', fit); if(VV){ VV.addEventListener('resize', fit); VV.addEventListener('scroll', fit); }
 phone.addEventListener('focusin', e=>{ if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) setTimeout(keepFocus,300); });
 fit();
