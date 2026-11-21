@@ -521,7 +521,7 @@ start(){ return `<div class="start">
 login(){ return `<div class="sec" style="gap:20px;border-radius:0 0 16px 16px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
   <div style="display:flex;flex-direction:column;gap:24px">
   <div class="field"><span class="label w4">رقم الجوال</span>
-    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc"><span class="flag"><img src="${IMG.flag}" alt=""></span>+966</span>
+    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc">+966</span>
     <input id="phonein" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${S.phone}" autocomplete="tel"></label>
     ${S.loginErr?`<div class="errtxt">${ic('alert')}${S.loginErr}</div>`:''}</div>
   <div style="display:flex;flex-direction:column;gap:16px">
@@ -756,7 +756,7 @@ function savedSheet(){ let sel=S.saved;
 function recipSheet(){ const r=S.recipient||{name:'',phone:''};
   openSheet(`${sheetHead(S.recipient?'تعديل المستلم':'سيستلم الطلب شخص آخر')}<p class="xs c-l" style="margin-top:-8px">أضف اسم المستلم وجواله ليتواصل معه المندوب عند التوصيل.</p>
   <div class="field"><span class="label w4">اسم المستلم</span><label class="inp soft" id="rnb"><input id="rname" placeholder="الاسم الكامل" value="${r.name}"></label></div>
-  <div class="field"><span class="label w4">جوال المستلم</span><label class="inp soft phonein" id="rpb"><span class="cc"><span class="flag"><img src="${IMG.flag}" alt=""></span>+966</span><input id="rphone" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${r.phone}"></label></div>
+  <div class="field"><span class="label w4">جوال المستلم</span><label class="inp soft phonein" id="rpb"><span class="cc">+966</span><input id="rphone" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${r.phone}"></label></div>
   <div id="rerr"></div><button class="btn" data-a="recipOk" style="flex:none">${S.recipient?'حفظ التعديلات':'حفظ المستلم'}</button>
   ${S.recipient?`<button class="btn del" data-a="recipDel" style="flex:none">حذف المستلم</button>`:''}`);
   setTimeout(()=>{const p=$('#rphone'); p&&(p.oninput=e=>e.target.value=e.target.value.replace(/\D/g,''));},50);
