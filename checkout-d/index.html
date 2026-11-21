@@ -379,10 +379,10 @@ body.kb .footer.sv .paybar{margin-bottom:-12px;padding-bottom:12px}
 .cvv::placeholder{color:var(--dark);letter-spacing:3px}
 .cvv:focus{border-color:var(--dark)}
 .cvv.err{border-color:var(--danger)}
-.addcard{display:flex;align-items:center;gap:10px;height:48px;padding:0 12px;border:1px dashed var(--bh);border-radius:12px;background:#fff;font-size:14px;line-height:20px;font-weight:700;width:100%}
-.addcard .pl{width:24px;height:24px;border-radius:99px;background:var(--bg);display:flex;align-items:center;justify-content:center}
+.addcard{display:flex;align-items:center;justify-content:space-between;gap:10px;height:64px;padding:0 16px;border:1px dashed var(--bh);border-radius:16px;background:#fff;font-size:16px;line-height:24px;font-weight:700;width:100%;color:var(--dark)}
+.addcard .pl{width:32px;height:32px;flex:none;border-radius:99px;background:var(--bg);display:flex;align-items:center;justify-content:center}
 .addcard .pl .ic{width:16px;height:16px}
-.adlist{display:flex;flex-direction:column;gap:10px}
+.adlist{display:flex;flex-direction:column;gap:8px}
 .adrow{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:12px;width:100%;text-align:right}
 .adrow.on{border-color:var(--bgray)}
 .adrow .tx{flex:1;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
@@ -889,7 +889,7 @@ function mapSheet(){
 function savedSheet(){ let sel=S.saved;
   const draw=()=>`${sheetHead('اختر عنوان التوصيل')}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
     <span class="tx">${a.name?`<span class="sm w5">${a.name}</span>`:''}<span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span>${ic('pen')}</button>`).join('')}
-    <button class="addcard" data-a="newAddr"><span class="pl">${ic('add')}</span>إضافة عنوان جديد</button></div>
+    <button class="addcard" data-a="newAddr"><span>إضافة عنوان جديد</span><span class="pl">${ic('add')}</span></button></div>
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
   const ov=openSheet(draw()); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
 }
@@ -922,7 +922,7 @@ function cardsSheet(kind, startSel=0){ const list=CARDS[kind]; let sel=Math.min(
       ${sel===i?`<input class="cvv ${cvvErr?'err':''}" id="cvv" inputmode="numeric" maxlength="3" placeholder="•••" aria-label="رمز CVV" autocomplete="off">`:''}<button class="kebab" data-a="cardMenu" data-i="${i}" aria-label="خيارات البطاقة">${I.more}</button>
       ${menu===i?`<div class="cmenu"><button data-a="cardEdit" data-i="${i}">${ic('pen')}تعديل البطاقة</button><button class="del" data-a="cardDel" data-i="${i}">${ic('trash')}حذف البطاقة</button></div>`:''}</div>
       ${sel===i&&cvvErr?`<div class="errtxt" style="margin-top:-4px">${ic('alert')}أدخل رمز CVV لاستخدام هذه البطاقة</div>`:''}`).join('')}
-    <button class="addcard" data-a="addCard" data-k="${kind}"><span class="pl">${ic('add')}</span>إضافة بطاقة جديدة</button></div>
+    <button class="addcard" data-a="addCard" data-k="${kind}"><span>إضافة بطاقة جديدة</span><span class="pl">${ic('add')}</span></button></div>
     <button class="btn" data-a="cardOk" style="flex:none">استخدم هذه البطاقة</button>`;
   const ov=openSheet(draw()); const sh=ov.querySelector('.sheet');
   const bind=()=>{const c=$('#cvv'); if(c){ c.oninput=e=>{e.target.value=e.target.value.replace(/\D/g,''); if(e.target.value.length===3){ c.blur(); setTimeout(()=>ov._ok(),180); }}; } };
