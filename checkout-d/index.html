@@ -69,7 +69,7 @@ p{margin:0}
 .maddr .pill{flex:none;transition:opacity .15s}
 .btn.off{opacity:.4;pointer-events:none}
 
-body.kb .sheet,body.kb .sheet.tall{padding-bottom:12px}
+body.kb .sheet,body.kb .sheet.tall{padding-bottom:122px}
 body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none}
 .phone{position:relative;width:428px;height:926px;overflow:hidden;background:var(--bg)}
 .xs{font-size:12px;line-height:16px}.sm{font-size:14px;line-height:20px}.base{font-size:16px;line-height:1.875}.lg{font-size:18px;line-height:28px}
@@ -538,7 +538,7 @@ function renderFoot(){
     requestAnimationFrame(tick); }, 650);
   setTimeout(()=>bd.classList.remove('enter'), 2200);
 }
-function padBottom(){ if(curPage && S.step) curPage.style.paddingBottom = (document.body.classList.contains('kb')?24:footer.offsetHeight+24)+'px'; }
+function padBottom(){ if(curPage && S.step) curPage.style.paddingBottom = (document.body.classList.contains('kb')?24+KB_EXTRA:footer.offsetHeight+24)+'px'; }
 function refreshTotal(){ const t=$('#tot'); if(t) t.textContent = fmt(total()); }
 
 /* ---------- hide-on-scroll title row ---------- */
@@ -1122,13 +1122,15 @@ document.addEventListener('keydown', e => { if(e.key==='Escape' && layer.lastEle
 /* ---------- fit to screen ---------- */
 const VV=window.visualViewport;
 function fit(){ const st=$('#stage'), vw=VV?Math.min(innerWidth,Math.round(VV.width*VV.scale)):innerWidth, vh=VV?VV.height:innerHeight; let s, h=926, off=0;
-  if(vw<=500){ s=vw/428; h=Math.round(vh/s); off=VV?VV.offsetTop:0; st.style.top='0'; }
-  else { s=Math.min(1,(innerHeight-24)/926,(vw-24)/428); st.style.top=Math.max(0,(innerHeight-926*s)/2)+'px'; }
-  phone.style.height=h+'px'; st.style.transform=`translateY(${off}px) scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
   const ae=document.activeElement, typing=!!ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && !/^(checkbox|radio|button)$/.test(ae.type||'');
   if(!typing || vh>fit.base || fit.w!==vw){ fit.base=Math.max(vh, typing?0:vh); fit.w=vw; }
-  document.body.classList.toggle('kb', vw<=500 && typing && (vh < fit.base-100 || (!!VV && VV.height < innerHeight-100)));
+  const kb = vw<=500 && typing && (vh < fit.base-100 || (!!VV && VV.height < innerHeight-100));
+  document.body.classList.toggle('kb', kb);
+  if(vw<=500){ s=vw/428; h=Math.round((vh+(kb?KB_EXTRA:0))/s); off=VV?VV.offsetTop:0; st.style.top='0'; }
+  else { s=Math.min(1,(innerHeight-24)/926,(vw-24)/428); st.style.top=Math.max(0,(innerHeight-926*s)/2)+'px'; }
+  phone.style.height=h+'px'; st.style.transform=`translateY(${off}px) scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
   if(curPage && S.step) padBottom(); keepFocus(); }
+const KB_EXTRA=110;
 function keepFocus(){ const el=document.activeElement; if(!el||!/^(INPUT|TEXTAREA)$/.test(el.tagName)||!phone.contains(el)) return;
   clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ if(curPage) curPage._lock=Date.now()+700; const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
 addEventListener('resize', fit); if(VV){ VV.addEventListener('resize', fit); VV.addEventListener('scroll', fit); }
