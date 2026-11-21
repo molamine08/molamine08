@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,interactive-widget=resizes-content">
 <title>النموذج D · الدفع بالخطوات</title>
 <style>
 /*
@@ -24,12 +24,13 @@ body[data-theme=miniso]{--p:#e60012}
 [hidden]{display:none!important}
 *{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
-body{background:#1d1d1f;font-family:"InterNum","Ping",system-ui,sans-serif;color:var(--dark);overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
+body{position:relative;width:100%;background:#1d1d1f;font-family:"InterNum","Ping",system-ui,sans-serif;color:var(--dark);overflow:hidden}
 button,input,textarea{font:inherit;color:inherit}
 button{background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
 button:focus{outline:none}button:focus-visible{outline:2px solid var(--p);outline-offset:2px}
 p{margin:0}
-.stage{position:relative;transform-origin:top center}
+.stage{position:absolute;top:0;left:50%;margin-left:-214px;transform-origin:top center}
+@media (max-width:500px){html,body{background:#fff}}
 .phone{position:relative;width:428px;height:926px;overflow:hidden;background:var(--bg)}
 .xs{font-size:12px;line-height:16px}.sm{font-size:14px;line-height:20px}.base{font-size:16px;line-height:1.875}.lg{font-size:18px;line-height:28px}
 .smn{font-size:14px;line-height:1.875}.xsn{font-size:12px;line-height:1.875}
@@ -40,7 +41,7 @@ p{margin:0}
 .amt{display:inline-flex;align-items:center;gap:2px;direction:ltr;white-space:nowrap}
 .amt .ry{width:12px;height:12px}.amt.big .ry{width:14px;height:14px}
 /* top bar */
-.topbar{position:absolute;top:0;left:0;right:0;z-index:5;background:#fff;border-bottom:1px solid var(--bl);box-shadow:0 4px 8px rgba(0,0,0,.02)}
+.topbar{position:absolute;top:0;left:0;right:0;z-index:5;transition:transform .25s var(--ease);will-change:transform;background:#fff;border-bottom:1px solid var(--bl);box-shadow:0 4px 8px rgba(0,0,0,.02)}
 .title-row{display:flex;align-items:center;gap:16px;padding:16px 20px 12px}
 .backbtn{width:32px;height:32px;border-radius:999px;background:var(--bg);padding:4px}
 .backbtn .ic{width:24px;height:24px;transform:rotate(180deg)}
@@ -449,6 +450,14 @@ function renderFoot(){
 function padBottom(){ if(curPage && S.step) curPage.style.paddingBottom = (footer.offsetHeight+24)+'px'; }
 function refreshTotal(){ const t=$('#tot'); if(t) t.textContent = fmt(total()); }
 
+/* ---------- hide-on-scroll title row ---------- */
+let barHidden=false;
+function showBar(on){ barHidden=!on; const tr=topbar.querySelector('.title-row'); topbar.style.transform = on||!tr ? 'none' : `translateY(-${tr.offsetHeight}px)`; }
+function onPageScroll(e){ const pg=e.currentTarget, y=pg.scrollTop, d=y-(pg._y||0);
+  if(y<20){ if(barHidden) showBar(true); }
+  else if(d>6 && !barHidden) showBar(false);
+  else if(d<-6 && barHidden) showBar(true);
+  if(Math.abs(d)>6||y<20) pg._y=y; }
 /* ---------- pages ---------- */
 let curPage = null;
 function show(html, dir=0){
@@ -463,6 +472,7 @@ function show(html, dir=0){
     setTimeout(()=>old.remove(), 320);
   } else { if(curPage) curPage.remove(); vp.appendChild(pg); }
   curPage = pg;
+  showBar(true); pg._y=0; pg.addEventListener('scroll', onPageScroll, {passive:true});
 }
 function rerender(){ const st = curPage?curPage.scrollTop:0; render(0); if(curPage) curPage.scrollTop = st; }
 function applyTheme(){
@@ -922,11 +932,17 @@ document.addEventListener('click', e => { if(S.ddOpen && !e.target.closest('.ddw
 document.addEventListener('keydown', e => { if(e.key==='Escape' && layer.lastElementChild) closeSheet(); });
 
 /* ---------- fit to screen ---------- */
-function fit(){ const st=$('#stage'), vw=innerWidth, vh=innerHeight; let s, h=926;
-  if(vw<=500){ s=vw/428; h=Math.round(vh/s); } else { s=Math.min(1,(vh-24)/926,(vw-24)/428); st.style.marginTop=Math.max(0,(vh-926*s)/2)+'px'; }
-  phone.style.height=h+'px'; st.style.transform=`scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
-  if(vw<=500) st.style.marginTop='0'; }
-addEventListener('resize', fit); fit();
+const VV=window.visualViewport;
+function fit(){ const st=$('#stage'), vw=VV?Math.min(innerWidth,Math.round(VV.width*VV.scale)):innerWidth, vh=VV?VV.height:innerHeight; let s, h=926, off=0;
+  if(vw<=500){ s=vw/428; h=Math.round(vh/s); off=VV?VV.offsetTop:0; st.style.top='0'; }
+  else { s=Math.min(1,(innerHeight-24)/926,(vw-24)/428); st.style.top=Math.max(0,(innerHeight-926*s)/2)+'px'; }
+  phone.style.height=h+'px'; st.style.transform=`translateY(${off}px) scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
+  if(curPage && S.step) padBottom(); keepFocus(); }
+function keepFocus(){ const el=document.activeElement; if(!el||!/^(INPUT|TEXTAREA)$/.test(el.tagName)||!phone.contains(el)) return;
+  clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
+addEventListener('resize', fit); if(VV){ VV.addEventListener('resize', fit); VV.addEventListener('scroll', fit); }
+phone.addEventListener('focusin', e=>{ if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) setTimeout(keepFocus,300); });
+fit();
 render();
 }
 </script>
