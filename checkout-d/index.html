@@ -164,6 +164,9 @@ p{margin:0}
 .mres .t{font-size:14px;line-height:20px;font-weight:500}.mres .d{font-size:12px;line-height:16px;color:var(--light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .mres .none{padding:12px;font-size:12px;color:var(--light)}
 .pill.off{background:var(--bg);color:var(--light)}
+.pill.no{background:#fcedec;color:#722921}
+.selrow{padding:0 4px;min-height:28px}
+.sheet.tall .selrow .aline{font-size:14px;line-height:20px}
 .sheet.tall{height:884px;max-height:calc(100% - 24px);padding:12px 16px 32px}
 .sheet.tall .map{flex:1;height:auto!important;cursor:grab;touch-action:none}
 .tamcard{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border:1px solid var(--border);border-radius:16px;background:#fff}
@@ -655,10 +658,11 @@ async function revGeo(lat,lng){
     return {hood:strip(sub||j.locality||''), road:null, city:j.city||j.principalSubdivision||''}; }
 }
 function liveMapSheet(){
-  const ov=openSheet(`<div class="handle"></div><div class="shead"><div class="addrhead"><p class="sm c-l">${S.user==='old'&&S.screen!=='N0'?'عنوان التوصيل':'عنوان جديد'}</p><div class="ahl"><p class="aline wait" id="mapaddr">جارٍ تحديد العنوان…</p><span class="pill ok" id="mapok" style="opacity:0">التوصيل متاح</span></div></div><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
+  const ov=openSheet(`<div class="handle"></div><div class="shead"><div><p class="h2">حدّد موقعك على الخريطة</p><p class="xs c-l">حرّك الخريطة حتى يكون الدبوس على باب البيت.</p></div><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
   <div class="map" id="dragmap"><div class="leaf"></div><span class="pin">${I.pin}</span><div class="callout"><span class="pill ok">التوصيل متاح هنا</span><span class="ptr">${I.ptr}</span></div>
    <label class="msearch"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div>
    <div class="zoom"><button data-a="zin" aria-label="تكبير">+</button><button data-a="zout" aria-label="تصغير">−</button></div></div>
+  <div class="ahl selrow"><p class="aline wait" id="mapaddr">جارٍ تحديد العنوان…</p><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>
   <button class="btn" data-a="mapOk" style="flex:none">تأكيد الموقع</button>`);
   ov.querySelector('.sheet').classList.add('tall');
   const m=$('#dragmap'), pin=m.querySelector('.pin'), co=m.querySelector('.callout'), AL=$('#mapaddr'), OK=$('#mapok'), q=$('#mapq'), res=$('#mres');
@@ -671,9 +675,9 @@ function liveMapSheet(){
     const ok=inRiyadh(c.lat,c.lng);
     try{ const w=await revGeo(c.lat,c.lng); if(id!==seq) return;
       S.mapPick={hood:w.hood||'—',road:w.road,city:w.city,ok}; S.mapLoc={lat:c.lat,lng:c.lng};
-      AL.classList.remove('wait'); AL.textContent=[w.city&&w.city.replace(/^منطقة\s+/,''),w.hood&&('حي '+w.hood),w.road].filter(Boolean).join('، ')||'موقع بدون عنوان مسجّل';
+      AL.classList.remove('wait'); const city=(w.city||'').replace(/^منطقة\s+/,''); const hood=w.hood&&w.hood!==city&&!city.includes(w.hood)?w.hood:''; AL.textContent=[city,hood&&('حي '+hood),w.road].filter(Boolean).join('، ')||'موقع بدون عنوان مسجّل';
     }catch(e){ if(id!==seq) return; S.mapPick={hood:'',road:null,ok}; S.mapLoc={lat:c.lat,lng:c.lng}; AL.classList.remove('wait'); AL.textContent=`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`; }
-    OK.textContent=ok?'التوصيل متاح':'خارج نطاق التوصيل'; OK.className='pill '+(ok?'ok':'off'); OK.style.opacity=1;
+    OK.textContent=ok?'يوصلك':'ما يوصلك'; OK.className='pill '+(ok?'ok':'no'); OK.style.opacity=1;
     co.querySelector('.pill').textContent=ok?'التوصيل متاح هنا':'خارج نطاق التوصيل'; co.querySelector('.pill').className='pill '+(ok?'ok':'off'); co.querySelector('.ptr').style.visibility=ok?'visible':'hidden'; };
   let tLook; mp.on('movestart',()=>{ lift(true); res.hidden=true; }); mp.on('moveend',()=>{ pin.classList.remove('up'); co.classList.remove('hide'); clearTimeout(tLook); tLook=setTimeout(look,350); });
   let tq; q.oninput=()=>{ clearTimeout(tq); const v=q.value.trim(); if(v.length<2){ res.hidden=true; return; } tq=setTimeout(async()=>{
@@ -686,8 +690,9 @@ function liveMapSheet(){
 }
 function mapSheet(){
   if(LIVE) return liveMapSheet();
-  const ov=openSheet(`<div class="handle"></div><div class="shead"><div class="addrhead"><p class="sm c-l">${S.user==='old'&&S.screen!=='N0'?'عنوان التوصيل':'عنوان جديد'}</p><div class="ahl"><p class="aline" id="mapaddr"></p><span class="pill ok" id="mapok">التوصيل متاح</span></div></div><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
+  const ov=openSheet(`<div class="handle"></div><div class="shead"><div><p class="h2">حدّد موقعك على الخريطة</p><p class="xs c-l">حرّك الخريطة حتى يكون الدبوس على باب البيت.</p></div><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
   ${mapBlock(0).replace('<div class="map tap" data-a="mapsheet" role="button" aria-label="عدّل موقع الدبوس"','<div class="map" id="dragmap"').replace('<div class="glogo">',`<label class="msearch"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="zoom"><button data-a="zin" aria-label="تكبير">+</button><button data-a="zout" aria-label="تصغير">−</button></div><div class="glogo">`)}
+  <div class="ahl selrow"><p class="aline" id="mapaddr"></p><span class="pill ok" id="mapok">يوصلك</span></div>
   <button class="btn" data-a="mapOk" style="flex:none">تأكيد الموقع</button>`);
   ov.querySelector('.sheet').classList.add('tall');
   const m=$('#dragmap'), pan=m.querySelector('.mpan'), pin=m.querySelector('.pin'), co=m.querySelector('.callout'), q=$('#mapq');
