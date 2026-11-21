@@ -151,6 +151,7 @@ body.kb .footer{padding-bottom:12px}
 .opts{border:1px solid var(--border);border-radius:20px;overflow:hidden}
 .optrow{display:flex;align-items:center;gap:12px;padding:12px 16px;width:100%}
 .optrow+.optrow{border-top:1px solid var(--div)}
+.optrow.busy .circ .ic{animation:sp 1s linear infinite}
 .optrow .circ{width:40px;height:40px;border-radius:99px;background:var(--bg);display:flex;align-items:center;justify-content:center;flex:none}
 .optrow .txt{flex:1;display:flex;flex-direction:column;align-items:flex-start;line-height:1.875}
 .optrow .t1{font-size:14px;font-weight:500}.optrow .t2{font-size:12px;color:var(--light)}
@@ -872,6 +873,15 @@ function ackSheet(){
   <ul class="acklist"><li>الاستبدال والاسترجاع خلال المدة التي يحددها المتجر من تاريخ الاستلام.</li><li>المنتج يُعاد بحالته الأصلية وفي تغليفه.</li><li>مدة التوصيل تبدأ من تأكيد الطلب.</li></ul>
   <button class="btn big" data-a="ackOk" style="flex:none">أوافق</button>`);
 }
+function useMyLoc(el){
+  const done=()=>{ el&&el.classList.remove('busy'); S.screen='L2'; S.addrErr=false; render(); };
+  if(!LIVE || !navigator.geolocation){ setTimeout(done,600); return; }
+  el&&el.classList.add('busy');
+  navigator.geolocation.getCurrentPosition(async pos=>{ const {latitude:lat,longitude:lng}=pos.coords;
+      if(inRiyadh(lat,lng)){ S.loc={lat,lng}; try{ const w=await revGeo(lat,lng); S.mapPick={hood:w.hood,road:w.road,ok:true}; }catch(e){} }
+      done(); },
+    ()=>{ el&&el.classList.remove('busy'); },{enableHighAccuracy:true,timeout:10000});
+}
 function recipSheet(){ const r=S.recipient||{name:'',phone:''};
   openSheet(`${sheetHead(S.recipient?'تعديل المستلم':'سيستلم الطلب شخص آخر')}<p class="xs c-l" style="margin-top:-8px">أضف اسم المستلم وجواله ليتواصل معه المندوب عند التوصيل.</p>
   <div class="field"><span class="label w4">اسم المستلم</span><label class="inp soft" id="rnb"><input id="rname" placeholder="الاسم الكامل" value="${r.name}"></label></div>
@@ -1007,15 +1017,15 @@ function act(a, el){
   case 'sms': S.smsSent=true; S.addrErr=false; rerender(); toast(`رسالة نصية · عنوانك الوطني المختصر: <b>MSHQ2929</b>`,6000); break;
   case 'pickNat': S.picked=NATIONAL[+el.dataset.i]; S.loc={lat:21.3895,lng:39.8275}; S.nq=S.picked.code; S.ddOpen=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); break;
   case 'editNat': S.screen='N0'; S.ddOpen=true; render(); setTimeout(()=>{const n=$('#nq'); n&&n.focus();},50); break;
-  case 'locate': permDialog(); break;
+  case 'locate': useMyLoc(el); break;
   case 'allow': closeSheet(()=>{ 0;
     const done=()=>{ S.screen='L2'; S.addrErr=false; render(); };
     if(LIVE && navigator.geolocation){ navigator.geolocation.getCurrentPosition(async pos=>{ const {latitude:lat,longitude:lng}=pos.coords;
-        if(!inRiyadh(lat,lng)){ toast('موقعك الحالي خارج نطاق التوصيل (مكة المكرمة). حدّد موقعك على الخريطة.'); mapSheet(); return; }
-        S.loc={lat,lng}; try{ const w=await revGeo(lat,lng); S.mapPick={hood:w.hood,road:w.road,ok:true}; }catch(e){} done(); },
-      ()=>{ toast('ما قدرنا نحدد موقعك. حدّده على الخريطة.'); mapSheet(); },{enableHighAccuracy:true,timeout:8000}); }
+        if(inRiyadh(lat,lng)){ S.loc={lat,lng}; try{ const w=await revGeo(lat,lng); S.mapPick={hood:w.hood,road:w.road,ok:true}; }catch(e){} }
+        done(); },
+      ()=>{},{enableHighAccuracy:true,timeout:8000}); }
     else setTimeout(done,900); }); break;
-  case 'deny': closeSheet(()=>mapSheet()); break;
+  case 'deny': closeSheet(); break;
   case 'mapsheet': mapSheet(); break;
   case 'zin': ov._zoom(1.5); break;
   case 'zout': ov._zoom(1/1.5); break;
