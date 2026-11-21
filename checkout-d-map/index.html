@@ -39,13 +39,15 @@ p{margin:0}
 .msearch.static{position:relative;left:auto;right:auto;top:auto;background:#fff;border-color:var(--div)}
 .msrch .mres{top:56px;left:0;right:0}
 .mtip{position:absolute;left:50%;top:50%;transform:translate(-50%,calc(-100% - 61px));z-index:3;display:flex;flex-direction:column;align-items:center;color:var(--succ);pointer-events:none;transition:opacity .15s,transform .15s}
-.mtip b{display:block;background:currentColor;border-radius:12px;padding:8px 12px;box-shadow:0 4px 12px rgba(0,0,0,.18);white-space:nowrap}
+.mtip b{display:block;background:currentColor;border-radius:10px;padding:8px 12px;box-shadow:0 4px 12px rgba(0,0,0,.18);white-space:nowrap}
 .mtip b span{color:#fff;font-size:13px;line-height:20px;font-weight:500}
 .mtip i{display:block;width:12px;height:7px}.mtip i svg{width:100%;height:100%;display:block}
 .mtip.no{color:#f55157}
 .pill.bad{background:#f55157;color:#fff}
 .mbtns{display:flex;gap:8px}
-.mbtns .btn{flex:1;min-height:48px;padding:0 12px}
+.mbtns .btn{flex:1;min-height:48px;padding:0 12px;font-size:14px;line-height:20px}
+.mback{flex:none;display:flex;padding:10px;border-radius:999px;background:#fff}
+.mback .ic{width:24px;height:24px;transform:rotate(180deg)}
 .mbtns .btn.off{opacity:1;background:var(--div);color:#bbb}
 .btn.ghost2{background:#fff;color:var(--dark);border:1px solid var(--div);font-size:14px;line-height:20px}
 .mtip.hide{opacity:0;transform:translate(-50%,calc(-100% - 67px))}
@@ -55,7 +57,7 @@ p{margin:0}
 .locate .ic,.locate svg{width:22px;height:22px}
 .locate.busy{animation:sp 1s linear infinite}
 .mfull .leaflet-control-attribution{margin-bottom:184px!important}
-.mpanel{position:absolute;left:0;right:0;bottom:0;z-index:4;background:#fff;border-radius:20px 20px 0 0;padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
+.mpanel{position:absolute;left:0;right:0;bottom:0;z-index:4;background:#fff;border-radius:20px 20px 0 0;padding:16px 20px 20px;display:flex;flex-direction:column;gap:20px;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
 .maddr{display:flex;align-items:center;gap:10px}
 .maddr .mi{flex:none;display:flex;padding:12px;border-radius:999px;background:var(--bg);color:var(--dark)}
 .maddr .mi .ic{width:20px;height:20px;padding:1.67px 2.5px}
@@ -308,6 +310,7 @@ body.kb .footer{padding-bottom:12px}
 .saving .amt{font-weight:500}
 .invrow{background:#fff;padding:20px;display:flex;align-items:center;justify-content:space-between;width:100%;font-size:14px;line-height:20px}
 .invrow .ic{width:20px;height:20px}
+.arow .ic.cbtn,.recip .ic.cbtn,.invrow .ic.cbtn{width:32px;height:32px;padding:8px;border-radius:99px;background:var(--bg);color:var(--dark);flex:none}
 .ackrow,.acksec{display:flex;flex-direction:column;gap:6px}
 .acksec{background:#fff;padding:20px}
 .acksec .ackline{padding:2px 0}
@@ -565,7 +568,7 @@ const tabs = () => `<div class="tabs"><button class="tab on">توصيل</button>
 const mapBlock = (h=182) => `<div class="map tap" data-a="mapsheet" role="button" aria-label="عدّل موقع الدبوس" style="height:${h}px">${LIVE?'<div class="leaf"></div>':`<div class="mpan"><img class="mimg" src="${IMG.makkah}" alt="" draggable="false"></div>`}
   <span class="pin">${I.pin}</span><div class="callout"><span class="pill ok">التوصيل متاح هنا</span><span class="ptr">${I.ptr}</span></div>
   ${LIVE?'<i class="gend"></i>':`<div class="glogo"><span>${I.glogo}</span></div>`}</div>`;
-const recipRow = () => `<button class="recip" data-a="recip"><span class="tx">${S.recipient?`المستلم: <b class="w5">${S.recipient.name}</b> · <span dir="ltr">+966 ${S.recipient.phone}</span>`:'سيستلم الطلب شخص آخر؟ أضف اسم المستلم وجواله'}</span>${ic(S.recipient?'pen':'plus')}</button>`;
+const recipRow = () => `<button class="recip" data-a="recip"><span class="tx">${S.recipient?`المستلم: <b class="w5">${S.recipient.name}</b> · <span dir="ltr">+966 ${S.recipient.phone}</span>`:'سيستلم الطلب شخص آخر؟ أضف اسم المستلم وجواله'}</span>${ic(S.recipient?'pen':'plus','cbtn')}</button>`;
 const floorField = () => `<div class="field"><span class="label">الدور والشقة <span class="opt">(اختياري)</span></span>
   <label class="inp soft"><input id="floor" placeholder="مثال: الدور 2، شقة 5" value="${S.floor}">${ic('file')}</label></div>`;
 const instrField = () => `<div class="field"><span class="label">تعليمات التوصيل <span class="opt">(اختياري)</span></span>
@@ -676,7 +679,7 @@ pay(){ const tiles = [
   <div class="earn"><button class="erow" data-a="earnM"><span class="cb ${S.earnM?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx">اكسب نقاط مكافأة الراجحي على هذا الطلب</span></button>
    <button class="erow" data-a="earnQ"><span class="cb ${S.earnQ?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx">اكسب نقاط قطاف على هذا الطلب</span></button></div>
   </div>
-  <button class="invrow" data-a="invoice"><span>${S.invoice?`فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b>`:'تحتاج فاتورة ضريبية باسم منشأة؟ أضف بيانات المنشأة'}</span>${ic(S.invoice?'pen':'plus')}</button>
+  <button class="invrow" data-a="invoice"><span>${S.invoice?`فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b>`:'تحتاج فاتورة ضريبية باسم منشأة؟ أضف بيانات المنشأة'}</span>${ic(S.invoice?'pen':'plus','cbtn')}</button>
   <div class="acksec" id="ackrow"><button class="ackline" data-a="ack">
       <span class="cb ${S.ack?'on':''} ${S.ackErr&&!S.ack?'err':''}">${ic('check')}</span>
       <p>بالمتابعة، فإنك توافق على <u>سياسة الاستبدال والاسترجاع والتوصيل</u> <span class="req">(مطلوب)</span></p></button>
@@ -691,7 +694,7 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
 };
 function detailsView(line, editAct, withFloor){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
-  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="sm w7">عنوان التوصيل</span><span class="sm">${line}</span></span>${ic('pen')}</button><div class="divider"></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="sm w7">عنوان التوصيل</span><span class="sm">${line}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
   ${withFloor?floorField():''}${instrField()}</div></div>${recipRow()}`; }
 
 /* ---------- after-render bindings ---------- */
@@ -762,10 +765,10 @@ function liveMapFull(){
      <div class="mtip" id="mtip"><b><span>طلبك يوصل هنا</span></b><i>${I.ptr.replace(/#00AF6C/i,'currentColor')}</i></div>
      <span class="pin">${I.pin}</span><i class="pshadow"></i>
      <button class="locate" data-a="locateMe" aria-label="موقعي">${I.gps}</button></div>
-   <div class="mhead"><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
-   <div class="mpanel"><p class="sm c-l">نوصل طلبك إلى</p>
-     <div class="maddr"><span class="mi">${ic('loc6')}</span><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>
-     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn ghost2" data-a="close">الغاء الأمر</button></div></div></div>`,'full');
+   <div class="mhead"><button class="mback" data-a="close" aria-label="رجوع">${ic('back')}</button><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
+   <div class="mpanel">
+     <div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>
+     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button></div></div></div>`,'full');
   const m=$('#dragmap'), pin=m.querySelector('.pin'), tip=$('#mtip'), N=$('#mapname'), A=$('#mapaddr'), OK=$('#mapok'), B=$('#mapbtn'), q=$('#mapq'), res=$('#mres');
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
   tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp);
@@ -1089,7 +1092,7 @@ function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picke
 
 phone.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if(!el) return;
-  if(el.dataset.a==='close' && !e.target.closest('.xbtn') && el!==e.target) return;
+  if(el.dataset.a==='close' && !e.target.closest('.xbtn,.mback') && el!==e.target) return;
   act(el.dataset.a, el);
 });
 document.addEventListener('click', e => { if(S.ddOpen && !e.target.closest('.ddwrap')){ S.ddOpen=false; rerender(); } }, true);
