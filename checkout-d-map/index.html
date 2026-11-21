@@ -588,7 +588,7 @@ start(){ return `<div class="start">
 login(){ return `<div class="sec" style="gap:20px;border-radius:20px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
   <div style="display:flex;flex-direction:column;gap:24px">
   <div class="field"><span class="label w4">رقم الجوال</span>
-    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg"><span class="flag"><img src="${IMG.flag}" alt=""></span>+966</span>
+    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg">+966</span>
     <input id="phonein" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${S.phone}" autocomplete="tel"></label>
     ${S.loginErr?`<div class="errtxt">${ic('alert')}${S.loginErr}</div>`:''}</div>
   <div style="display:flex;flex-direction:column;gap:16px">
