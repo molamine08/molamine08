@@ -143,6 +143,8 @@ p{margin:0}
 .callout .ptr{display:block;width:12px;height:7px;margin-top:-1px}
 .pin svg,.ptr svg,.glogo svg,.plogo svg{display:block;width:100%;height:100%}
 .map.tap{cursor:pointer}
+.map.tap .pin,.map.tap .mpan{top:calc(50% + 27.52px)}
+.map.tap .callout{top:calc(50% - 56.52px)}
 .map.tap::after{content:"اضغط لتعديل موقع الدبوس";position:absolute;right:8px;bottom:8px;z-index:3;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.92);font-size:12px;line-height:16px;color:var(--dark);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .msearch{position:absolute;left:8px;right:8px;top:8px;z-index:3;height:44px;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:12px}
 .msearch input{flex:1;border:0;outline:0;background:none;font-size:14px;line-height:20px;color:var(--light);text-align:right;padding:0}
@@ -632,7 +634,7 @@ function after(){
   const pc = $('#pickc'); if(pc){ pc.oninput = e => { S.custom=e.target.value; S.theme='custom'; applyTheme(); const l=pc.parentNode; l.querySelector('i').style.background=S.custom; document.querySelectorAll('.thm').forEach(t=>t.classList.toggle('on',t===l)); }; }
   const fl = $('#floor'); if(fl) fl.oninput = e => S.floor = e.target.value;
   const ins = $('#instr'); if(ins) ins.oninput = e => S.instr = e.target.value;
-  if(LIVE) curPage.querySelectorAll('.map.tap .leaf').forEach(el=>{ const mp=L.map(el,{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],16); tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp); setTimeout(()=>mp.invalidateSize(),350); });
+  if(LIVE) curPage.querySelectorAll('.map.tap .leaf').forEach(el=>{ const mp=L.map(el,{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],16); tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp); const ctr=()=>{ mp.invalidateSize(); mp.setView([S.loc.lat,S.loc.lng],16,{animate:false}); mp.panBy([0,-27.52],{animate:false}); }; ctr(); setTimeout(ctr,350); });
   const rcb = $('#rcb'); if(rcb) rcb.oninput = e => { e.target.value=e.target.value.replace(/\D/g,''); S.rcBno=e.target.value; };
 }
 
