@@ -105,6 +105,7 @@ body.kb .footer{padding-bottom:12px}
 .page::-webkit-scrollbar{display:none}
 .page.anim{transition:transform .3s var(--ease)}
 .sec{background:#fff;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px}
+.page>.sec,.page>.recip,.page>.invrow,.page>.acksec{border-radius:20px}
 .sec.addr{padding:16px 16px 20px;gap:20px}
 .h2{font-size:16px;font-weight:700;line-height:1.875;color:var(--dark)}
 .sub{font-size:12px;line-height:16px;color:var(--light)}
@@ -585,7 +586,7 @@ start(){ return `<div class="start">
   <div class="sbtns"><button class="btn" data-a="startNew">عميل جديد</button><button class="btn" data-a="startOld">عميل لديه عناوين محفوظة</button></div>
 </div>`; },
 
-login(){ return `<div class="sec" style="gap:20px;border-radius:20px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
+login(){ return `<div class="sec" style="gap:20px">${head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
   <div style="display:flex;flex-direction:column;gap:24px">
   <div class="field"><span class="label w4">رقم الجوال</span>
     <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg">+966</span>
