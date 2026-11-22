@@ -825,6 +825,11 @@ function show(html, dir=0){
   curPage = pg;
   showBar(true); pg._y=0; pg.addEventListener('scroll', onPageScroll, {passive:true});
 }
+/* keep a chosen payment tile fully on screen: scroll the strip just enough to show it */
+function revealTile(prevLeft=0){ const m=curPage&&curPage.querySelector('.methods'), t=m&&m.querySelector('.tile.on'); if(!t) return;
+  m.scrollLeft=prevLeft; const mr=m.getBoundingClientRect(), tr=t.getBoundingClientRect(), pad=20;
+  let d=0; if(tr.left<mr.left+pad) d=tr.left-(mr.left+pad); else if(tr.right>mr.right-pad) d=tr.right-(mr.right-pad);
+  if(d) requestAnimationFrame(()=>m.scrollBy({left:d,behavior:'smooth'})); }
 function rerender(){ const st = curPage?curPage.scrollTop:0; render(0); if(curPage) curPage.scrollTop = st; }
 function applyTheme(){
   const b=document.body; b.dataset.theme=S.theme;
@@ -1518,7 +1523,7 @@ function act(a, el){
   case 'tile': { const id=el.dataset.id;
     if(id==='mada'||id==='visa') cardsSheet(id);
     else if(id==='add') addCardSheet('');
-    else { S.pay=id; S.payErr=false; rerender(); } } break;
+    else { const m0=curPage.querySelector('.methods'), sl=m0?m0.scrollLeft:0; S.pay=id; S.payErr=false; rerender(); revealTile(sl); } } break;
   case 'pickCard': ov._pick(+el.dataset.i); break;
   case 'cardMenu': ov._menu(+el.dataset.i); break;
   case 'cardDel': ov._del(+el.dataset.i); break;
