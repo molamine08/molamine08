@@ -102,9 +102,6 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 /* pages */
 .vp{position:absolute;inset:0;overflow:hidden}
 .page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:125px 0 220px;display:flex;flex-direction:column;gap:6px;scrollbar-width:none}
-.page>:is(.sec,.recip,.invrow,.acksec):last-child,.page>:is(.sec,.recip,.invrow,.acksec):has(+ .info:last-child){flex:1 0 auto}
-.page>:is(.recip,.invrow):last-child,.page>:is(.recip,.invrow):has(+ .info:last-child){align-items:flex-start}
-.page>:is(.recip,.invrow):last-child>span:first-child,.page>:is(.recip,.invrow):has(+ .info:last-child)>span:first-child{padding-top:6px}
 .page::-webkit-scrollbar{display:none}
 .page.anim{transition:transform .3s var(--ease)}
 .sec{background:#fff;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px}
@@ -521,20 +518,20 @@ function renderTop(){
     return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${i+1}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`;
 }
 function btnLabel(){
-  if(S.step===1) return PHONEV2?'متابعة':'تسجيل الدخول';
+  if(S.step===1) return (PHONEV2||E)?'متابعة':'تسجيل الدخول';
   if(S.step===2) return ['R0','R1'].includes(S.screen)?'متابعة':'حفظ و متابعة';
   if(S.step===3) return 'متابعة';
   return 'تأكيد الدفع';
 }
 function renderFoot(){
-  if(!S.step || (E && S.step===1)){ footer.hidden = true; return; }
+  if(!S.step){ footer.hidden = true; return; }
   footer.hidden = false;
   const band = S.step===4 ? `<div class="saving foot">${ic('coins')}وفّرت ${amt(SAVE_BASE+(S.coupon?9.13:0))} في هذا الطلب</div>` : '';
   footer.classList.toggle('sv', !!band);
   footer.innerHTML = `${band}<div class="paybar">
     <button class="summary" data-a="details"><span class="amt big">${ic('riyal','ry')}<span id="tot">${fmt(total())}</span></span>
       <span class="detlink">عرض التفاصيل ${ic('up')}</span></button>
-    <button class="btn ${E&&S.screen==='N0'?'dis':''}" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
+    <button class="btn ${E&&(S.screen==='N0'||(S.step===1&&!/^5\d{8}$/.test(S.phone)))?'dis':''}" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
   if(!band){ footer._bandShown=false; return; }
   if(footer._bandShown) return;
   footer._bandShown=true;
@@ -751,7 +748,7 @@ function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن ر
     <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg">+966</span>
     <input id="phonein" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${S.phone}" autocomplete="tel"></label>
     ${S.loginErr?`<div class="errtxt">${ic('alert')}${S.loginErr}</div>`:''}</div>
-  <button class="btn" id="mainbtn" data-a="next" style="flex:none">متابعة</button></div>
+  </div>
   <div style="display:flex;flex-direction:column;gap:16px">
     <div class="orline"><i></i>أو تابع بحسابك في<i></i></div>
     <div style="display:flex;gap:12px"><button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:17px;height:20px">${I.apple}</span></button>
@@ -767,7 +764,7 @@ function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec 
 /* ---------- after-render bindings ---------- */
 function after(){
   const $ = sel => curPage.querySelector(sel);
-  const ph = $("#phonein"); if(ph) ph.oninput = e => { e.target.value = e.target.value.replace(/\D/g,''); S.phone = e.target.value; if(S.loginErr){ S.loginErr=''; $('#phonebox').classList.remove('err'); const er=$('#phonebox').parentNode.querySelector('.errtxt'); if(er) er.remove(); } };
+  const ph = $("#phonein"); if(ph) ph.oninput = e => { e.target.value = e.target.value.replace(/\D/g,''); S.phone = e.target.value; if(E){ const mb=document.getElementById('mainbtn'); if(mb) mb.classList.toggle('dis', !/^5\d{8}$/.test(S.phone)); } if(S.loginErr){ S.loginErr=''; $('#phonebox').classList.remove('err'); const er=$('#phonebox').parentNode.querySelector('.errtxt'); if(er) er.remove(); } };
   const nq = $('#nq'); if(nq){ nq.oninput = e => { const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); S.nq=v; S.ddOpen=true; S.addrErr=false; rerender(); const n=$('#nq'); n.focus(); n.setSelectionRange(v.length,v.length); };
     nq.onfocus = () => { if(S.nq.length>=2 && !S.ddOpen){ S.ddOpen=true; rerender(); const n=$('#nq'); n.focus(); } }; }
   const pc = $('#pickc'); if(pc){ pc.oninput = e => { S.custom=e.target.value; S.theme='custom'; applyTheme(); const l=pc.parentNode; l.querySelector('i').style.background=S.custom; document.querySelectorAll('.thm').forEach(t=>t.classList.toggle('on',t===l)); }; }
