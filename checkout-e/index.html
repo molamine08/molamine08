@@ -137,18 +137,17 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .addcard{border:0;background:var(--fill)}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
-.clean .ackov .sheet{gap:0;padding-bottom:20px}
-.clean .ackx{display:flex;justify-content:flex-end;margin-top:4px}
-.clean .ackhero{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:-20px}
-.clean .ackhero svg{margin-bottom:12px}
-.clean .ackeye{font-size:13px;line-height:20px;font-weight:700;color:var(--succ);margin-bottom:4px}
-.clean .ackhero .h2{font-size:22px;line-height:32px}
-.clean .ackdesc{font-size:15px;line-height:24px;color:var(--light);margin-top:8px;max-width:340px}
-.clean .ackbox{background:var(--fill);border-radius:20px;padding:4px 16px;margin-top:20px}
-.clean .akr{display:flex;gap:12px;align-items:flex-start;padding:14px 0;font-size:15px;line-height:24px;color:var(--dark)}
-.clean .akr+.ackrow{border-top:1px solid #e6e6e6}
-.clean .akr .ic{width:22px;height:22px;flex:none;margin-top:1px}
-.clean .acklink{align-self:center;margin:14px 0 16px;font-size:14px;line-height:20px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:4px}
+.clean .ackov .sheet{gap:0;padding:10px 24px 20px}
+.clean .akhead{display:flex;align-items:center;justify-content:space-between;margin:12px 0 24px}
+.clean .akmark{width:52px;height:52px;border-radius:16px;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center}
+.clean .akmark svg{width:26px;height:26px}
+.clean .aktitle{font-size:26px;line-height:36px;font-weight:700;color:var(--dark);letter-spacing:-.2px}
+.clean .akdesc{font-size:15px;line-height:24px;color:var(--light);margin-top:8px}
+.clean .aklist{list-style:none;margin:24px 0 28px;padding:0;display:flex;flex-direction:column;gap:16px}
+.clean .aklist li{display:flex;gap:14px;align-items:flex-start;font-size:15px;line-height:24px;color:var(--dark)}
+.clean .aklist b{width:24px;height:24px;flex:none;border-radius:99px;background:var(--fill);font-size:12px;line-height:24px;font-weight:700;text-align:center;color:var(--dark)}
+.clean .aklist span{flex:1}
+.clean .aklink{align-self:center;margin-top:14px;font-size:14px;line-height:20px;font-weight:500;color:var(--light);text-decoration:underline;text-underline-offset:4px}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
@@ -1150,15 +1149,17 @@ const ACK_ART = `<svg viewBox="0 0 120 104" width="120" height="104" aria-hidden
   <path d="M45 70c4-4 7 3 11-1s6 2 10-1" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></g>
   <circle cx="84" cy="74" r="14" fill="#00AF6C" stroke="#fff" stroke-width="3"/><path d="M77.5 74.5l4.5 4.5 8.5-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M24 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#FFC93C"/><path d="M98 18l1.5 3.5 3.5 1.5-3.5 1.5-1.5 3.5-1.5-3.5-3.5-1.5 3.5-1.5z" fill="#FFC93C"/><circle cx="100" cy="44" r="3" fill="#BAF3E6"/></svg>`;
+const ACK_MARK = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 14.5l2 2 4-4.5"/></svg>`;
 function ackSheet(){
-  if(CLEAN){ openSheet(`<div class="handle"></div><div class="ackx"><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
-    <div class="ackhero">${ACK_ART}<p class="ackeye">إقرار قبل الدفع</p><p class="h2">قبل ما تدفع، خلّنا نتفق</p>
-    <p class="ackdesc">بضغطك على «أوافق» تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر. هذه أهم نقاطها:</p></div>
-    <div class="ackbox"><div class="akr">${ic('money')}<span>تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></div>
-     <div class="akr">${ic('gift')}<span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></div>
-     <div class="akr">${ic('pkg')}<span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></div></div>
-    <button class="acklink" data-a="ackFull">اقرأ السياسة كاملة</button>
-    <button class="btn" data-a="ackOk" style="flex:none">أوافق وأكمل الدفع</button>`, 'ackov'); return; }
+  if(CLEAN){ openSheet(`<div class="handle"></div>
+    <div class="akhead"><span class="akmark">${ACK_MARK}</span><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
+    <p class="aktitle">قبل ما تدفع، خلّنا نتفق</p>
+    <p class="akdesc">بالموافقة تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر.</p>
+    <ol class="aklist"><li><b>1</b><span>تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></li>
+     <li><b>2</b><span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></li>
+     <li><b>3</b><span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></li></ol>
+    <button class="btn" data-a="ackOk" style="flex:none">أوافق وأكمل الدفع</button>
+    <button class="aklink" data-a="ackFull">اقرأ السياسة كاملة</button>`, 'ackov'); return; }
   openSheet(`${sheetHead('الموافقة على سياسة المتجر')}<p class="sm c-l" style="margin-top:-8px">لإتمام الطلب، وافق على سياسة الاستبدال والاسترجاع والتوصيل.</p>
   <ul class="acklist"><li>الاستبدال والاسترجاع خلال المدة التي يحددها المتجر من تاريخ الاستلام.</li><li>المنتج يُعاد بحالته الأصلية وفي تغليفه.</li><li>مدة التوصيل تبدأ من تأكيد الطلب.</li></ul>
   <button class="btn big" data-a="ackOk" style="flex:none">أوافق</button>`);
