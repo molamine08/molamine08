@@ -166,9 +166,9 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .akart{display:flex;justify-content:center;margin:-8px 0 16px}
 .clean .aktitle{font-size:28px;line-height:40px;font-weight:700;color:#222;letter-spacing:-.3px}
 .clean .akp{font-size:16px;line-height:27px;color:#3f3f3f;margin-top:10px}
-.clean .aksum{background:var(--fill);border-radius:20px;padding:16px 18px 18px;margin-top:20px}
-.clean .aklbl{display:flex;align-items:center;gap:6px;font-size:13px;line-height:20px;font-weight:700;color:var(--light)}
-.clean .aksum ul{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:14px;font-size:15px;line-height:25px;color:var(--dark)}
+.clean .aksum{background:var(--fill);border-radius:20px;padding:16px 18px;margin-top:10px}
+.clean .aklbl{display:flex;align-items:center;gap:6px;margin-top:24px;font-size:13px;line-height:20px;font-weight:700;color:var(--light)}
+.clean .aksum ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;font-size:15px;line-height:25px;color:var(--dark)}
 .clean .aksum li{display:grid;grid-template-columns:20px 1fr;column-gap:12px;align-items:start}
 .clean .aksum li svg{width:20px;height:20px;margin-top:2.5px;color:#9b9b9b}
 .clean .akmore{align-self:flex-start;margin-top:16px;font-size:13px;line-height:20px;color:var(--dark);font-weight:500}
@@ -1250,8 +1250,8 @@ function ackSheet(){
     <div class="akart">${ACK_DOC}</div>
     <p class="aktitle">قبل ما تدفع، خلّنا نتفق</p>
     <p class="akp">بالضغط على «أوافق» تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر.</p>
-    <div class="aksum"><p class="aklbl">${ACK_SPARK}أهم النقاط من السياسة</p>
-     <ul><li>${AK_I.swap}<span>تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></li>
+    <p class="aklbl">${ACK_SPARK}أهم النقاط من السياسة</p>
+    <div class="aksum"><ul><li>${AK_I.swap}<span>تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></li>
       <li>${AK_I.box}<span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></li>
       <li>${AK_I.time}<span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></li></ul></div>
     <button class="akmore" data-a="ackFull"><span>اقرأ</span> السياسة كاملة</button>
