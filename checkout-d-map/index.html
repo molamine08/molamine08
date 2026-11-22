@@ -538,7 +538,7 @@ function renderFoot(){
   footer.innerHTML = `${band}<div class="paybar">
     <button class="summary" data-a="details"><span class="amt big">${ic('riyal','ry')}<span id="tot">${fmt(total())}</span></span>
       <span class="detlink">عرض التفاصيل ${ic('up')}</span></button>
-    <button class="btn ${E&&(S.screen==='N0'||(S.step===1&&!/^5\d{8}$/.test(S.phone)))?'dis':''}" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
+    <button class="btn" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
   if(!band){ footer._bandShown=false; return; }
   if(footer._bandShown) return;
   footer._bandShown=true;
@@ -744,8 +744,9 @@ function N0E(results){ return `<div class="sec addr">${head('أضف عنوان �
   <div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <div class="field"><span class="label">العنوان الوطني المختصر</span>
-      <div class="ddwrap"><label class="inp" id="nbox"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('file')}</label>
-      ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div></div>
+      <div class="ddwrap"><label class="inp ${S.addrErr?'err':''}" id="nbox"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('file')}</label>
+      ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div>
+      ${S.addrErr?`<div class="errtxt">${ic('alert')}حدّد موقعك من الخيارين بالأعلى، أو أدخل عنوانك الوطني المختصر.</div>`:''}</div>
     ${S.smsSent?`<div class="note ok">${ic('check')}أرسلنا عنوانك الوطني المختصر إلى جوالك برسالة نصية.</div>`:`<div class="sms"><span>ما تعرف عنوانك المختصر؟</span><b data-a="sms">أرسله لجوالك</b></div>`}
   </div></div></div>`; }
 function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن رقم جوالك','لنرسل عليه رمز تحقق وتحديثات طلبك')}
@@ -771,7 +772,7 @@ function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec 
 /* ---------- after-render bindings ---------- */
 function after(){
   const $ = sel => curPage.querySelector(sel);
-  const ph = $("#phonein"); if(ph) ph.oninput = e => { e.target.value = e.target.value.replace(/\D/g,''); S.phone = e.target.value; if(E){ const mb=document.getElementById('mainbtn'); if(mb) mb.classList.toggle('dis', !/^5\d{8}$/.test(S.phone)); } if(S.loginErr){ S.loginErr=''; $('#phonebox').classList.remove('err'); const er=$('#phonebox').parentNode.querySelector('.errtxt'); if(er) er.remove(); } };
+  const ph = $("#phonein"); if(ph) ph.oninput = e => { e.target.value = e.target.value.replace(/\D/g,''); S.phone = e.target.value; if(S.loginErr){ S.loginErr=''; $('#phonebox').classList.remove('err'); const er=$('#phonebox').parentNode.querySelector('.errtxt'); if(er) er.remove(); } };
   const nq = $('#nq'); if(nq){ nq.oninput = e => { const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); S.nq=v; S.ddOpen=true; S.addrErr=false; rerender(); const n=$('#nq'); n.focus(); n.setSelectionRange(v.length,v.length); };
     nq.onfocus = () => { if(S.nq.length>=2 && !S.ddOpen){ S.ddOpen=true; rerender(); const n=$('#nq'); n.focus(); } }; }
   const pc = $('#pickc'); if(pc){ pc.oninput = e => { S.custom=e.target.value; S.theme='custom'; applyTheme(); const l=pc.parentNode; l.querySelector('i').style.background=S.custom; document.querySelectorAll('.thm').forEach(t=>t.classList.toggle('on',t===l)); }; }
