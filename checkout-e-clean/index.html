@@ -133,6 +133,44 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .addcard{border:0;background:var(--fill)}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
+/* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
+.clean .page{gap:40px}
+.clean .sec,.clean .sec.addr{gap:16px}
+.clean .sec[style*="gap:20px"]{gap:16px!important}
+.clean .orline{margin:12px 0 4px}
+.clean .sec.addr .field+.sms,.clean .sms{margin-top:-4px}
+.clean #paysec .smn.w5{margin-top:20px}
+.clean #paysec .earn{margin-top:-8px}
+.clean .recip{margin-top:-24px}
+.clean .info{margin-top:-16px}
+.clean .acksec{margin-top:-16px}
+.clean .invrow{margin-top:-24px}
+.clean .speeds+*{margin-top:0}
+/* clean · sheets (inset card, round close, hairline header, filled groups) */
+.clean .scrim{background:rgba(0,0,0,.35)}
+.clean .sheet{width:calc(100% - 16px);margin:0 8px 8px;border-radius:32px;padding:10px 20px 20px;gap:16px}
+.clean .handle{width:36px;height:5px;background:#e3e3e3;margin-bottom:-4px}
+.clean .shead{padding-bottom:16px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;gap:12px}
+.clean .shead .h2{font-size:20px;line-height:28px}
+.clean .xbtn{width:32px;height:32px;flex:none;border-radius:99px;background:var(--fill);font-size:20px;color:var(--dark)}
+.clean .shead+p{margin-top:0!important;font-size:14px;line-height:22px}
+.clean .sheet>.btn{margin-top:8px;flex:none}
+.clean .sheet>.btn+.btn{margin-top:-4px}
+.clean .btn.sec,.clean .btn.del{border:0;background:var(--fill)}
+.clean .scard{border:0;background:var(--fill);border-radius:16px;min-height:60px;padding:8px 16px}
+.clean .scard.on{background:var(--fill)}
+.clean .cvv{background:#fff}
+.clean .sheet .addcard{height:60px;border-radius:16px}
+.clean .items .nm{font-size:15px;font-weight:700}
+.clean .items .vr{font-size:13px}
+.clean .sum{font-size:15px;line-height:24px}
+.clean .kv{font-size:14px;line-height:22px}
+.clean .cpnbtn{height:52px;border-radius:14px;font-weight:700}
+.clean .acklist{font-size:15px;line-height:24px;gap:10px}
+.clean .ov.full.msheet .mfull{border-radius:32px 32px 0 0}
+.clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
+.clean .mpanel .btn{height:52px;border-radius:99px}
+
 
 .mbtns .tlink{height:40px;font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:3px}
 .mfar{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:#fff4e5;color:#b35c00;font-size:13px;line-height:20px}
@@ -1111,7 +1149,7 @@ function cardsSheet(kind, startSel=0){ const list=CARDS[kind]; let sel=Math.min(
       ${sel===i?`<input class="cvv ${cvvErr?'err':''}" id="cvv" inputmode="numeric" maxlength="3" placeholder="•••" aria-label="رمز CVV" autocomplete="off">`:''}<button class="kebab" data-a="cardMenu" data-i="${i}" aria-label="خيارات البطاقة">${I.more}</button>
       ${menu===i?`<div class="cmenu"><button data-a="cardEdit" data-i="${i}">${ic('pen')}تعديل البطاقة</button><button class="del" data-a="cardDel" data-i="${i}">${ic('trash')}حذف البطاقة</button></div>`:''}</div>
       ${sel===i&&cvvErr?`<div class="errtxt" style="margin-top:-4px">${ic('alert')}أدخل رمز CVV لاستخدام هذه البطاقة</div>`:''}`).join('')}
-    <button class="addcard" data-a="addCard" data-k="${kind}"><span>إضافة بطاقة جديدة</span><span class="pl">${ic('add')}</span></button></div>
+    <button class="addcard nw" data-a="addCard" data-k="${kind}"><span class="pl">${ic('add')}</span><span>بطاقة جديدة</span></button></div>
     <button class="btn" data-a="cardOk" style="flex:none">استخدم هذه البطاقة</button>`;
   const ov=openSheet(draw()); const sh=ov.querySelector('.sheet');
   const bind=()=>{const c=$('#cvv'); if(c){ c.oninput=e=>{e.target.value=e.target.value.replace(/\D/g,''); if(e.target.value.length===3){ c.blur(); setTimeout(()=>ov._ok(),180); }}; } };
