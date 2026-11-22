@@ -1518,9 +1518,14 @@ function fit(){ const st=$('#stage'), vw=VV?Math.min(innerWidth,Math.round(VV.wi
   document.body.classList.toggle('kb', kb);
   if(vw<=500){ s=vw/428; h=Math.round((vh+(kb?KB_EXTRA:0))/s); off=VV?VV.offsetTop:0; st.style.top='0'; }
   else { s=Math.min(1,(innerHeight-24)/926,(vw-24)/428); st.style.top=Math.max(0,(innerHeight-926*s)/2)+'px'; }
-  phone.style.height=h+'px'; st.style.transform=`translateY(${off}px) scale(${s})`; st.style.width='428px'; st.style.height=h+'px'; phone.dataset.scale=s;
+  const dyn = vw<=500 && !kb && DVH;
+  const hh = dyn ? `calc(100dvh / ${s})` : h+'px';
+  phone.style.height=hh; st.style.transform=`translateY(${dyn?0:off}px) scale(${s})`; st.style.width='428px'; st.style.height=hh; phone.dataset.scale=s;
   if(curPage && S.step) padBottom(); keepFocus(); }
 const KB_EXTRA=110;
+const DVH = !!(window.CSS && CSS.supports && CSS.supports('height','100dvh'));
+/* iOS browsers collapse their toolbars without always firing resize: re-check the viewport size */
+let lastVH=innerHeight; setInterval(()=>{ if(innerHeight!==lastVH){ lastVH=innerHeight; fit(); } },250);
 function keepFocus(){ const el=document.activeElement; if(!el||!/^(INPUT|TEXTAREA)$/.test(el.tagName)||!phone.contains(el)) return;
   clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ if(curPage) curPage._lock=Date.now()+700; const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
 addEventListener('resize', fit); if(VV){ VV.addEventListener('resize', fit); VV.addEventListener('scroll', fit); }
