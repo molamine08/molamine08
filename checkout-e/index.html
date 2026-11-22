@@ -51,6 +51,89 @@ p{margin:0}
 .mtip i{display:block;width:12px;height:7px}.mtip i svg{width:100%;height:100%;display:block}
 .mtip.no{color:#f55157}
 .mtip.far{color:#b35c00}
+/* ===== CLEAN (side version): filled groups, no strokes, two text levels, no tags ===== */
+body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
+.clean .phone,.clean .page{background:#fff}
+.clean .topbar{border-bottom:1px solid #f0f0f0}
+.clean .page{gap:32px}
+.clean .sec,.clean .sec.addr{padding:8px 20px 0;gap:20px}
+.clean .h2{font-size:22px;line-height:32px;font-weight:700}
+.clean .sub{display:none}
+.clean .label{font-size:15px;line-height:22px;font-weight:700}
+.clean .label .opt{font-weight:400}
+.clean .inp,.clean .inp.soft{height:52px;padding:0 16px;border:1.5px solid transparent;background:var(--fill);border-radius:14px}
+.clean .inp input,.clean .inp textarea{font-size:16px}
+.clean .inp:focus-within{border-color:var(--dark);background:#fff;box-shadow:none}
+.clean .inp.err{border-color:var(--danger)}
+.clean .inp.ta{height:104px;padding:14px 16px}
+.clean .tabs{background:var(--fill);border-radius:14px;padding:4px}
+.clean .tab{font-size:15px;border-radius:11px}
+.clean .tab.on{font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.clean .opts{border:0;background:var(--fill);border-radius:20px}
+.clean .optrow{min-height:64px;padding:0 16px;gap:14px}
+.clean .optrow+.optrow{border-top:1px solid #e9e9e9;margin:0 16px;padding:0}
+.clean .optrow .circ{width:24px;height:24px;background:none}
+.clean .optrow .circ .ic{width:22px!important;height:22px!important}
+.clean .optrow .t1{font-size:16px;font-weight:700}
+.clean .optrow .t2{display:none}
+.clean .orline{font-size:14px;color:var(--light)}
+.clean .orline i{background:#eee}
+.clean .sms{font-size:14px}
+.clean .map{border-radius:20px}
+.clean .sec.addr .note.ok{display:none}
+.clean .arow{padding:16px;background:var(--fill);border-radius:20px}
+.clean .arow .sm.w7{font-size:16px}
+.clean .arow+.divider,.clean .divider{display:none}
+.clean .card .divider{display:block;background:#e6e6e6}
+.clean .ic.cbtn{background:none!important;padding:6px!important}
+.clean .speeds{gap:0;background:var(--fill);border-radius:20px;padding:0 16px}
+.clean .speed{border:0;border-radius:0;background:none;padding:0;min-height:68px}
+.clean .speed+.speed{border-top:1px solid #e9e9e9}
+.clean .speed .tt .sm{font-size:16px;font-weight:700}
+.clean .speed .tt .xs{font-size:14px;color:var(--light)}
+.clean .speed .tt{flex-direction:column;align-items:flex-start;gap:0;line-height:22px}
+.clean .speed .pg .xs{display:none}
+.clean .speed .tt .pill.fast{position:relative;top:0}
+.clean .speed .pg .amt{font-size:16px;font-weight:700;color:var(--dark)}
+.clean .pill.fast{background:none;padding:0;height:auto;color:var(--succ);font-weight:700;font-size:13px}
+.clean .recip,.clean .invrow{background:var(--fill);border-radius:20px;margin:0 20px;width:auto;padding:0 16px;min-height:68px}
+.clean .recip .ricon,.clean .invrow .ricon{width:24px;height:24px;background:none}
+.clean .recip .ricon .ic,.clean .invrow .ricon .ic{width:22px;height:22px}
+.clean .recip .tx>span:first-child,.clean .invrow .tx>span:first-child{font-size:16px;font-weight:700;line-height:24px}
+.clean .recip .t2,.clean .invrow .t2{display:none}
+.clean .info{padding:0 20px 8px;gap:10px}
+.clean .info .bd{display:none}
+.clean .info .tl{color:var(--lighter)}
+.clean .tile{border:2px solid transparent;background:var(--fill);border-radius:18px;height:88px}
+.clean .tile.on{border-color:var(--dark);background:#fff}
+.clean .tile .tl{font-size:13px;font-weight:700}
+.clean .tamcard{border:0;background:var(--fill);border-radius:20px}
+.clean .card,.clean .points{border:0;box-shadow:none;background:var(--fill);border-radius:20px;padding:16px}
+.clean .wicon{background:none;border:0;padding:0}
+.clean .wicon .ic{width:22px;height:22px}
+.clean .wtitle{font-size:16px;font-weight:700}
+.clean .wtx .xs,.clean .phead .xs{display:none}
+.clean .phead .sm{font-size:16px;font-weight:700}
+.clean .ghead{font-size:14px;color:var(--dark)}
+.clean .earn{background:var(--fill);border-radius:20px;padding:0 16px;gap:0}
+.clean .erow{min-height:60px}
+.clean .erow+.erow{border-top:1px solid #e9e9e9}
+.clean .smn.w5{font-size:18px;font-weight:700}
+.clean .acksec{background:none;padding:0 20px}
+.clean .footer{box-shadow:none;border-top:1px solid #f0f0f0;border-radius:0}
+.clean .btn{height:52px;min-height:52px;border-radius:99px;font-weight:700}
+.clean .btn2.soc{height:52px;border-radius:99px}
+.clean .st .dot{border:0;background:var(--fill)}
+.clean .st.cur .dot{background:var(--p)}
+.clean .adrow{border:0;background:var(--fill);border-radius:16px;padding:14px 16px}
+.clean .adrow .sm.w5{font-size:16px;font-weight:700}
+.clean .adrow .l2{font-size:14px}
+.clean .acode{background:none;padding:0;color:var(--light);font-size:14px}
+.clean .pill.warn{background:none;padding:0;height:auto;color:#b35c00;font-weight:700;font-size:13px}
+.clean .addcard{border:0;background:var(--fill)}
+.clean .nchip{border:0;background:var(--fill)}
+.clean .nchip.on{background:var(--dark);color:#fff}
+
 .mbtns .tlink{height:40px;font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:3px}
 .mfar{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:#fff4e5;color:#b35c00;font-size:13px;line-height:20px}
 .mfar .ic{width:16px;height:16px;flex:none;margin-top:2px}
@@ -490,6 +573,7 @@ const LIVE = true && !!window.L;
 const MAPV2 = true;
 const PHONEV2 = false || /[?&]v=b\b/.test(location.search);
 const E = true || /[?&]v=e\b/.test(location.search);
+const CLEAN = false || /[?&]c=1\b/.test(location.search); if(CLEAN) document.body.classList.add('clean');
 const ic = (n, cls='') => `<span class="ic ${cls}">${I[n]}</span>`;
 const $ = s => document.querySelector(s);
 const vp = $('#vp'), topbar = $('#topbar'), footer = $('#footer'), layer = $('#layer'), phone = $('#phone');
@@ -506,7 +590,7 @@ const SAVED = [
 ];
 const SAVED0 = JSON.stringify(SAVED);
 const STAR = '<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg></span>';
-const addrTag = a => a.fav?'<span class="pill fav">مفضل</span>':'<span class="pill gray">محفوظ</span>';
+const addrTag = a => (typeof CLEAN!=='undefined'&&CLEAN) ? (a.fav?STAR:'') : a.fav?'<span class="pill fav">مفضل</span>':'<span class="pill gray">محفوظ</span>';
 const SPEEDS = [
   {id:'normal', t:'توصيل عادي', e:'من يوم إلى يومين', price:0},
   {id:'fast', t:'توصيل سريع', e:'من 2-4 س', price:18, note:'شامل الضريبة'},
