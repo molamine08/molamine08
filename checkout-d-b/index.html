@@ -328,7 +328,11 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .saving .amt .ry{width:12px;height:12px}
 .saving .amt{font-weight:500}
 .invrow{background:#fff;padding:20px;display:flex;align-items:center;justify-content:space-between;width:100%;font-size:14px;line-height:20px}
-.invrow .ic{width:20px;height:20px}
+.invrow{gap:12px}
+.invrow .ric,.invrow .ricon{width:40px;height:40px;border-radius:99px;background:var(--bg);display:flex;align-items:center;justify-content:center;flex:none;color:var(--dark)}
+.invrow .ricon .ic{width:18px;height:18px}
+.invrow .tx{flex:1;text-align:right;display:flex;flex-direction:column;gap:2px}
+.invrow .t2{font-size:12px;line-height:16px;color:var(--light)}
 .arow .ic.cbtn,.recip .ic.cbtn,.invrow .ic.cbtn{width:32px;height:32px;padding:8px;border-radius:99px;background:var(--bg);color:var(--dark);flex:none}
 .ackrow,.acksec{display:flex;flex-direction:column;gap:6px}
 .acksec{background:#fff;padding:20px}
@@ -733,7 +737,7 @@ pay(){ const tiles = [
       <span class="cb ${S.ack?'on':''} ${S.ackErr&&!S.ack?'err':''}">${ic('check')}</span>
       <p>بالمتابعة، فإنك توافق على <u>سياسة الاستبدال والاسترجاع والتوصيل</u> <span class="req">(مطلوب)</span></p></button>
       ${S.ackErr&&!S.ack?`<div class="errtxt">${ic('alert')}الموافقة على الإقرار مطلوبة لإتمام الطلب</div>`:''}</div>
-  <button class="invrow" data-a="invoice"><span>${S.invoice?`فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b>`:'تحتاج فاتورة ضريبية باسم منشأة؟ أضف بيانات المنشأة'}</span>${ic(S.invoice?'pen':'plus','cbtn')}</button>
+  <button class="invrow" data-a="invoice"><span class="ricon">${ic('file')}</span><span class="tx">${S.invoice?`<span class="t1">فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b></span>`:'<span class="t1">تحتاج فاتورة ضريبية باسم منشأة؟</span><span class="t2">أضف بيانات المنشأة</span>'}</span>${ic(S.invoice?'pen':'plus','cbtn')}</button>
   <div class="info"><div class="tg"><p class="tl">${ic('lock')}دفع آمن ومشفر</p><p class="bd">اتصالك مشفّر، وكل عملية دفع بالبطاقة يتحقق منها البنك المُصدر لبطاقتك.</p></div>
    <div class="marks"><span class="plogo" style="width:32px">${I.mcard}</span><span class="plogo">${I.visa}</span><span class="plogo">${I.madaL}</span></div></div>`; },
 
