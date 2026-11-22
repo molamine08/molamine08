@@ -132,8 +132,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .acksec{background:none;padding:0 20px}
 .clean .footer{box-shadow:none;border-top:1px solid #f0f0f0;border-radius:0}
 .clean .footer{padding:12px 20px 14px;gap:12px}
-.clean .footer.sv{padding-top:0}
-.clean .footer.sv .paybar{margin:0 -20px -14px;padding:12px 20px 14px}
+.clean .footer.sv{padding-top:0;gap:0}
+.clean .footer.sv .paybar{margin:0 -20px -14px;padding:12px 20px 14px;border-radius:0;box-shadow:none;border-top:1px solid #f0f0f0}
+.clean .footer.sv .saving.foot{border-radius:0;box-shadow:none;margin:0 -20px;padding:8px 20px}
+.clean .footer.sv .saving.foot.enter::after{border-radius:0}
 .clean .btn{height:48px;min-height:48px;border-radius:99px;font-weight:700}
 .clean .btn2.soc{height:48px;border-radius:99px}
 .clean .st .dot{border:0;background:var(--fill)}
@@ -166,16 +168,19 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .akp{font-size:16px;line-height:27px;color:#3f3f3f;margin-top:10px}
 .clean .aksum{background:var(--fill);border-radius:20px;padding:16px 18px 18px;margin-top:20px}
 .clean .aklbl{display:flex;align-items:center;gap:6px;font-size:13px;line-height:20px;font-weight:700;color:var(--light)}
-.clean .aksum ul{margin:10px 0 0;padding:0 18px 0 0;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:25px;color:var(--dark)}
-.clean .aksum li::marker{color:#b5b5b5}
+.clean .aksum ul{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:14px;font-size:15px;line-height:25px;color:var(--dark)}
+.clean .aksum li{display:grid;grid-template-columns:20px 1fr;column-gap:12px;align-items:start}
+.clean .aksum li svg{width:20px;height:20px;margin-top:2.5px;color:#9b9b9b}
 .clean .akmore{align-self:flex-start;margin-top:16px;font-size:13px;line-height:20px;color:var(--dark);font-weight:500}
 .clean .akmore span{color:#a6a6a6;font-weight:400}
 .clean .akbtn{flex:none;align-self:stretch;width:100%;margin-top:24px}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
+.clean .page.anim{transition:transform .5s cubic-bezier(.32,.72,0,1),opacity .5s cubic-bezier(.32,.72,0,1),translate .25s var(--ease)}
 .clean .st>span:not(.dot){position:relative;top:1px}
 .clean .st.cur{font-weight:700}
+.clean .dn{transform:none}
 .clean .st.done .dot{color:#a3a3a3}
 .clean .elink{margin-top:12px}
 .clean .tabs{border-radius:999px}
@@ -794,8 +799,8 @@ function show(html, dir=0){
     pg.style.transform = `translateX(${dir>0?-w:w}px)`;
     vp.appendChild(pg); pg.getBoundingClientRect();
     pg.classList.add('anim'); old.classList.add('anim');
-    pg.style.transform = 'translateX(0)'; old.style.transform = `translateX(${dir>0?w:-w}px)`;
-    setTimeout(()=>old.remove(), 320);
+    const k = CLEAN ? .3 : 1; pg.style.transform = 'translateX(0)'; old.style.transform = `translateX(${dir>0?w*k:-w*k}px)`; if(CLEAN){ old.style.opacity='.55'; pg.style.zIndex='1'; }
+    setTimeout(()=>old.remove(), CLEAN?540:320);
   } else { if(curPage) curPage.remove(); vp.appendChild(pg); }
   curPage = pg;
   showBar(true); pg._y=0; pg.addEventListener('scroll', onPageScroll, {passive:true});
@@ -1233,6 +1238,12 @@ const ACK_BOX = `<svg viewBox="0 0 160 132" width="160" height="132" aria-hidden
   <circle cx="120" cy="106" r="17" fill="#5BAE6A"/><path d="M111.5 106.5l6 6 11-12" stroke="#fff"/>
   <circle cx="120" cy="106" r="17"/></svg>`;
 const ACK_MARK = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 14.5l2 2 4-4.5"/></svg>`;
+const AK_SVG = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const AK_I = {
+  swap: AK_SVG('<path d="M4.5 9.5A7.8 7.8 0 0 1 18 6.6L19.5 8"/><path d="M19.5 4v4h-4"/><path d="M19.5 14.5A7.8 7.8 0 0 1 6 17.4L4.5 16"/><path d="M4.5 20v-4h4"/>'),
+  box: AK_SVG('<path d="M12 3.2 19.8 7.4v9.2L12 20.8 4.2 16.6V7.4z"/><path d="M4.4 7.5 12 11.7l7.6-4.2"/><path d="M12 11.7v9"/>'),
+  time: AK_SVG('<circle cx="12" cy="12" r="8.3"/><path d="M12 7.6V12l2.9 1.8"/>')
+};
 function ackSheet(){
   if(CLEAN){ openSheet(`<div class="handle"></div>
     <div class="akx"><button class="xbtn" data-a="close" aria-label="إغلاق">${XI}</button></div>
@@ -1240,9 +1251,9 @@ function ackSheet(){
     <p class="aktitle">قبل ما تدفع، خلّنا نتفق</p>
     <p class="akp">بالضغط على «أوافق» تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر.</p>
     <div class="aksum"><p class="aklbl">${ACK_SPARK}أهم النقاط من السياسة</p>
-     <ul><li>تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</li>
-      <li>يرجع المنتج بحالته الأصلية وفي تغليفه.</li>
-      <li>مدة التوصيل تُحسب من لحظة تأكيد طلبك.</li></ul></div>
+     <ul><li>${AK_I.swap}<span>تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></li>
+      <li>${AK_I.box}<span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></li>
+      <li>${AK_I.time}<span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></li></ul></div>
     <button class="akmore" data-a="ackFull"><span>اقرأ</span> السياسة كاملة</button>
     <button class="btn akbtn" data-a="ackOk">أوافق وأكمل الدفع</button>`, 'ackov'); return; }
   openSheet(`${sheetHead('الموافقة على سياسة المتجر')}<p class="sm c-l" style="margin-top:-8px">لإتمام الطلب، وافق على سياسة الاستبدال والاسترجاع والتوصيل.</p>
