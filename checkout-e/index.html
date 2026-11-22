@@ -91,10 +91,12 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .speed+.speed{border-top:1px solid #e9e9e9}
 .clean .speed .tt .sm{font-size:16px;font-weight:700}
 .clean .speed .tt .xs{font-size:14px;color:var(--light)}
-.clean .speed .tt{flex-direction:column;align-items:flex-start;gap:0;line-height:22px}
+.clean .speed .tt{display:grid;grid-template-columns:auto auto;justify-content:start;align-items:center;column-gap:8px;row-gap:4px;line-height:22px}
+.clean .speed .tt .sm{grid-column:1/-1}
 .clean .speed .pg .xs{display:none}
 .clean .speed .tt .pill.fast{position:relative;top:0}
-.clean .speed .pg .amt{font-size:16px;font-weight:700;color:var(--dark)}
+.clean .speed .pg .amt{font-size:16px;font-weight:400;color:var(--dark)}
+.clean .speed .pg .sm{font-size:16px;font-weight:400;color:var(--dark)}
 .clean .pill.fast{background:none;padding:0;height:auto;color:var(--succ);font-weight:700;font-size:13px}
 .clean .recip,.clean .invrow{background:var(--fill);border-radius:20px;margin:0 20px;width:auto;padding:0 16px;min-height:68px}
 .clean .recip .ricon,.clean .invrow .ricon{width:24px;height:24px;background:none}
@@ -103,6 +105,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .recip .t2,.clean .invrow .t2{display:none}
 .clean .info{padding:0 20px 8px;gap:10px}
 .clean .info .bd{display:none}
+.clean .shipinfo .bd{display:block;font-size:14px;line-height:22px;color:#a3a3a3}
+.clean .shipinfo{gap:8px}
 .clean .info .tl{color:var(--lighter)}
 .clean .tile{border:2px solid transparent;background:var(--fill);border-radius:18px;height:88px}
 .clean .tile.on{border-color:var(--dark);background:#fff}
@@ -766,7 +770,7 @@ const shipSec = () => `<div class="sec">
   <div class="speeds">${SPEEDS.map(s=>`<button class="speed ${S.speed===s.id?'on':''}" data-a="speed" data-id="${s.id}">
     <span class="r"><span class="radio"></span><span class="tt"><span class="sm">${s.t}</span><span class="xs">${s.e}</span>${s.badge?`<span class="pill fast">${s.badge}</span>`:''}</span></span>
     <span class="pg">${s.note?`<span class="xs c-d">${s.note}</span>`:''}${s.price?amtInt(s.price):'<span class="sm c-d">مجاني</span>'}</span></button>`).join('')}</div></div>`;
-const shipInfo = () => `<div class="info"><div class="tg"><p class="bd">طلبك محمي بضمان سلة: يصلك طلبك، أو نعيد لك المبلغ كاملًا.</p></div>
+const shipInfo = () => `<div class="info shipinfo"><div class="tg"><p class="bd">طلبك محمي بضمان سلة: يصلك طلبك، أو نعيد لك المبلغ كاملًا.</p></div>
   <div class="marks"><span class="mark">${ic('pkg')}ضمان الوصول</span><span class="mark">${ic('money')}ضمان الاسترداد</span></div></div>`;
 const afterAddr = () => E ? '' : recipRow();
 const floorField = () => `<div class="field"><span class="label">الدور والشقة <span class="opt">(اختياري)</span></span>
