@@ -380,6 +380,10 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .recip .ricon .ic{width:18px;height:18px}
 .recip .tx{flex:1;text-align:right;display:flex;flex-direction:column;gap:2px}
 .recip .t2{font-size:12px;line-height:16px;color:var(--light)}
+.recip .t1{font-weight:500}
+.recip .rsub{font-size:13px;line-height:18px;color:var(--light)}
+.clean .recip .rsub{font-size:14px;line-height:20px}
+.clean .recip:has(.rsub){padding-top:12px;padding-bottom:12px}
 .nmr{display:flex;align-items:center;gap:6px}
 .nmr .pill{height:20px;padding:2px 6px;font-size:11px;line-height:16px}
 .pill.fast{background:#a4ffe5;color:#004956}
@@ -828,7 +832,7 @@ const tabs = () => `<div class="tabs"><button class="tab on">توصيل</button>
 const mapBlock = (h=182) => `<div class="map tap" data-a="mapsheet" role="button" aria-label="عدّل موقع الدبوس" style="height:${h}px">${LIVE?'<div class="leaf"></div>':`<div class="mpan"><img class="mimg" src="${IMG.makkah}" alt="" draggable="false"></div>`}
   <span class="pin">${I.pin}</span><div class="callout"><span class="pill ok">التوصيل متاح هنا</span><span class="ptr">${I.ptr}</span></div>
   ${LIVE?'<i class="gend"></i>':`<div class="glogo"><span>${I.glogo}</span></div>`}</div>`;
-const recipRow = () => `<button class="recip" data-a="recip"><span class="ricon">${ic('user')}</span><span class="tx">${S.recipient?`المستلم: <b class="w5">${S.recipient.name}</b> · <span dir="ltr">+966 ${S.recipient.phone}</span>`:'<span class="t1">سيستلم الطلب شخص آخر؟</span><span class="t2">أضف اسم المستلم وجواله</span>'}</span>${ic(S.recipient?'pen':'plus','cbtn')}</button>`;
+const recipRow = () => `<button class="recip" data-a="recip"><span class="ricon">${ic('user')}</span><span class="tx">${S.recipient?`<span class="t1">${S.recipient.name}</span><span class="rsub">المستلم · <span dir="ltr">+966 ${S.recipient.phone}</span></span>`:'<span class="t1">سيستلم الطلب شخص آخر؟</span><span class="t2">أضف اسم المستلم وجواله</span>'}</span>${ic(S.recipient?'pen':'plus','cbtn')}</button>`;
 const shipSec = () => `<div class="sec">
   <p class="h2">اختر طريقة التوصيل</p>
   <div class="speeds">${SPEEDS.map(s=>`<button class="speed ${S.speed===s.id?'on':''}" data-a="speed" data-id="${s.id}">
