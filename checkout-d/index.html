@@ -700,11 +700,11 @@ pay(){ const tiles = [
   <div class="earn"><button class="erow" data-a="earnM"><span class="cb ${S.earnM?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx">اكسب نقاط مكافأة الراجحي على هذا الطلب</span></button>
    <button class="erow" data-a="earnQ"><span class="cb ${S.earnQ?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx">اكسب نقاط قطاف على هذا الطلب</span></button></div>
   </div>
-  <button class="invrow" data-a="invoice"><span>${S.invoice?`فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b>`:'تحتاج فاتورة ضريبية باسم منشأة؟ أضف بيانات المنشأة'}</span>${ic(S.invoice?'pen':'plus','cbtn')}</button>
   <div class="acksec" id="ackrow"><button class="ackline" data-a="ack">
       <span class="cb ${S.ack?'on':''} ${S.ackErr&&!S.ack?'err':''}">${ic('check')}</span>
       <p>بالمتابعة، فإنك توافق على <u>سياسة الاستبدال والاسترجاع والتوصيل</u> <span class="req">(مطلوب)</span></p></button>
       ${S.ackErr&&!S.ack?`<div class="errtxt">${ic('alert')}الموافقة على الإقرار مطلوبة لإتمام الطلب</div>`:''}</div>
+  <button class="invrow" data-a="invoice"><span>${S.invoice?`فاتورة ضريبية باسم <b class="w5">${S.invoice.name}</b>`:'تحتاج فاتورة ضريبية باسم منشأة؟ أضف بيانات المنشأة'}</span>${ic(S.invoice?'pen':'plus','cbtn')}</button>
   <div class="info"><div class="tg"><p class="tl">${ic('lock')}دفع آمن ومشفر</p><p class="bd">اتصالك مشفّر، وكل عملية دفع بالبطاقة يتحقق منها البنك المُصدر لبطاقتك.</p></div>
    <div class="marks"><span class="plogo" style="width:32px">${I.mcard}</span><span class="plogo">${I.visa}</span><span class="plogo">${I.madaL}</span></div></div>`; },
 
