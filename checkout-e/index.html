@@ -102,7 +102,9 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 /* pages */
 .vp{position:absolute;inset:0;overflow:hidden}
 .page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:125px 0 220px;display:flex;flex-direction:column;gap:6px;scrollbar-width:none}
-.page>.sec:first-child{flex:1 0 auto}
+.page>:is(.sec,.recip,.invrow,.acksec):last-child,.page>:is(.sec,.recip,.invrow,.acksec):has(+ .info:last-child){flex:1 0 auto}
+.page>:is(.recip,.invrow):last-child,.page>:is(.recip,.invrow):has(+ .info:last-child){align-items:flex-start}
+.page>:is(.recip,.invrow):last-child>span:first-child,.page>:is(.recip,.invrow):has(+ .info:last-child)>span:first-child{padding-top:6px}
 .page::-webkit-scrollbar{display:none}
 .page.anim{transition:transform .3s var(--ease)}
 .sec{background:#fff;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px}
@@ -515,7 +517,7 @@ function renderTop(){
     <button class="backbtn" data-a="back" aria-label="رجوع">${ic('back')}</button>
     <h1>إتمام الطلب</h1>
     <div class="logo"><img src="${IMG.miniso}" alt="MINISO"></div></div>
-  <div class="stepper">${(E?[[1,'التواصل'],[2,'العنوان والشحن'],[4,'الدفع']]:STEPS.map((l,i)=>[i+1,l])).map(([n,l],i)=>{const st=n<S.step?'done':n===S.step?'cur':'todo';
+  <div class="stepper">${(E?[[1,'التواصل'],[2,'العنوان'],[3,'الشحن'],[4,'الدفع']]:STEPS.map((l,i)=>[i+1,l])).map(([n,l],i)=>{const st=n<S.step?'done':n===S.step?'cur':'todo';
     return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${i+1}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`;
 }
 function btnLabel(){
@@ -604,7 +606,7 @@ const shipSec = () => `<div class="sec">
     <span class="pg">${s.note?`<span class="xs c-d">${s.note}</span>`:''}${s.price?amtInt(s.price):'<span class="sm c-d">مجاني</span>'}</span></button>`).join('')}</div></div>`;
 const shipInfo = () => `<div class="info"><div class="tg"><p class="tl">${ic('safe')}ضمان وصول الطلبية</p><p class="bd">طلبك محمي بضمان سلة: يصلك طلبك، أو نعيد لك المبلغ كاملًا.</p></div>
   <div class="marks"><span class="mark">${ic('pkg')}ضمان الوصول</span><span class="mark">${ic('money')}ضمان الاسترداد</span></div></div>`;
-const afterAddr = () => E ? shipSec()+recipRow()+shipInfo() : recipRow();
+const afterAddr = () => E ? '' : recipRow();
 const floorField = () => `<div class="field"><span class="label">الدور والشقة <span class="opt">(اختياري)</span></span>
   <label class="inp soft"><input id="floor" placeholder="مثال: الدور 2، شقة 5" value="${S.floor}">${ic('file')}</label></div>`;
 const instrField = () => `<div class="field"><span class="label">تعليمات التوصيل <span class="opt">(اختياري)</span></span>
@@ -655,7 +657,7 @@ N1L(){ return `<div class="sec addr">${head('أضف عنوان التوصيل','
   <div style="position:relative"><div class="skel" style="height:182px;border-radius:16px"></div>
     <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px"><span class="spin" style="border-color:rgba(0,0,0,.12);border-top-color:var(--p)"></span><span class="sm c-l">جارٍ جلب بيانات العنوان الوطني…</span></div></div>
   <div class="skel" style="height:48px"></div><div class="skel" style="height:48px"></div><div class="row2"><div class="skel" style="height:48px"></div><div class="skel" style="height:48px"></div></div>
-  </div></div>${recipRow()}`; },
+  </div></div>${E?'':recipRow()}`; },
 
 N2(){ const p=S.picked; return `<div class="sec addr">${head('أضف عنوان التوصيل','تحقّق من بيانات عنوانك، وعدّل ما يلزم.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
@@ -679,7 +681,7 @@ Rc(){ const a=SAVED[2]; return `<div class="sec addr">${head('أكمل بيان�
     ${S.rcErr?`<div class="errtxt">${ic('alert')}أدخل رقم المبنى</div>`:''}</div>${roField('الرمز البريدي',a.zip)}</div>
   ${floorField()}</div></div>${afterAddr()}`; },
 
-ship(){ return shipSec()+shipInfo(); },
+ship(){ return shipSec()+(E?recipRow():'')+shipInfo(); },
 _unused(){ return `<div class="sec">
   <p class="h2">اختر طريقة التوصيل</p>
   <div class="speeds">${SPEEDS.map(s=>`<button class="speed ${S.speed===s.id?'on':''}" data-a="speed" data-id="${s.id}">
@@ -1043,8 +1045,8 @@ function back(){
     if(S.screen==='N2'||S.screen==='L2'){ if(S.user==='old'&&S.cameFromSaved){ S.cameFromSaved=false; go(2,'R0',-1); } else { S.screen='N0'; S.picked=null; render(-1); } return; }
     if(S.screen==='N0'&&S.user==='old'){ go(2,'R0',-1); return; }
     go(1,'login',-1); return; }
-  if(S.step===3){ startAddressStep(-1); return; }
-  if(S.step===4){ if(E){ S.lastAddr?go(2,S.lastAddr,-1):startAddressStep(-1); return; } go(3,'ship',-1); return; }
+  if(S.step===3){ if(E&&S.lastAddr){ go(2,S.lastAddr,-1); return; } startAddressStep(-1); return; }
+  if(S.step===4){ go(3,'ship',-1); return; }
 }
 function next(){
   const b=$('#mainbtn');
@@ -1055,7 +1057,7 @@ function next(){
     if(S.screen==='N1L') return;
     if(S.screen==='Rc' && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
     if(S.screen==='Rc'){ SAVED[2].incomplete=false; SAVED[2].code='MNSM3318'; }
-    S.lastAddr=S.screen; loading(b, ()=>E?go(4,'pay',1):go(3,'ship',1), 450); return; }
+    S.lastAddr=S.screen; loading(b, ()=>go(3,'ship',1), 450); return; }
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
     if(!S.pay && !covered()){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
