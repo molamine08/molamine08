@@ -81,7 +81,7 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .amt{display:inline-flex;align-items:center;gap:2px;direction:ltr;white-space:nowrap}
 .amt .ry{width:12px;height:12px}.amt.big .ry{width:14px;height:14px}
 /* top bar */
-.topbar{position:absolute;top:0;left:0;right:0;z-index:5;transition:transform .25s var(--ease);will-change:transform;background:#fff;border-radius:0 0 20px 20px;box-shadow:0 4px 12px rgba(0,0,0,.04)}
+.topbar{position:absolute;top:0;left:0;right:0;z-index:5;transition:transform .25s var(--ease);will-change:transform;background:#fff;border-bottom:1px solid var(--bl)}
 .title-row{display:flex;align-items:center;gap:16px;padding:16px 20px 12px}
 .backbtn{width:40px;height:40px;border-radius:999px;background:#fff;border:1px solid var(--border);padding:7px;flex:none;color:var(--lighter)}
 .backbtn .ic{width:24px;height:24px;transform:rotate(180deg)}
@@ -102,6 +102,7 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 /* pages */
 .vp{position:absolute;inset:0;overflow:hidden}
 .page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:125px 0 220px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none}
+.page>.sec:first-child{flex:1 0 auto}
 .page::-webkit-scrollbar{display:none}
 .page.anim{transition:transform .3s var(--ease)}
 .sec{background:#fff;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px}
@@ -541,7 +542,7 @@ function renderFoot(){
     requestAnimationFrame(tick); }, 650);
   setTimeout(()=>bd.classList.remove('enter'), 2200);
 }
-function padBottom(){ if(curPage && S.step) curPage.style.paddingBottom = (document.body.classList.contains('kb')?24+KB_EXTRA:footer.offsetHeight+24)+'px'; }
+function padBottom(){ if(curPage && S.step) curPage.style.paddingBottom = (document.body.classList.contains('kb')?24+KB_EXTRA:(footer.hidden?0:footer.offsetHeight))+'px'; }
 function refreshTotal(){ const t=$('#tot'); if(t) t.textContent = fmt(total()); }
 
 /* ---------- hide-on-scroll title row ---------- */
