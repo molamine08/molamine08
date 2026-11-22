@@ -50,6 +50,10 @@ p{margin:0}
 .mtip b span{color:#fff;font-size:13px;line-height:20px;font-weight:500}
 .mtip i{display:block;width:12px;height:7px}.mtip i svg{width:100%;height:100%;display:block}
 .mtip.no{color:#f55157}
+.mtip.far{color:#b35c00}
+.mbtns .tlink{height:40px;font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:3px}
+.mfar{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:#fff4e5;color:#b35c00;font-size:13px;line-height:20px}
+.mfar .ic{width:16px;height:16px;flex:none;margin-top:2px}
 .pill.bad{background:#f55157;color:#fff}
 .mbtns{display:flex;gap:8px}
 .mbtns .btn{flex:1;min-height:44px;padding:0 12px;font-size:14px;line-height:20px}
@@ -409,7 +413,9 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .adcard .ed{width:32px;height:32px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--dark);border-radius:99px}
 .adcard .ed .ic{width:18px;height:18px}
 .star{display:inline-flex;color:var(--succ)}
-.addcard.nw{justify-content:flex-start;gap:12px}
+.addcard.nw{justify-content:center;gap:8px}
+.addcard.nw .pl{width:20px;height:20px;background:none}
+.addcard.nw .pl .ic{width:20px;height:20px}
 .nchips{display:flex;gap:8px;flex-wrap:wrap}
 .nchip{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:99px;font-size:14px;color:var(--dark);background:#fff;transition:all .15s}
 .nchip.on{border-color:var(--dark);background:var(--bg);font-weight:700}
@@ -494,9 +500,9 @@ const NATIONAL = [
   {code:'MSHQ2931', desc:'حي الشوقية، مكة المكرمة · مبنى 2457 · 24351', hood:'الشوقية', street:'شارع الشوقية', bno:'2457', zip:'24351'}
 ];
 const SAVED = [
-  {name:'البيت', line:'السعودية - مكة المكرمة - العزيزية', code:'MAZZ2660', fav:true},
-  {name:'العمل', line:'السعودية - مكة المكرمة - العوالي', code:'MAWL4512'},
-  {name:'', line:'السعودية - مكة المكرمة - النسيم', code:'MNSM3318', incomplete:true, hood:'النسيم', street:'شارع النسيم', zip:'24236'}
+  {name:'البيت', line:'السعودية - مكة المكرمة - العزيزية', code:'MAZZ2660', fav:true, lat:21.4105, lng:39.8680},
+  {name:'العمل', line:'السعودية - مكة المكرمة - العوالي', code:'MAWL4512', lat:21.3530, lng:39.8850},
+  {name:'', line:'السعودية - مكة المكرمة - النسيم', code:'MNSM3318', incomplete:true, lat:21.3950, lng:39.8730, hood:'النسيم', street:'شارع النسيم', zip:'24236'}
 ];
 const SAVED0 = JSON.stringify(SAVED);
 const STAR = '<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg></span>';
@@ -878,12 +884,18 @@ function liveMapFull(){
    <div class="mhead"><button class="mback mx" data-a="close" aria-label="إغلاق">×</button><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
    <div class="mpanel">
      <div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>
-     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button></div></div><div class="handle mh"></div></div>`,'full msheet');
+     <div class="mfar" id="mfar" hidden></div>
+     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="tlink" data-a="mapBackHome" id="mapback" hidden></button></div></div><div class="handle mh"></div></div>`,'full msheet');
   dragToClose(ov, ov.querySelector('.mfull'));
   const m=$('#dragmap'), pin=m.querySelector('.pin'), tip=$('#mtip'), N=$('#mapname'), A=$('#mapaddr'), OK=$('#mapok'), B=$('#mapbtn'), q=$('#mapq'), res=$('#mres');
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
   tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp);
   setTimeout(()=>mp.invalidateSize(),380);
+  const sv = (E && S.user==='old' && ['R0','R0d'].includes(S.screen)) ? SAVED[S.saved] : null, R=150;
+  const anc = sv ? L.latLng(sv.lat||S.loc.lat, sv.lng||S.loc.lng) : null, nm = sv ? (sv.name||'العنوان المحفوظ') : '';
+  if(anc) L.circle(anc,{radius:R,color:'#333',weight:1.5,dashArray:'5 5',fillColor:'#333',fillOpacity:.05,interactive:false}).addTo(mp);
+  const FAR=$('#mfar'), BK=$('#mapback'); if(anc) BK.textContent='ارجع إلى موقع '+nm;
+  ov._home=()=>anc&&mp.flyTo(anc,17,{duration:.6});
   let seq=0;
   const wait=()=>{ N.textContent='جارٍ تحديد العنوان…'; N.classList.add('wait'); A.textContent=''; OK.style.opacity=0; };
   const look=async()=>{ const c=mp.getCenter(), id=++seq, ok=inRiyadh(c.lat,c.lng); wait();
@@ -893,7 +905,11 @@ function liveMapFull(){
     N.classList.remove('wait'); N.textContent= hood?('حي '+hood):(w.road||city||'موقع بدون اسم');
     A.textContent= [w.road&&hood?w.road:'', city].filter(Boolean).join('، ')||`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
     OK.textContent=ok?'يوصلك':'ما يوصلك'; OK.className='pill '+(ok?'ok':'bad'); OK.style.opacity=1; B.classList.toggle('off',!ok);
-    tip.classList.toggle('no',!ok); tip.querySelector('span').textContent=ok?'طلبك يوصل هنا':'ما نوصل لهذا الموقع'; };
+    tip.classList.toggle('no',!ok); tip.querySelector('span').textContent=ok?'طلبك يوصل هنا':'ما نوصل لهذا الموقع';
+    const far = !!anc && ok && mp.distance(c,anc)>R; S.mapFar=far;
+    tip.classList.toggle('far',far); if(far) tip.querySelector('span').textContent='بعيد عن عنوان '+nm;
+    FAR.hidden=!far; FAR.innerHTML=far?`${ic('alert')}<span>هذا الموقع بعيد عن عنوان «${nm}»، فلن نغيّره. نحفظه لك كعنوان جديد، أو ارجع إلى موقع ${nm}.</span>`:'';
+    B.textContent=far?'حفظه كعنوان جديد':'تأكيد الموقع'; BK.hidden=!far; };
   let t; mp.on('movestart',()=>{ pin.classList.add('up'); tip.classList.add('hide'); res.hidden=true; wait(); });
   mp.on('moveend',()=>{ pin.classList.remove('up'); tip.classList.remove('hide'); clearTimeout(t); t=setTimeout(look,350); });
   let tq; q.oninput=()=>{ clearTimeout(tq); const v=q.value.trim(); if(v.length<2){ res.hidden=true; return; } tq=setTimeout(async()=>{
@@ -978,7 +994,7 @@ function mapSheet(){
 function savedSheet(){ let sel=S.saved;
   const draw=()=>`${sheetHead('اختر عنوان التوصيل')}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
     <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span>${ic('pen')}</button>`).join('')}
-    <button class="addcard" data-a="newAddr"><span>إضافة عنوان جديد</span><span class="pl">${ic('add')}</span></button></div>
+    <button class="addcard nw" data-a="newAddr"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
   const ov=openSheet(draw()); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
 }
@@ -1087,6 +1103,7 @@ function back(){
   if(S.step===1){ go(0,'start',-1); return; }
   if(S.step===2){
     if(E&&S.user==='old'&&(S.screen==='R0d'||S.screen==='Rc')){ go(2,'R0',-1); return; }
+    if(E&&S.fromFar&&S.screen==='L2'){ S.fromFar=false; S.adding=false; const a=SAVED[S.saved]; if(a.lat) S.loc={lat:a.lat,lng:a.lng}; go(2,'R0',-1); return; }
     if(S.screen==='N2'||S.screen==='L2'){ if(!E&&S.user==='old'&&S.cameFromSaved){ S.cameFromSaved=false; go(2,'R0',-1); } else { S.screen='N0'; S.picked=null; render(-1); } return; }
     if(S.screen==='N0'&&S.user==='old'){ S.adding=false; go(2,'R0',-1); return; }
     go(1,'login',-1); return; }
@@ -1107,7 +1124,7 @@ function next(){
       const nm = S.newName==='آخر' ? (S.newCustom||'').trim() : (S.newName||'');
       if(S.newFav) SAVED.forEach(x=>x.fav=false);
       SAVED.push({name:nm, line:'السعودية - مكة المكرمة - '+(S.screen==='N2'?p.hood:w.hood), code:S.screen==='N2'?p.code:'', fav:S.newFav});
-      S.saved=SAVED.length-1; S.adding=false; }
+      SAVED[SAVED.length-1].lat=S.loc.lat; SAVED[SAVED.length-1].lng=S.loc.lng; S.saved=SAVED.length-1; S.adding=false; S.fromFar=false; }
     S.lastAddr = (E&&S.user==='old') ? 'R0' : S.screen; loading(b, ()=>go(3,'ship',1), 450); return; }
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
@@ -1151,8 +1168,13 @@ function act(a, el){
   case 'zin': ov._zoom(1.5); break;
   case 'zout': ov._zoom(1/1.5); break;
   case 'mapClear': { const q=$('#mapq'); q.value=''; const r=$('#mres'); if(r) r.hidden=true; q.focus(); } break;
+  case 'mapBackHome': layer.lastElementChild&&layer.lastElementChild._home&&layer.lastElementChild._home(); break;
   case 'locateMe': layer.lastElementChild&&layer.lastElementChild._locate&&layer.lastElementChild._locate(); break;
-  case 'mapOk': if(LIVE && S.mapPick && S.mapPick.ok===false){ toast('هذا الموقع خارج نطاق التوصيل. حرّك الدبوس داخل مكة المكرمة.'); break; } if(LIVE && S.mapLoc) S.loc=S.mapLoc; closeSheet(()=>{ if(S.screen==='N0'){ S.screen='L2'; S.addrErr=false; S.cameFromSaved = S.user==='old'; render(); } else if(S.screen==='L2') render(); else 0; }); break;
+  case 'mapOk': if(LIVE && S.mapPick && S.mapPick.ok===false){ toast('هذا الموقع خارج نطاق التوصيل. حرّك الدبوس داخل مكة المكرمة.'); break; } if(LIVE && S.mapLoc) S.loc=S.mapLoc;
+    if(E && S.user==='old' && ['R0','R0d'].includes(S.screen)){ const far=LIVE&&S.mapFar, a=SAVED[S.saved];
+      closeSheet(()=>{ if(far){ S.adding=true; S.fromFar=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='L2'; render(1); }
+        else { if(S.mapLoc){ a.lat=S.mapLoc.lat; a.lng=S.mapLoc.lng; } rerender(); toast('حدّثنا موقع الدبوس لعنوان «'+(a.name||'المحفوظ')+'»'); } }); break; }
+    closeSheet(()=>{ if(S.screen==='N0'){ S.screen='L2'; S.addrErr=false; S.cameFromSaved = S.user==='old'; render(); } else if(S.screen==='L2') render(); else 0; }); break;
   case 'savedsheet': savedSheet(); break;
   case 'selSaved': S.saved=+el.dataset.i; rerender(); break;
   case 'editSaved': S.saved=+el.dataset.i; go(2, SAVED[S.saved].incomplete?'Rc':'R0d', 1); break;
@@ -1160,7 +1182,7 @@ function act(a, el){
   case 'nname': S.newName = S.newName===el.dataset.n ? '' : el.dataset.n; rerender(); if(S.newName==='آخر') setTimeout(()=>{ const n=$('#nnm'); n&&n.focus(); },30); break;
   case 'nfav': S.newFav=!S.newFav; rerender(); break;
   case 'pickSaved': ov._set(+el.dataset.i); break;
-  case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
+  case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; if(SAVED[i].lat) S.loc={lat:SAVED[i].lat,lng:SAVED[i].lng}; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
   case 'newAddr': closeSheet(()=>{ S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='N0'; S.nq=''; S.picked=null; S.mapPick=null; render(); }); break;
   case 'recip': recipSheet(); break;
   case 'recipOk': { const n=$('#rname').value.trim(), p=$('#rphone').value; const er=[];
@@ -1211,7 +1233,7 @@ function act(a, el){
   case 'cpnDel': S.coupon=null; ov._redraw(); renderFoot(); if(S.step===4) rerender(); break;
   }
 }
-function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false}); SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
+function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false,fromFar:false,mapFar:false}); S.loc = S.user==='old' ? {lat:21.4105,lng:39.8680} : {lat:21.3895,lng:39.8275}; SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
 
 phone.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if(!el) return;
