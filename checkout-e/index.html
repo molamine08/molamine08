@@ -401,6 +401,20 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .addcard .pl{width:32px;height:32px;flex:none;border-radius:99px;background:var(--bg);display:flex;align-items:center;justify-content:center}
 .addcard .pl .ic{width:16px;height:16px}
 .adlist{display:flex;flex-direction:column;gap:8px}
+.adcard{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:0;background:#fff;cursor:pointer;transition:border-color .15s}
+.adcard.on{border-color:var(--dark)}
+.adcard .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.adcard .l2{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px;line-height:22px;color:var(--dark)}
+.adcard .l2 .pill{height:20px;padding:2px 6px;font-size:11px;line-height:16px}
+.adcard .ed{width:32px;height:32px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--dark);border-radius:99px}
+.adcard .ed .ic{width:18px;height:18px}
+.star{display:inline-flex;color:var(--succ)}
+.addcard.nw{justify-content:flex-start;gap:12px;border-radius:0}
+.nchips{display:flex;gap:8px;flex-wrap:wrap}
+.nchip{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:99px;font-size:14px;color:var(--dark);background:#fff;transition:all .15s}
+.nchip.on{border-color:var(--dark);background:var(--bg);font-weight:700}
+.favrow{display:flex;align-items:center;gap:12px;width:100%;text-align:right;padding:4px 0}
+.favrow .tx{flex:1;display:flex;flex-direction:column;gap:2px}
 .adrow{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:12px;width:100%;text-align:right}
 .adrow.on{border-color:var(--bgray)}
 .adrow .tx{flex:1;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
@@ -484,6 +498,8 @@ const SAVED = [
   {name:'العمل', line:'السعودية - مكة المكرمة - العوالي', code:'MAWL4512'},
   {name:'', line:'السعودية - مكة المكرمة - النسيم', code:'MNSM3318', incomplete:true, hood:'النسيم', street:'شارع النسيم', zip:'24236'}
 ];
+const SAVED0 = JSON.stringify(SAVED);
+const STAR = '<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg></span>';
 const addrTag = a => a.fav?'<span class="pill fav">مفضل</span>':'<span class="pill gray">محفوظ</span>';
 const SPEEDS = [
   {id:'normal', t:'توصيل عادي', e:'من يوم إلى يومين', price:0},
@@ -679,12 +695,20 @@ N2(){ const p=S.picked; return `<div class="sec addr">${head('أضف عنوان 
   <div class="note ok">${ic('check')}تحقّق من بيانات عنوانك ${p.code}</div>
   ${roField('الحي',p.hood)}${roField('الشارع',p.street)}
   <div class="row2">${roField('رقم المبنى',p.bno)}${roField('الرمز البريدي',p.zip)}</div>
-  ${floorField()}</div></div>${afterAddr()}`; },
+  ${floorField()}${saveOpts()}</div></div>${afterAddr()}`; },
 
 L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'}; return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
-R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
+R0(){ if(E) return VIEWS.R0E(); const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
 
-Rc(){ const a=SAVED[2]; return `<div class="sec addr">${head('أكمل بيانات العنوان','هذا العنوان ينقصه رقم المبنى. أكمله لنوصل طلبك.')}
+R0d(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}`, 'mapsheet', true, a.fav?STAR:''); },
+R0E(){ return `<div class="sec addr">${head('عنوان التوصيل','اختر عنوان التوصيل، أو أضف عنوانًا جديدًا.')}
+  <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
+  <div class="adlist">${SAVED.map((a,i)=>`<div class="adcard ${S.saved===i?'on':''}" data-a="selSaved" data-i="${i}"><span class="radio ${S.saved===i?'on':''}"></span>
+    <span class="tx">${a.name?`<span class="nmr"><span class="sm w7">${a.name}</span>${a.fav?STAR:''}</span>`:''}<span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':(a.code&&!a.fav?`<span class="acode">${a.code}</span>`:'')}</span></span>
+    <button class="ed" data-a="editSaved" data-i="${i}" aria-label="تعديل">${ic('pen')}</button></div>`).join('')}
+  <button class="addcard nw" data-a="addNew"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
+  ${instrField()}</div></div>`; },
+Rc(){ const a=E?SAVED[S.saved]:SAVED[2]; return `<div class="sec addr">${head('أكمل بيانات العنوان','هذا العنوان ينقصه رقم المبنى. أكمله لنوصل طلبك.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="field"><span class="label">العنوان الوطني المختصر <span class="opt">(اختياري)</span></span><div class="inp soft"><input value="${a.code}" readonly style="direction:ltr;text-align:right">${ic('file')}</div></div>
   ${mapBlock()}
@@ -773,10 +797,14 @@ function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن ر
       <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.fb}</span></button></div>
     <button class="elink" data-a="email">استخدم بالبريد الإلكتروني</button>
   </div></div></div>`; }
+const saveOpts = () => (E && S.user==='old' && S.adding) ? `<div class="field"><span class="label">اسم العنوان <span class="opt">(اختياري)</span></span>
+  <div class="nchips">${['البيت','العمل','آخر'].map(n=>`<button class="nchip ${S.newName===n?'on':''}" data-a="nname" data-n="${n}">${n}</button>`).join('')}</div>
+  ${S.newName==='آخر'?`<label class="inp"><input id="nnm" placeholder="مثال: بيت أهلي" maxlength="20" value="${S.newCustom||''}"></label>`:''}</div>
+  <button class="favrow" data-a="nfav"><span class="tx"><span class="sm w7">اجعله عنواني المفضل</span><span class="xs c-l">نختاره لك تلقائيًا في طلباتك القادمة</span></span><span class="tog ${S.newFav?'on':''}"></span></button>` : '';
 function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
   <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
-  ${withFloor?floorField():''}${instrField()}</div></div>${afterAddr()}`; }
+  ${withFloor?floorField():''}${instrField()}${saveOpts()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
 function after(){
@@ -788,6 +816,7 @@ function after(){
   const fl = $('#floor'); if(fl) fl.oninput = e => S.floor = e.target.value;
   const ins = $('#instr'); if(ins) ins.oninput = e => S.instr = e.target.value;
   if(LIVE) curPage.querySelectorAll('.map.tap .leaf').forEach(el=>{ const mp=L.map(el,{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],16); tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp); const ctr=()=>{ mp.invalidateSize(); mp.setView([S.loc.lat,S.loc.lng],16,{animate:false}); mp.panBy([0,-27.52],{animate:false}); }; ctr(); setTimeout(ctr,350); });
+  const nnm = $('#nnm'); if(nnm) nnm.oninput = e => S.newCustom = e.target.value;
   const rcb = $('#rcb'); if(rcb) rcb.oninput = e => { e.target.value=e.target.value.replace(/\D/g,''); S.rcBno=e.target.value; };
 }
 
@@ -1052,13 +1081,14 @@ function detailsSheet(){
 }
 
 /* ---------- navigation helpers ---------- */
-function startAddressStep(dir=1){ go(2, S.user==='new'?'N0':(SAVED[S.saved].incomplete?'Rc':'R0'), dir); }
+function startAddressStep(dir=1){ go(2, S.user==='new'?'N0':(E?'R0':(SAVED[S.saved].incomplete?'Rc':'R0')), dir); }
 function back(){
   if(layer.lastElementChild){ closeSheet(); return; }
   if(S.step===1){ go(0,'start',-1); return; }
   if(S.step===2){
-    if(S.screen==='N2'||S.screen==='L2'){ if(S.user==='old'&&S.cameFromSaved){ S.cameFromSaved=false; go(2,'R0',-1); } else { S.screen='N0'; S.picked=null; render(-1); } return; }
-    if(S.screen==='N0'&&S.user==='old'){ go(2,'R0',-1); return; }
+    if(E&&S.user==='old'&&(S.screen==='R0d'||S.screen==='Rc')){ go(2,'R0',-1); return; }
+    if(S.screen==='N2'||S.screen==='L2'){ if(!E&&S.user==='old'&&S.cameFromSaved){ S.cameFromSaved=false; go(2,'R0',-1); } else { S.screen='N0'; S.picked=null; render(-1); } return; }
+    if(S.screen==='N0'&&S.user==='old'){ S.adding=false; go(2,'R0',-1); return; }
     go(1,'login',-1); return; }
   if(S.step===3){ if(E&&S.lastAddr){ go(2,S.lastAddr,-1); return; } startAddressStep(-1); return; }
   if(S.step===4){ go(3,'ship',-1); return; }
@@ -1071,8 +1101,14 @@ function next(){
     if(S.screen==='N0'){ S.addrErr=true; S.ddOpen=false; rerender(); $('#nbox').classList.add('shake'); return; }
     if(S.screen==='N1L') return;
     if(S.screen==='Rc' && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
-    if(S.screen==='Rc'){ SAVED[2].incomplete=false; SAVED[2].code='MNSM3318'; }
-    S.lastAddr=S.screen; loading(b, ()=>go(3,'ship',1), 450); return; }
+    if(E&&S.screen==='R0'&&SAVED[S.saved].incomplete){ go(2,'Rc',1); return; }
+    if(S.screen==='Rc'){ const a=E?SAVED[S.saved]:SAVED[2]; a.incomplete=false; a.code=a.code||'MNSM3318'; }
+    if(E&&S.adding&&(S.screen==='N2'||S.screen==='L2')){ const p=S.picked, w=S.mapPick||{hood:'الشوقية'};
+      const nm = S.newName==='آخر' ? (S.newCustom||'').trim() : (S.newName||'');
+      if(S.newFav) SAVED.forEach(x=>x.fav=false);
+      SAVED.push({name:nm, line:'السعودية - مكة المكرمة - '+(S.screen==='N2'?p.hood:w.hood), code:S.screen==='N2'?p.code:'', fav:S.newFav});
+      S.saved=SAVED.length-1; S.adding=false; }
+    S.lastAddr = (E&&S.user==='old') ? 'R0' : S.screen; loading(b, ()=>go(3,'ship',1), 450); return; }
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
     if(!S.pay && !covered()){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
@@ -1118,6 +1154,11 @@ function act(a, el){
   case 'locateMe': layer.lastElementChild&&layer.lastElementChild._locate&&layer.lastElementChild._locate(); break;
   case 'mapOk': if(LIVE && S.mapPick && S.mapPick.ok===false){ toast('هذا الموقع خارج نطاق التوصيل. حرّك الدبوس داخل مكة المكرمة.'); break; } if(LIVE && S.mapLoc) S.loc=S.mapLoc; closeSheet(()=>{ if(S.screen==='N0'){ S.screen='L2'; S.addrErr=false; S.cameFromSaved = S.user==='old'; render(); } else if(S.screen==='L2') render(); else 0; }); break;
   case 'savedsheet': savedSheet(); break;
+  case 'selSaved': S.saved=+el.dataset.i; rerender(); break;
+  case 'editSaved': S.saved=+el.dataset.i; go(2, SAVED[S.saved].incomplete?'Rc':'R0d', 1); break;
+  case 'addNew': S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.nq=''; S.picked=null; S.mapPick=null; S.addrErr=false; go(2,'N0',1); break;
+  case 'nname': S.newName = S.newName===el.dataset.n ? '' : el.dataset.n; rerender(); if(S.newName==='آخر') setTimeout(()=>{ const n=$('#nnm'); n&&n.focus(); },30); break;
+  case 'nfav': S.newFav=!S.newFav; rerender(); break;
   case 'pickSaved': ov._set(+el.dataset.i); break;
   case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
   case 'newAddr': closeSheet(()=>{ S.screen='N0'; S.nq=''; S.picked=null; render(); }); break;
@@ -1170,7 +1211,7 @@ function act(a, el){
   case 'cpnDel': S.coupon=null; ov._redraw(); renderFoot(); if(S.step===4) rerender(); break;
   }
 }
-function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false}); SAVED[2].incomplete=true; }
+function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false}); SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
 
 phone.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if(!el) return;
