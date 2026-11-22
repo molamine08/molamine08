@@ -152,6 +152,7 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .btn2.t14{font-size:14px;line-height:20px}
 .btn2.soc{background:var(--bg);border-color:transparent}
 .cc.lg{gap:6px;font-size:14px;line-height:20px;color:var(--light);direction:ltr}
+.btn.dis{background:var(--div);color:#bbb;pointer-events:none}
 .elink{align-self:center;font-size:14px;line-height:20px;color:var(--light);text-decoration:underline;text-underline-position:from-font}
 .orline{display:flex;align-items:center;gap:12px;padding:4px 0;font-size:12px;line-height:16px;color:var(--lighter)}
 .orline i{flex:1;height:1px;background:var(--bg)}
@@ -451,6 +452,7 @@ const IMG = {"miniso": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDA
 const LIVE = true && !!window.L;
 const MAPV2 = true;
 const PHONEV2 = false || /[?&]v=b\b/.test(location.search);
+const E = false || /[?&]v=e\b/.test(location.search);
 const ic = (n, cls='') => `<span class="ic ${cls}">${I[n]}</span>`;
 const $ = s => document.querySelector(s);
 const vp = $('#vp'), topbar = $('#topbar'), footer = $('#footer'), layer = $('#layer'), phone = $('#phone');
@@ -510,8 +512,8 @@ function renderTop(){
     <button class="backbtn" data-a="back" aria-label="رجوع">${ic('back')}</button>
     <h1>إتمام الطلب</h1>
     <div class="logo"><img src="${IMG.miniso}" alt="MINISO"></div></div>
-  <div class="stepper">${STEPS.map((l,i)=>{const n=i+1, st=n<S.step?'done':n===S.step?'cur':'todo';
-    return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${n}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`;
+  <div class="stepper">${(E?[[1,'التواصل'],[2,'العنوان والشحن'],[4,'الدفع']]:STEPS.map((l,i)=>[i+1,l])).map(([n,l],i)=>{const st=n<S.step?'done':n===S.step?'cur':'todo';
+    return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${i+1}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`;
 }
 function btnLabel(){
   if(S.step===1) return PHONEV2?'متابعة':'تسجيل الدخول';
@@ -520,14 +522,14 @@ function btnLabel(){
   return 'تأكيد الدفع';
 }
 function renderFoot(){
-  if(!S.step){ footer.hidden = true; return; }
+  if(!S.step || (E && S.step===1)){ footer.hidden = true; return; }
   footer.hidden = false;
   const band = S.step===4 ? `<div class="saving foot">${ic('coins')}وفّرت ${amt(SAVE_BASE+(S.coupon?9.13:0))} في هذا الطلب</div>` : '';
   footer.classList.toggle('sv', !!band);
   footer.innerHTML = `${band}<div class="paybar">
     <button class="summary" data-a="details"><span class="amt big">${ic('riyal','ry')}<span id="tot">${fmt(total())}</span></span>
       <span class="detlink">عرض التفاصيل ${ic('up')}</span></button>
-    <button class="btn" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
+    <button class="btn ${E&&S.screen==='N0'?'dis':''}" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
   if(!band){ footer._bandShown=false; return; }
   if(footer._bandShown) return;
   footer._bandShown=true;
@@ -592,6 +594,14 @@ const mapBlock = (h=182) => `<div class="map tap" data-a="mapsheet" role="button
   <span class="pin">${I.pin}</span><div class="callout"><span class="pill ok">التوصيل متاح هنا</span><span class="ptr">${I.ptr}</span></div>
   ${LIVE?'<i class="gend"></i>':`<div class="glogo"><span>${I.glogo}</span></div>`}</div>`;
 const recipRow = () => `<button class="recip" data-a="recip"><span class="tx">${S.recipient?`المستلم: <b class="w5">${S.recipient.name}</b> · <span dir="ltr">+966 ${S.recipient.phone}</span>`:'سيستلم الطلب شخص آخر؟ أضف اسم المستلم وجواله'}</span>${ic(S.recipient?'pen':'plus','cbtn')}</button>`;
+const shipSec = () => `<div class="sec">
+  <p class="h2">اختر طريقة التوصيل</p>
+  <div class="speeds">${SPEEDS.map(s=>`<button class="speed ${S.speed===s.id?'on':''}" data-a="speed" data-id="${s.id}">
+    <span class="r"><span class="radio"></span><span class="tt"><span class="sm">${s.t}</span><span class="xs">${s.e}</span>${s.badge?`<span class="pill fast">${s.badge}</span>`:''}</span></span>
+    <span class="pg">${s.note?`<span class="xs c-d">${s.note}</span>`:''}${s.price?amtInt(s.price):'<span class="sm c-d">مجاني</span>'}</span></button>`).join('')}</div></div>`;
+const shipInfo = () => `<div class="info"><div class="tg"><p class="tl">${ic('safe')}ضمان وصول الطلبية</p><p class="bd">طلبك محمي بضمان سلة: يصلك طلبك، أو نعيد لك المبلغ كاملًا.</p></div>
+  <div class="marks"><span class="mark">${ic('pkg')}ضمان الوصول</span><span class="mark">${ic('money')}ضمان الاسترداد</span></div></div>`;
+const afterAddr = () => E ? shipSec()+recipRow()+shipInfo() : recipRow();
 const floorField = () => `<div class="field"><span class="label">الدور والشقة <span class="opt">(اختياري)</span></span>
   <label class="inp soft"><input id="floor" placeholder="مثال: الدور 2، شقة 5" value="${S.floor}">${ic('file')}</label></div>`;
 const instrField = () => `<div class="field"><span class="label">تعليمات التوصيل <span class="opt">(اختياري)</span></span>
@@ -605,7 +615,7 @@ start(){ return `<div class="start">
   <div class="sbtns"><button class="btn" data-a="startNew">عميل جديد</button><button class="btn" data-a="startOld">عميل لديه عناوين محفوظة</button></div>
 </div>`; },
 
-login(){ return `<div class="sec" style="gap:20px">${PHONEV2?head('رقم جوالك','نرسل عليه رمز تحقق وتحديثات طلبك، بدون إنشاء حساب.'):head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
+login(){ if(E) return loginE(); return `<div class="sec" style="gap:20px">${PHONEV2?head('رقم جوالك','نرسل عليه رمز تحقق وتحديثات طلبك، بدون إنشاء حساب.'):head('معلومات التواصل','سجِّل دخولك أو أنشئ حسابًا لإتمام طلبك.')}
   <div style="display:flex;flex-direction:column;gap:24px">
   <div class="field"><span class="label w4">رقم الجوال</span>
     <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg">+966</span>
@@ -621,6 +631,7 @@ login(){ return `<div class="sec" style="gap:20px">${PHONEV2?head('رقم جوا
   </div></div></div>`; },
 
 N0(){ const pk = S.picked; const results = S.nq.length>=2 ? NATIONAL.filter(n=>n.code.includes(S.nq)) : [];
+  if(E) return N0E(results);
   return `<div class="sec addr">${head('أضف عنوان التوصيل','أدخل عنوانك الوطني المختصر أو حدّد موقعك لنعرض لك شركات الشحن المتاحة.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div style="display:flex;flex-direction:column;gap:8px">
@@ -650,7 +661,7 @@ N2(){ const p=S.picked; return `<div class="sec addr">${head('أضف عنوان 
   <div class="note ok">${ic('check')}تحقّق من بيانات عنوانك ${p.code}</div>
   ${roField('الحي',p.hood)}${roField('الشارع',p.street)}
   <div class="row2">${roField('رقم المبنى',p.bno)}${roField('الرمز البريدي',p.zip)}</div>
-  ${floorField()}</div></div>${recipRow()}`; },
+  ${floorField()}</div></div>${afterAddr()}`; },
 
 L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'}; return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
 R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0); },
@@ -663,9 +674,10 @@ Rc(){ const a=SAVED[2]; return `<div class="sec addr">${head('أكمل بيان�
   ${roField('الحي',a.hood)}${roField('الشارع',a.street)}
   <div class="row2"><div class="field"><span class="label">رقم المبنى</span><label class="inp ${S.rcErr?'err':''}"><input id="rcb" inputmode="numeric" maxlength="4" placeholder="مثال: 2451" value="${S.rcBno}"></label>
     ${S.rcErr?`<div class="errtxt">${ic('alert')}أدخل رقم المبنى</div>`:''}</div>${roField('الرمز البريدي',a.zip)}</div>
-  ${floorField()}</div></div>${recipRow()}`; },
+  ${floorField()}</div></div>${afterAddr()}`; },
 
-ship(){ return `<div class="sec">
+ship(){ return shipSec()+shipInfo(); },
+_unused(){ return `<div class="sec">
   <p class="h2">اختر طريقة التوصيل</p>
   <div class="speeds">${SPEEDS.map(s=>`<button class="speed ${S.speed===s.id?'on':''}" data-a="speed" data-id="${s.id}">
     <span class="r"><span class="radio"></span><span class="tt"><span class="sm">${s.t}</span><span class="xs">${s.e}</span>${s.badge?`<span class="pill fast">${s.badge}</span>`:''}</span></span>
@@ -716,10 +728,36 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
   <p class="xs c-l">${SPEEDS.find(s=>s.id===S.speed).t} · ${SPEEDS.find(s=>s.id===S.speed).e}</p>
   <button class="btn" data-a="restart" style="flex:none;width:100%;margin-top:12px">تجربة من جديد</button></div>`; }
 };
+function N0E(results){ return `<div class="sec addr">${head('أضف عنوان التوصيل','حدّد موقعك بضغطة، أو أدخل عنوانك الوطني المختصر.')}
+  <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
+  <div class="opts"><button class="optrow" data-a="locate"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.gps}</span></span><span class="txt"><span class="t1">موقعك الحالي</span></span>${ic('left','arr')}</button>
+  <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">موقعك على الخريطة</span></span>${ic('left','arr')}</button></div>
+  <div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div class="field"><span class="label">العنوان الوطني المختصر</span>
+      <div class="ddwrap"><label class="inp" id="nbox"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('file')}</label>
+      ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div></div>
+    ${S.smsSent?`<div class="note ok">${ic('check')}أرسلنا عنوانك الوطني المختصر إلى جوالك برسالة نصية.</div>`:`<div class="sms"><span>ما تعرف عنوانك المختصر؟</span><b data-a="sms">أرسله لجوالك</b></div>`}
+  </div></div></div>`; }
+function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن رقم جوالك','لنرسل عليه رمز تحقق وتحديثات طلبك')}
+  <div style="display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;flex-direction:column;gap:16px">
+  <div class="field"><span class="label w4">رقم الجوال</span>
+    <label class="inp phonein ${S.loginErr?'err':''}" id="phonebox"><span class="cc lg">+966</span>
+    <input id="phonein" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${S.phone}" autocomplete="tel"></label>
+    ${S.loginErr?`<div class="errtxt">${ic('alert')}${S.loginErr}</div>`:''}</div>
+  <button class="btn" id="mainbtn" data-a="next" style="flex:none">متابعة</button></div>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="orline"><i></i>أو تابع بحسابك في<i></i></div>
+    <div style="display:flex;gap:12px"><button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:17px;height:20px">${I.apple}</span></button>
+      <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.google}</span></button>
+      <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.fb}</span></button></div>
+    <button class="elink" data-a="email">استخدم بالبريد الإلكتروني</button>
+  </div></div></div>`; }
 function detailsView(line, editAct, withFloor){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
   <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="sm w7">عنوان التوصيل</span><span class="sm">${line}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
-  ${withFloor?floorField():''}${instrField()}</div></div>${recipRow()}`; }
+  ${withFloor?floorField():''}${instrField()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
 function after(){
@@ -1003,7 +1041,7 @@ function back(){
     if(S.screen==='N0'&&S.user==='old'){ go(2,'R0',-1); return; }
     go(1,'login',-1); return; }
   if(S.step===3){ startAddressStep(-1); return; }
-  if(S.step===4){ go(3,'ship',-1); return; }
+  if(S.step===4){ if(E){ S.lastAddr?go(2,S.lastAddr,-1):startAddressStep(-1); return; } go(3,'ship',-1); return; }
 }
 function next(){
   const b=$('#mainbtn');
@@ -1014,7 +1052,7 @@ function next(){
     if(S.screen==='N1L') return;
     if(S.screen==='Rc' && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
     if(S.screen==='Rc'){ SAVED[2].incomplete=false; SAVED[2].code='MNSM3318'; }
-    loading(b, ()=>go(3,'ship',1), 450); return; }
+    S.lastAddr=S.screen; loading(b, ()=>E?go(4,'pay',1):go(3,'ship',1), 450); return; }
   if(S.step===3){ go(4,'pay',1); return; }
   if(S.step===4){
     if(!S.pay && !covered()){ S.payErr=true; rerender(); const e=$('#payerr'); curPage.scrollTo({top:Math.max(0,e.offsetTop-140),behavior:'smooth'}); e.classList.add('shake'); return; }
@@ -1032,7 +1070,7 @@ function act(a, el){
   case 'startOld': S.user='old'; reset(); go(1,'login',1); break;
   case 'restart': reset(); go(0,'start',-1); break;
   case 'back': back(); break;
-  case 'goto': { const n=+el.dataset.n; if(n===1) go(1,'login',-1); else if(n===2) startAddressStep(-1); else if(n===3) go(3,'ship',-1); } break;
+  case 'goto': { const n=+el.dataset.n; if(n===1) go(1,'login',-1); else if(n===2){ if(E&&S.lastAddr) go(2,S.lastAddr,-1); else startAddressStep(-1); } else if(n===3) go(3,'ship',-1); } break;
   case 'next': next(); break;
   case 'details': detailsSheet(); break;
   case 'close': closeSheet(); break;
