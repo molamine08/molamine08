@@ -275,7 +275,7 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .info .tl .ic{width:16px;height:16px}
 .info .bd{font-size:14px;line-height:20px;color:var(--lighter)}
 .marks{display:flex;align-items:center;gap:12px}
-.mark{display:flex;align-items:center;gap:4px;font-size:12px;line-height:16px;color:var(--lighter)}
+.mark{display:flex;align-items:center;gap:4px;font-size:12px;line-height:16px;color:#aaa}
 .mark .ic{width:14px;height:14px}
 .plogo{height:16px;width:32px;position:relative;overflow:hidden}
 .plogo span{position:absolute}
@@ -617,7 +617,7 @@ const shipSec = () => `<div class="sec">
   <div class="speeds">${SPEEDS.map(s=>`<button class="speed ${S.speed===s.id?'on':''}" data-a="speed" data-id="${s.id}">
     <span class="r"><span class="radio"></span><span class="tt"><span class="sm">${s.t}</span><span class="xs">${s.e}</span>${s.badge?`<span class="pill fast">${s.badge}</span>`:''}</span></span>
     <span class="pg">${s.note?`<span class="xs c-d">${s.note}</span>`:''}${s.price?amtInt(s.price):'<span class="sm c-d">مجاني</span>'}</span></button>`).join('')}</div></div>`;
-const shipInfo = () => `<div class="info"><div class="tg"><p class="tl">${ic('safe')}ضمان وصول الطلبية</p><p class="bd">طلبك محمي بضمان سلة: يصلك طلبك، أو نعيد لك المبلغ كاملًا.</p></div>
+const shipInfo = () => `<div class="info"><div class="tg"><p class="bd">طلبك محمي بضمان سلة: يصلك طلبك، أو نعيد لك المبلغ كاملًا.</p></div>
   <div class="marks"><span class="mark">${ic('pkg')}ضمان الوصول</span><span class="mark">${ic('money')}ضمان الاسترداد</span></div></div>`;
 const afterAddr = () => E ? '' : recipRow();
 const floorField = () => `<div class="field"><span class="label">الدور والشقة <span class="opt">(اختياري)</span></span>
