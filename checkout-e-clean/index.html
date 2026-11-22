@@ -54,7 +54,8 @@ p{margin:0}
 /* ===== CLEAN (side version): filled groups, no strokes, two text levels, no tags ===== */
 body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .phone,.clean .page{background:#fff}
-.clean .topbar{border-bottom:1px solid #f0f0f0}
+/* trial: rounded top and bottom bars, hairline that follows the curve */
+.clean .topbar{border-bottom:0;border-radius:0 0 24px 24px;box-shadow:0 1px 0 0 #ececec,0 0 0 1px #f2f2f2}
 .clean .page{gap:32px}
 .clean .sec,.clean .sec.addr{padding:8px 20px 0;gap:20px}
 .clean .h2{font-size:22px;line-height:32px;font-weight:700}
@@ -134,7 +135,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .erow+.erow{border-top:1px solid #e9e9e9}
 .clean .smn.w5{font-size:18px;font-weight:700}
 .clean .acksec{background:none;padding:0 36px}
-.clean .footer{box-shadow:none;border-top:1px solid #f0f0f0;border-radius:0}
+.clean .footer{box-shadow:0 -1px 0 0 #ececec,0 0 0 1px #f2f2f2;border-top:0;border-radius:24px 24px 0 0;overflow:hidden}
 .clean .footer{padding:12px 20px 14px;gap:12px}
 .clean .footer.sv{padding-top:0;gap:0}
 .clean .footer.sv .paybar{margin:0 -20px -14px;padding:4px 20px 14px;border-radius:0;box-shadow:none;border-top:0;background:transparent}
