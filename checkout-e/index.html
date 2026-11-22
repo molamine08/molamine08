@@ -61,8 +61,9 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .sub{display:none}
 .clean .label{font-size:15px;line-height:22px;font-weight:700}
 .clean .label .opt{font-weight:400}
-.clean .inp,.clean .inp.soft{height:52px;padding:0 16px;border:1.5px solid transparent;background:var(--fill);border-radius:14px}
+.clean .inp,.clean .inp.soft{height:48px;padding:0 16px;border:1.5px solid transparent;background:var(--fill);border-radius:12px}
 .clean .inp input,.clean .inp textarea{font-size:16px}
+@supports (-webkit-touch-callout:none){.clean .inp input{padding-top:5px}.clean .inp textarea{padding-top:4px}.clean .cvv{padding-top:13px;padding-bottom:7px}}
 .clean .inp:focus-within{border-color:var(--dark);background:#fff;box-shadow:none}
 .clean .inp.err{border-color:var(--danger)}
 .clean .inp.ta{height:104px;padding:14px 16px}
@@ -71,7 +72,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .tab.on{font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .clean .opts{border:0;background:var(--fill);border-radius:20px}
 .clean .optrow{min-height:64px;padding:0 16px;gap:14px}
-.clean .optrow+.optrow{border-top:1px solid #e9e9e9;margin:0 16px;padding:0}
+.clean .optrow+.optrow{border-top:1px solid #e9e9e9;margin:0 16px;padding:0;width:calc(100% - 32px)}
 .clean .optrow .circ{width:24px;height:24px;background:none}
 .clean .optrow .circ .ic{width:22px!important;height:22px!important}
 .clean .optrow .t1{font-size:16px;font-weight:700}
@@ -111,6 +112,12 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .tile{border:2px solid transparent;background:var(--fill);border-radius:18px;height:88px}
 .clean .tile.on{border-color:var(--dark);background:#fff}
 .clean .tile .tl{font-size:13px;font-weight:700}
+.clean .tile[data-id=add]{background:#fff;border:1.5px dashed #d2d2d2;align-items:center;justify-content:center}
+.clean .tile[data-id=add] .tl{color:#9a9a9a;font-weight:500;font-size:14px}
+.tile .tadd{display:none}
+.clean .tile[data-id=add]{gap:6px;flex-direction:column}
+.clean .tile[data-id=add] .tadd{display:flex;color:#9a9a9a}
+.clean .tile[data-id=add] .tadd .ic{width:20px;height:20px}
 .clean .tamcard{border:0;background:var(--fill);border-radius:20px}
 .clean .card,.clean .points{border:0;box-shadow:none;background:var(--fill);border-radius:20px;padding:16px}
 .clean .wicon{background:none;border:0;padding:0}
@@ -125,8 +132,11 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .smn.w5{font-size:18px;font-weight:700}
 .clean .acksec{background:none;padding:0 20px}
 .clean .footer{box-shadow:none;border-top:1px solid #f0f0f0;border-radius:0}
-.clean .btn{height:52px;min-height:52px;border-radius:99px;font-weight:700}
-.clean .btn2.soc{height:52px;border-radius:99px}
+.clean .footer{padding:12px 20px 14px;gap:12px}
+.clean .footer.sv{padding-top:0}
+.clean .footer.sv .paybar{margin:0 -20px -14px;padding:12px 20px 14px}
+.clean .btn{height:48px;min-height:48px;border-radius:99px;font-weight:700}
+.clean .btn2.soc{height:48px;border-radius:99px}
 .clean .st .dot{border:0;background:var(--fill)}
 .clean .st.cur .dot{background:var(--p)}
 .clean .adrow{border:0;background:var(--fill);border-radius:16px;padding:14px 16px}
@@ -165,10 +175,13 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
+.clean .st>span:not(.dot){position:relative;top:1px}
+.clean .st.cur{font-weight:700}
 .clean .elink{margin-top:12px}
 .clean .tabs{border-radius:999px}
 .clean .tab{border-radius:999px}
-.clean .backbtn{border:0;background:var(--fill);color:var(--dark)}
+.clean .backbtn{border:0;background:var(--fill);color:var(--dark);width:34px;height:34px;padding:7px;display:flex;align-items:center;justify-content:center}
+.clean .backbtn .ic{width:20px;height:20px}
 .clean .page>.sec:first-child{padding-top:20px}
 .clean .sec,.clean .sec.addr{gap:16px}
 .clean .sec[style*="gap:20px"]{gap:16px!important}
@@ -209,13 +222,13 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .items .vr{font-size:13px}
 .clean .sum{font-size:15px;line-height:24px}
 .clean .kv{font-size:14px;line-height:22px}
-.clean .cpnbtn{height:52px;border-radius:14px;font-weight:700;background:var(--dark);color:#fff}
+.clean .cpnbtn{height:48px;border-radius:12px;font-weight:700;background:var(--dark);color:#fff}
 .clean .card .inp,.clean .points .inp{background:#fff}
 .clean .card .inp:focus-within{border-color:var(--dark)}
 .clean .acklist{font-size:15px;line-height:24px;gap:10px}
 .clean .ov.full.msheet .mfull{border-radius:32px 32px 0 0}
 .clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
-.clean .mpanel .btn{height:52px;border-radius:99px}
+.clean .mpanel .btn{height:48px;border-radius:99px}
 
 
 .mbtns .tlink{height:40px;font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:3px}
@@ -759,7 +772,8 @@ function refreshTotal(){ const t=$('#tot'); if(t) t.textContent = fmt(total()); 
 
 /* ---------- hide-on-scroll title row ---------- */
 let barHidden=false;
-function showBar(on){ barHidden=!on; const tr=topbar.querySelector('.title-row'); topbar.style.transform = on||!tr ? 'none' : `translateY(-${tr.offsetHeight}px)`; }
+function showBar(on){ barHidden=!on; const tr=topbar.querySelector('.title-row'); const h=on||!tr?0:tr.offsetHeight; topbar.style.transform = h ? `translateY(-${h}px)` : 'none';
+  if(CLEAN && curPage){ curPage.style.transition='translate .25s var(--ease)'; curPage.style.translate = h ? `0 -${h}px` : '0 0'; } }
 function onPageScroll(e){ const pg=e.currentTarget, max=pg.scrollHeight-pg.clientHeight;
   const y=Math.max(0,Math.min(max,pg.scrollTop)), d=y-(pg._y||0); pg._y=y;
   if(y<=8){ pg._up=0; if(barHidden) showBar(true); return; }
@@ -915,7 +929,7 @@ pay(){ const tiles = [
   <p class="h2">اختر طريقة الدفع</p>
   ${S.payErr&&!S.pay&&!covered()?`<div class="note err" id="payerr">${ic('alert')}اختر طريقة الدفع لإكمال طلبك</div>`:''}
   ${covered()?`<div class="note ok">${ic('check')}رصيدك ونقاطك تغطي الطلب كاملًا، لا تحتاج وسيلة دفع.</div>`:''}
-  <div class="methods ${covered()?'off':''}">${tiles.map(t=>`<button class="tile ${S.pay===t.id?'on':''}" data-a="tile" data-id="${t.id}"><span class="tl">${t.t}</span>${t.img?`<span class="lgo"><img class="${t.ct?'ct':''}" src="${t.img}" alt=""></span>`:''}${S.pay===t.id?`<span class="tick">${ic('check')}</span>`:''}</button>`).join('')}</div>
+  <div class="methods ${covered()?'off':''}">${tiles.map(t=>`<button class="tile ${S.pay===t.id?'on':''}" data-a="tile" data-id="${t.id}">${t.id==='add'?`<span class="tadd">${ic('add')}</span>`:''}<span class="tl">${t.t}</span>${t.img?`<span class="lgo"><img class="${t.ct?'ct':''}" src="${t.img}" alt=""></span>`:''}${S.pay===t.id?`<span class="tick">${ic('check')}</span>`:''}</button>`).join('')}</div>
   ${S.pay==='tamara'&&!covered()?`<div class="tamcard"><div class="tx"><p class="sm">4 دفعات شهرية، ${amt(total()/4)} /شهريًا</p><p class="sm c-ll">بدون رسوم تأخير.</p></div><img src="${IMG.tamara}" alt="تمارا"></div>`:''}
   ${S.pay==='stc'&&!covered()?`<p class="tamnote">سيصلك إشعار في تطبيق STC Pay لتأكيد الدفع.</p>`:''}
   <p class="smn w5" style="margin-top:4px">استخدم رصيدك ونقاطك</p>

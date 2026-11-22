@@ -112,6 +112,12 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .tile{border:2px solid transparent;background:var(--fill);border-radius:18px;height:88px}
 .clean .tile.on{border-color:var(--dark);background:#fff}
 .clean .tile .tl{font-size:13px;font-weight:700}
+.clean .tile[data-id=add]{background:#fff;border:1.5px dashed #d2d2d2;align-items:center;justify-content:center}
+.clean .tile[data-id=add] .tl{color:#9a9a9a;font-weight:500;font-size:14px}
+.tile .tadd{display:none}
+.clean .tile[data-id=add]{gap:6px;flex-direction:column}
+.clean .tile[data-id=add] .tadd{display:flex;color:#9a9a9a}
+.clean .tile[data-id=add] .tadd .ic{width:20px;height:20px}
 .clean .tamcard{border:0;background:var(--fill);border-radius:20px}
 .clean .card,.clean .points{border:0;box-shadow:none;background:var(--fill);border-radius:20px;padding:16px}
 .clean .wicon{background:none;border:0;padding:0}
@@ -923,7 +929,7 @@ pay(){ const tiles = [
   <p class="h2">اختر طريقة الدفع</p>
   ${S.payErr&&!S.pay&&!covered()?`<div class="note err" id="payerr">${ic('alert')}اختر طريقة الدفع لإكمال طلبك</div>`:''}
   ${covered()?`<div class="note ok">${ic('check')}رصيدك ونقاطك تغطي الطلب كاملًا، لا تحتاج وسيلة دفع.</div>`:''}
-  <div class="methods ${covered()?'off':''}">${tiles.map(t=>`<button class="tile ${S.pay===t.id?'on':''}" data-a="tile" data-id="${t.id}"><span class="tl">${t.t}</span>${t.img?`<span class="lgo"><img class="${t.ct?'ct':''}" src="${t.img}" alt=""></span>`:''}${S.pay===t.id?`<span class="tick">${ic('check')}</span>`:''}</button>`).join('')}</div>
+  <div class="methods ${covered()?'off':''}">${tiles.map(t=>`<button class="tile ${S.pay===t.id?'on':''}" data-a="tile" data-id="${t.id}">${t.id==='add'?`<span class="tadd">${ic('add')}</span>`:''}<span class="tl">${t.t}</span>${t.img?`<span class="lgo"><img class="${t.ct?'ct':''}" src="${t.img}" alt=""></span>`:''}${S.pay===t.id?`<span class="tick">${ic('check')}</span>`:''}</button>`).join('')}</div>
   ${S.pay==='tamara'&&!covered()?`<div class="tamcard"><div class="tx"><p class="sm">4 دفعات شهرية، ${amt(total()/4)} /شهريًا</p><p class="sm c-ll">بدون رسوم تأخير.</p></div><img src="${IMG.tamara}" alt="تمارا"></div>`:''}
   ${S.pay==='stc'&&!covered()?`<p class="tamnote">سيصلك إشعار في تطبيق STC Pay لتأكيد الدفع.</p>`:''}
   <p class="smn w5" style="margin-top:4px">استخدم رصيدك ونقاطك</p>
