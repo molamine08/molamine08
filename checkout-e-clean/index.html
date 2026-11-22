@@ -176,6 +176,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
+.clean .page.anim{transition:transform .5s cubic-bezier(.32,.72,0,1),opacity .5s cubic-bezier(.32,.72,0,1),translate .25s var(--ease)}
 .clean .st>span:not(.dot){position:relative;top:1px}
 .clean .st.cur{font-weight:700}
 .clean .dn{transform:none}
@@ -797,8 +798,8 @@ function show(html, dir=0){
     pg.style.transform = `translateX(${dir>0?-w:w}px)`;
     vp.appendChild(pg); pg.getBoundingClientRect();
     pg.classList.add('anim'); old.classList.add('anim');
-    pg.style.transform = 'translateX(0)'; old.style.transform = `translateX(${dir>0?w:-w}px)`;
-    setTimeout(()=>old.remove(), 320);
+    const k = CLEAN ? .3 : 1; pg.style.transform = 'translateX(0)'; old.style.transform = `translateX(${dir>0?w*k:-w*k}px)`; if(CLEAN){ old.style.opacity='.55'; pg.style.zIndex='1'; }
+    setTimeout(()=>old.remove(), CLEAN?540:320);
   } else { if(curPage) curPage.remove(); vp.appendChild(pg); }
   curPage = pg;
   showBar(true); pg._y=0; pg.addEventListener('scroll', onPageScroll, {passive:true});
