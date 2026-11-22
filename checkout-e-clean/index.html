@@ -203,7 +203,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .mfull .handle.mh::before,.clean .mfull .handle.mh::after{content:"";position:absolute;top:8px;width:19px;height:5px;margin:0;border-radius:3px;background:#b3b3b3;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
 .clean .mfull .handle.mh::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
 .clean .mfull .handle.mh::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
-.clean .handle{width:96px;height:20px;background:none;margin:-6px auto -6px;align-self:center}
+.clean .handle{width:96px;height:20px;background:none;margin:-6px auto -6px;align-self:center;cursor:pointer}
 .clean .handle::before,.clean .handle::after{content:"";position:absolute;inset:auto;top:8px;width:19px;height:5px;border-radius:3px;background:#d6d6d6;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
 .clean .handle::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
 .clean .handle::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
@@ -1486,6 +1486,7 @@ function act(a, el){
 function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false,fromFar:false,mapFar:false,otpTo:'',otpAt:0,otpVal:'',otpErr:false}); S.loc = S.user==='old' ? {lat:21.4105,lng:39.8680} : {lat:21.3895,lng:39.8275}; SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
 
 phone.addEventListener('click', e => {
+  if(CLEAN && e.target.closest('.ov.show .handle')){ closeSheet(); return; }
   const el = e.target.closest('[data-a]'); if(!el) return;
   if(el.dataset.a==='close' && !e.target.closest('.xbtn,.mback') && el!==e.target) return;
   act(el.dataset.a, el);
