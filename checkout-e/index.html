@@ -33,6 +33,13 @@ p{margin:0}
 @media (max-width:500px){html,body{background:#fff}}
 .ov.full .mfull{position:absolute;inset:0;background:var(--bg);overflow:hidden;transform:translateY(100%);transition:transform .35s var(--sheet)}
 .ov.full.show .mfull{transform:none}
+.ov.full.msheet .mfull{top:48px;border-radius:24px 24px 0 0}
+.ov.full.msheet .mmap{border-radius:24px 24px 0 0}
+.mfull .handle.mh{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:7;width:120px;height:24px;margin:0;background:none;touch-action:none;cursor:grab}
+.mfull .handle.mh::after{content:"";position:absolute;left:50%;top:8px;width:40px;height:5px;margin-left:-20px;border-radius:3px;background:rgba(0,0,0,.25)}
+.ov.full.msheet .mhead{padding-top:24px}
+.mback.mx{width:44px;height:44px;align-items:center;justify-content:center;font-size:24px;line-height:1;color:var(--dark)}
+
 .mmap{position:absolute;inset:0;overflow:hidden;touch-action:none}
 .mhead{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:20px}
 .mhead .msrch{position:relative;flex:1;min-width:0}
@@ -785,7 +792,7 @@ function openSheet(html, cls=''){
 function dragToClose(ov, sh){
   const scrim=ov.querySelector('.scrim'); let st=null;
   const fits=()=>sh.scrollHeight<=sh.clientHeight+1;
-  const zone=e=>!e.target.closest('input,textarea,.map,.methods,.cmenu') && (e.target.closest('.handle,.shead') || fits() || sh.scrollTop<=0);
+  const zone=e=> sh.classList.contains('mfull') ? !!e.target.closest('.handle') : (!e.target.closest('input,textarea,.map,.methods,.cmenu') && (e.target.closest('.handle,.shead') || fits() || sh.scrollTop<=0));
   setTimeout(()=>{ if(fits()) sh.style.touchAction='none'; sh.querySelectorAll('.handle,.shead').forEach(n=>n.style.touchAction='none'); },400);
   sh.addEventListener('pointerdown',e=>{ if(e.button>0||!zone(e)) return; st={y:e.clientY,t:Date.now(),dy:0,on:false,id:e.pointerId}; });
   sh.addEventListener('pointermove',e=>{ if(!st||e.pointerId!==st.id) return; const k=parseFloat(phone.dataset.scale||1), dy=(e.clientY-st.y)/k;
@@ -829,10 +836,11 @@ function liveMapFull(){
      <div class="mtip" id="mtip"><b><span>طلبك يوصل هنا</span></b><i>${I.ptr.replace(/#00AF6C/i,'currentColor')}</i></div>
      <span class="pin">${I.pin}</span><i class="pshadow"></i>
      <button class="locate" data-a="locateMe" aria-label="موقعي">${I.gps}</button></div>
-   <div class="mhead"><button class="mback" data-a="close" aria-label="رجوع">${ic('back')}</button><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
+   <div class="mhead"><button class="mback mx" data-a="close" aria-label="إغلاق">×</button><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
    <div class="mpanel">
      <div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>
-     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button></div></div></div>`,'full');
+     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button></div></div><div class="handle mh"></div></div>`,'full msheet');
+  dragToClose(ov, ov.querySelector('.mfull'));
   const m=$('#dragmap'), pin=m.querySelector('.pin'), tip=$('#mtip'), N=$('#mapname'), A=$('#mapaddr'), OK=$('#mapok'), B=$('#mapbtn'), q=$('#mapq'), res=$('#mres');
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
   tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp);
