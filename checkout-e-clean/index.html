@@ -222,6 +222,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .handle::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
 .clean .shead{padding-bottom:16px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;gap:12px}
 .clean .shead .h2{font-size:20px;line-height:28px}
+.clean .adov .shead{border-bottom:0;padding-bottom:0;margin-bottom:8px;min-height:32px;align-items:center}
 .clean .xbtn{width:32px;height:32px;flex:none;border-radius:99px;background:var(--fill);font-size:20px;color:var(--dark)}
 .clean .shead+p{margin-top:0!important;font-size:14px;line-height:22px}
 .clean .sheet>.btn{margin-top:8px;flex:none}
@@ -1220,11 +1221,11 @@ function mapSheet(){
   requestAnimationFrame(()=>{ apply(); show(); });
 }
 function savedSheet(){ let sel=S.saved;
-  const draw=()=>`${sheetHead('اختر عنوان التوصيل')}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
+  const draw=()=>`${sheetHead('اختر عنوان التوصيل', !CLEAN)}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
     <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span>${ic('pen')}</button>`).join('')}
     <button class="addcard nw" data-a="newAddr"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
-  const ov=openSheet(draw()); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
+  const ov=openSheet(draw(), 'adov'); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
 }
 const ACK_ART = `<svg viewBox="0 0 120 104" width="120" height="104" aria-hidden="true">
   <circle cx="60" cy="54" r="46" fill="#E8F8F2"/>
