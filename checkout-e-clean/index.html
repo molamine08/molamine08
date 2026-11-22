@@ -137,6 +137,19 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .addcard{border:0;background:var(--fill)}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
+.clean .ackov .sheet{gap:0;padding-bottom:20px}
+.clean .ackx{display:flex;justify-content:flex-end;margin-top:4px}
+.clean .ackhero{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:-20px}
+.clean .ackhero svg{margin-bottom:12px}
+.clean .ackeye{font-size:13px;line-height:20px;font-weight:700;color:var(--succ);margin-bottom:4px}
+.clean .ackhero .h2{font-size:22px;line-height:32px}
+.clean .ackdesc{font-size:15px;line-height:24px;color:var(--light);margin-top:8px;max-width:340px}
+.clean .ackbox{background:var(--fill);border-radius:20px;padding:4px 16px;margin-top:20px}
+.clean .akr{display:flex;gap:12px;align-items:flex-start;padding:14px 0;font-size:15px;line-height:24px;color:var(--dark)}
+.clean .akr+.ackrow{border-top:1px solid #e6e6e6}
+.clean .akr .ic{width:22px;height:22px;flex:none;margin-top:1px}
+.clean .acklink{align-self:center;margin:14px 0 16px;font-size:14px;line-height:20px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:4px}
+
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
 .clean .tabs{border-radius:999px}
@@ -1129,7 +1142,23 @@ function savedSheet(){ let sel=S.saved;
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
   const ov=openSheet(draw()); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
 }
+const ACK_ART = `<svg viewBox="0 0 120 104" width="120" height="104" aria-hidden="true">
+  <circle cx="60" cy="54" r="46" fill="#E8F8F2"/>
+  <g transform="rotate(-6 60 54)"><rect x="36" y="20" width="48" height="62" rx="8" fill="#fff" stroke="#333" stroke-width="2"/>
+  <rect x="44" y="32" width="26" height="4" rx="2" fill="#333"/><rect x="44" y="42" width="32" height="3" rx="1.5" fill="#cfcfcf"/>
+  <rect x="44" y="50" width="28" height="3" rx="1.5" fill="#cfcfcf"/><rect x="44" y="58" width="30" height="3" rx="1.5" fill="#cfcfcf"/>
+  <path d="M45 70c4-4 7 3 11-1s6 2 10-1" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></g>
+  <circle cx="84" cy="74" r="14" fill="#00AF6C" stroke="#fff" stroke-width="3"/><path d="M77.5 74.5l4.5 4.5 8.5-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M24 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#FFC93C"/><path d="M98 18l1.5 3.5 3.5 1.5-3.5 1.5-1.5 3.5-1.5-3.5-3.5-1.5 3.5-1.5z" fill="#FFC93C"/><circle cx="100" cy="44" r="3" fill="#BAF3E6"/></svg>`;
 function ackSheet(){
+  if(CLEAN){ openSheet(`<div class="handle"></div><div class="ackx"><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
+    <div class="ackhero">${ACK_ART}<p class="ackeye">إقرار قبل الدفع</p><p class="h2">قبل ما تدفع، خلّنا نتفق</p>
+    <p class="ackdesc">بضغطك على «أوافق» تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر. هذه أهم نقاطها:</p></div>
+    <div class="ackbox"><div class="akr">${ic('money')}<span>تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></div>
+     <div class="akr">${ic('gift')}<span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></div>
+     <div class="akr">${ic('pkg')}<span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></div></div>
+    <button class="acklink" data-a="ackFull">اقرأ السياسة كاملة</button>
+    <button class="btn" data-a="ackOk" style="flex:none">أوافق وأكمل الدفع</button>`, 'ackov'); return; }
   openSheet(`${sheetHead('الموافقة على سياسة المتجر')}<p class="sm c-l" style="margin-top:-8px">لإتمام الطلب، وافق على سياسة الاستبدال والاسترجاع والتوصيل.</p>
   <ul class="acklist"><li>الاستبدال والاسترجاع خلال المدة التي يحددها المتجر من تاريخ الاستلام.</li><li>المنتج يُعاد بحالته الأصلية وفي تغليفه.</li><li>مدة التوصيل تبدأ من تأكيد الطلب.</li></ul>
   <button class="btn big" data-a="ackOk" style="flex:none">أوافق</button>`);
@@ -1358,6 +1387,7 @@ function act(a, el){
     if(n.length<3||!/^3\d{14}$/.test(v)){ $('#ierr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل اسم المنشأة، ورقمًا ضريبيًا من 15 رقمًا يبدأ بـ 3</div>`; break; }
     S.invoice={name:n, vat:v}; closeSheet(()=>rerender()); } break;
   case 'ack': S.ack=!S.ack; if(S.ack) S.ackErr=false; rerender(); break;
+  case 'ackFull': toast('صفحة السياسة الكاملة غير مفعّلة في هذا النموذج.'); break;
   case 'ackOk': S.ack=true; S.ackErr=false; closeSheet(()=>{ rerender(); next(); }); break;
   case 'cpnApply': { const v=($('#cpn').value||'').trim().toLowerCase(); if(!v){ S.cpnErr='أدخل رمز الكوبون'; } else if(v==='summer'){ S.coupon='summer'; S.cpnErr=''; 0; } else S.cpnErr='هذا الكوبون غير صالح أو منتهي.';
     ov._redraw(); renderFoot(); if(S.step===4) rerender(); } break;
