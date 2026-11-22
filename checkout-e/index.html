@@ -137,6 +137,19 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .addcard{border:0;background:var(--fill)}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
+.clean .otpmeta{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:-8px}
+.clean .otpmeta p{font-size:15px;line-height:24px;color:var(--light)}
+.clean .otpmeta b{color:var(--dark);font-weight:700}
+.clean .otpchg{font-size:14px;line-height:20px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:4px}
+.clean .otpboxes{position:relative;display:flex;gap:12px;direction:ltr;margin-top:8px}
+.clean .ob{flex:1;height:64px;border-radius:16px;background:var(--fill);border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;font-family:"InterNum",sans-serif;font-size:26px;font-weight:700;color:var(--dark);transition:border-color .15s,background .15s}
+.clean .otpboxes:focus-within .ob.cur{border-color:var(--dark);background:#fff}
+.clean .otpboxes.err .ob{border-color:var(--danger)}
+.clean .otpboxes input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;caret-color:transparent}
+.clean .otpre{font-size:14px;line-height:20px;color:var(--light)}
+.clean .otpre b{color:var(--dark);font-weight:700}
+.clean .otpre button{font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:4px}
+
 .clean .ackov .sheet{gap:0;padding:8px 24px 28px}
 .clean .akx{display:flex;justify-content:flex-end;margin-top:6px;height:32px}
 .clean .akart{display:flex;justify-content:center;margin:-8px 0 16px}
@@ -148,10 +161,11 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .aksum li::marker{color:#b5b5b5}
 .clean .akmore{align-self:flex-start;margin-top:16px;font-size:13px;line-height:20px;color:var(--dark);font-weight:500}
 .clean .akmore span{color:#a6a6a6;font-weight:400}
-.clean .akbtn{flex:none;align-self:center;width:auto;padding:0 32px;margin-top:28px}
+.clean .akbtn{flex:none;align-self:stretch;width:100%;margin-top:24px}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
+.clean .elink{margin-top:12px}
 .clean .tabs{border-radius:999px}
 .clean .tab{border-radius:999px}
 .clean .backbtn{border:0;background:var(--fill);color:var(--dark)}
@@ -171,6 +185,11 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .scrim{background:rgba(0,0,0,.35)}
 .clean .sheet{width:calc(100% - 16px);margin:0 8px 8px;border-radius:32px;padding:10px 20px 20px;gap:16px}
 .clean .sheet{--a:12deg}
+.clean .mfull{--a:12deg}
+.clean .mfull .handle.mh{width:96px;height:20px;top:4px}
+.clean .mfull .handle.mh::before,.clean .mfull .handle.mh::after{content:"";position:absolute;top:8px;width:19px;height:5px;margin:0;border-radius:3px;background:#b3b3b3;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+.clean .mfull .handle.mh::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
+.clean .mfull .handle.mh::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
 .clean .handle{width:96px;height:20px;background:none;margin:-6px auto -6px;align-self:center}
 .clean .handle::before,.clean .handle::after{content:"";position:absolute;inset:auto;top:8px;width:19px;height:5px;border-radius:3px;background:#d6d6d6;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
 .clean .handle::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
@@ -709,7 +728,7 @@ function renderTop(){
     return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${i+1}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`;
 }
 function btnLabel(){
-  if(S.step===1) return (PHONEV2||E)?'متابعة':'تسجيل الدخول';
+  if(S.step===1) return S.screen==='otp'?'تحقّق':(PHONEV2||E)?'متابعة':'تسجيل الدخول';
   if(S.step===2) return ['R0','R1'].includes(S.screen)?'متابعة':'حفظ و متابعة';
   if(S.step===3) return 'متابعة';
   return 'تأكيد الدفع';
@@ -924,6 +943,12 @@ pay(){ const tiles = [
   <div class="info"><div class="tg"><p class="tl">${ic('lock')}دفع آمن ومشفر</p><p class="bd">اتصالك مشفّر، وكل عملية دفع بالبطاقة يتحقق منها البنك المُصدر لبطاقتك.</p></div>
    <div class="marks"><span class="plogo" style="width:32px">${I.mcard}</span><span class="plogo">${I.visa}</span><span class="plogo">${I.madaL}</span></div></div>`; },
 
+otp(){ const v=S.otpVal||''; return `<div class="sec">${head('أدخل رمز التحقق','')}
+  <div class="otpmeta"><p>أرسلنا رمزًا من 4 أرقام إلى <b><bdi dir="ltr">+966 ${S.phone.replace(/^(\d{2})(\d{3})(\d{4})$/,'$1 $2 $3')}</bdi></b></p><button class="otpchg" data-a="otpChange">غيّرت رقمك؟</button></div>
+  <label class="otpboxes ${S.otpErr?'err':''}" id="otpwrap">${[0,1,2,3].map(i=>`<span class="ob ${i===Math.min(v.length,3)?'cur':''}">${v[i]||''}</span>`).join('')}
+   <input id="otpin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" value="${v}" aria-label="رمز التحقق"></label>
+  ${S.otpErr?`<div class="errtxt">${ic('alert')}أدخل الرمز المكوّن من 4 أرقام.</div>`:''}
+  <p class="otpre" id="otpre"></p></div>`; },
 done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p class="h2" style="font-size:20px">تم تأكيد طلبك</p>
   <p class="sm c-l">رقم الطلب <b dir="ltr">#${S.orderNo}</b> · ${amt(S.paid)}</p>
   <p class="xs c-l">${SPEEDS.find(s=>s.id===S.speed).t} · ${SPEEDS.find(s=>s.id===S.speed).e}</p>
@@ -976,6 +1001,11 @@ function after(){
   const ins = $('#instr'); if(ins) ins.oninput = e => S.instr = e.target.value;
   if(LIVE) curPage.querySelectorAll('.map.tap .leaf').forEach(el=>{ const mp=L.map(el,{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],16); tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp); const ctr=()=>{ mp.invalidateSize(); mp.setView([S.loc.lat,S.loc.lng],16,{animate:false}); mp.panBy([0,-27.52],{animate:false}); }; ctr(); setTimeout(ctr,350); });
   const nnm = $('#nnm'); if(nnm) nnm.oninput = e => S.newCustom = e.target.value;
+  const oi = $('#otpin'); if(oi){ otpTick(); setTimeout(()=>oi.focus(),350);
+    oi.oninput = e => { const v=e.target.value.replace(/\D/g,'').slice(0,4); e.target.value=v; S.otpVal=v;
+      const w=$('#otpwrap'); if(S.otpErr){ S.otpErr=false; w.classList.remove('err'); const er=w.parentNode.querySelector('.errtxt'); er&&er.remove(); }
+      w.querySelectorAll('.ob').forEach((b,i)=>{ b.textContent=v[i]||''; b.classList.toggle('cur', i===Math.min(v.length,3)); });
+      if(v.length===4){ oi.blur(); setTimeout(otpGo,150); } }; }
   const rcb = $('#rcb'); if(rcb) rcb.oninput = e => { e.target.value=e.target.value.replace(/\D/g,''); S.rcBno=e.target.value; };
 }
 
@@ -1009,6 +1039,11 @@ function dragToClose(ov, sh){
 function closeSheet(cb){ const ov = layer.lastElementChild; if(!ov){ cb&&cb(); return; } const shx=ov.querySelector('.sheet'); if(shx){ shx.style.transform=''; shx.style.transition=''; } ov.classList.remove('show'); setTimeout(()=>{ ov.remove(); cb&&cb(); }, 300); }
 const sheetHead = (t, x=true) => `<div class="handle"></div><div class="shead"><p class="h2">${t}</p>${x?`<button class="xbtn" data-a="close" aria-label="إغلاق">${XI}</button>`:''}</div>`;
 
+function otpGo(){ if(!/^\d{4}$/.test(S.otpVal||'')){ S.otpErr=true; rerender(); const w=$('#otpwrap'); w&&w.classList.add('shake'); setTimeout(()=>$('#otpin')&&$('#otpin').focus(),30); return; }
+  const b=$('#mainbtn'); loading(b, ()=>{ S.otpTo=''; startAddressStep(1); }, 600); }
+function otpTick(){ const el=document.getElementById('otpre'); if(!el) return; const left=Math.max(0,30-Math.floor((Date.now()-S.otpAt)/1000));
+  el.innerHTML = left>0 ? `تقدر تطلب رمزًا جديدًا بعد <b>${left}</b> ثانية` : `<button data-a="otpResend">أعد إرسال الرمز</button>`; }
+setInterval(otpTick, 1000);
 function otpSheet(){ const code = String(Math.floor(1000+Math.random()*9000)); S.otp=code;
   openSheet(`${sheetHead('رمز التحقق')}<p class="sm c-l">أرسلنا رمزًا من 4 أرقام إلى <span dir="ltr">+966 ${S.phone}</span></p>
   <label class="inp" id="otpbox"><input id="otp" inputmode="numeric" maxlength="4" placeholder="••••" style="text-align:center;letter-spacing:8px;direction:ltr"></label>
@@ -1292,7 +1327,7 @@ function detailsSheet(){
 function startAddressStep(dir=1){ go(2, S.user==='new'?'N0':(SAVED[S.saved].incomplete?'Rc':'R0'), dir); }
 function back(){
   if(layer.lastElementChild){ closeSheet(); return; }
-  if(S.step===1){ go(0,'start',-1); return; }
+  if(S.step===1){ if(S.screen==='otp'){ go(1,'login',-1); return; } go(0,'start',-1); return; }
   if(S.step===2){
     if(E&&S.user==='old'&&(S.screen==='R0d'||S.screen==='Rc')){ go(2,'R0',-1); return; }
     if(E&&S.fromFar&&S.screen==='L2'){ S.fromFar=false; S.adding=false; const a=SAVED[S.saved]; if(a.lat) S.loc={lat:a.lat,lng:a.lng}; go(2,'R0',-1); return; }
@@ -1304,7 +1339,12 @@ function back(){
 }
 function next(){
   const b=$('#mainbtn');
+  if(S.step===1 && CLEAN && S.screen==='otp'){ otpGo(); return; }
   if(S.step===1){ if(!/^5\d{8}$/.test(S.phone)){ S.loginErr=S.phone?'أدخل رقم جوال صحيح يبدأ بـ 5 ومكوّن من 9 أرقام':'أدخل رقم جوالك لتكمل'; rerender(); $('#phonebox').classList.add('shake'); return; }
+    if(CLEAN){ if(S.screen==='otp'){ otpGo(); return; }
+      const fresh = S.otpTo===S.phone && Date.now()-S.otpAt < 30000;
+      if(fresh){ go(1,'otp',1); return; }
+      loading(b, ()=>{ S.otpTo=S.phone; S.otpAt=Date.now(); S.otpVal=''; S.otpErr=false; go(1,'otp',1); }); return; }
     loading(b, ()=>otpSheet()); return; }
   if(S.step===2){
     if(S.screen==='N0'){ S.addrErr=true; S.ddOpen=false; rerender(); $('#nbox').classList.add('shake'); return; }
@@ -1341,6 +1381,8 @@ function act(a, el){
   case 'close': closeSheet(); break;
   case 'email': toast('تسجيل الدخول بالبريد غير مفعّل في هذا النموذج. استخدم رقم الجوال.'); break;
   case 'guest': case 'social': loading(null, ()=>{ 0; startAddressStep(1); }); break;
+  case 'otpChange': go(1,'login',-1); setTimeout(()=>{ const p=document.getElementById('phonein'); p&&p.focus(); },350); break;
+  case 'otpResend': S.otpAt=Date.now(); S.otpVal=''; S.otpErr=false; rerender(); toast('أرسلنا رمزًا جديدًا إلى جوالك.'); break;
   case 'otpOk': { const o=$('#otp'); if(!o||ov.dataset.done) break; if(/^\d{4}$/.test(o.value)){ ov.dataset.done=1; closeSheet(()=>startAddressStep(1)); $('#toast').classList.remove('show'); }
     else { $('#otperr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل رمز التحقق المكوّن من 4 أرقام.</div>`; $('#otpbox').classList.add('err','shake'); setTimeout(()=>$('#otpbox')&&$('#otpbox').classList.remove('shake'),400); } } break;
   case 'pickup': toast('الاستلام من الفرع غير متاح في هذا النموذج.'); break;
@@ -1426,7 +1468,7 @@ function act(a, el){
   case 'cpnDel': S.coupon=null; ov._redraw(); renderFoot(); if(S.step===4) rerender(); break;
   }
 }
-function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false,fromFar:false,mapFar:false}); S.loc = S.user==='old' ? {lat:21.4105,lng:39.8680} : {lat:21.3895,lng:39.8275}; SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
+function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false,fromFar:false,mapFar:false,otpTo:'',otpAt:0,otpVal:'',otpErr:false}); S.loc = S.user==='old' ? {lat:21.4105,lng:39.8680} : {lat:21.3895,lng:39.8275}; SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
 
 phone.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if(!el) return;
