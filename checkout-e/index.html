@@ -698,7 +698,7 @@ N2(){ const p=S.picked; return `<div class="sec addr">${head('أضف عنوان 
   ${floorField()}${saveOpts()}</div></div>${afterAddr()}`; },
 
 L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'}; return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
-R0(){ if(E) return VIEWS.R0E(); const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
+R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
 
 R0d(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}`, 'mapsheet', true, a.fav?STAR:''); },
 R0E(){ return `<div class="sec addr">${head('عنوان التوصيل','اختر عنوان التوصيل، أو أضف عنوانًا جديدًا.')}
@@ -1081,7 +1081,7 @@ function detailsSheet(){
 }
 
 /* ---------- navigation helpers ---------- */
-function startAddressStep(dir=1){ go(2, S.user==='new'?'N0':(E?'R0':(SAVED[S.saved].incomplete?'Rc':'R0')), dir); }
+function startAddressStep(dir=1){ go(2, S.user==='new'?'N0':(SAVED[S.saved].incomplete?'Rc':'R0'), dir); }
 function back(){
   if(layer.lastElementChild){ closeSheet(); return; }
   if(S.step===1){ go(0,'start',-1); return; }
@@ -1161,7 +1161,7 @@ function act(a, el){
   case 'nfav': S.newFav=!S.newFav; rerender(); break;
   case 'pickSaved': ov._set(+el.dataset.i); break;
   case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
-  case 'newAddr': closeSheet(()=>{ S.screen='N0'; S.nq=''; S.picked=null; render(); }); break;
+  case 'newAddr': closeSheet(()=>{ S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='N0'; S.nq=''; S.picked=null; S.mapPick=null; render(); }); break;
   case 'recip': recipSheet(); break;
   case 'recipOk': { const n=$('#rname').value.trim(), p=$('#rphone').value; const er=[];
     if(n.length<3) er.push('أدخل اسم المستلم'); if(!/^5\d{8}$/.test(p)) er.push('أدخل جوالًا صحيحًا يبدأ بـ 5');
