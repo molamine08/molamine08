@@ -135,7 +135,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .nchip.on{background:var(--dark);color:#fff}
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
-.clean .page>.sec:first-child{padding-top:32px}
+.clean .tabs{border-radius:999px}
+.clean .tab{border-radius:999px}
+.clean .backbtn{border:0;background:var(--fill);color:var(--dark)}
+.clean .page>.sec:first-child{padding-top:20px}
 .clean .sec,.clean .sec.addr{gap:16px}
 .clean .sec[style*="gap:20px"]{gap:16px!important}
 .clean .orline{margin:12px 0 4px}
@@ -178,6 +181,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .mfar .ic{width:16px;height:16px;flex:none;margin-top:2px}
 .pill.bad{background:#f55157;color:#fff}
 .mbtns{display:flex;gap:8px}
+.mbtns .btn.gray{background:#f3f3f3;color:var(--dark);border:0}
 .mbtns .btn{flex:1;min-height:44px;padding:0 12px;font-size:14px;line-height:20px}
 .mback{flex:none;display:flex;padding:10px;border-radius:999px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .mback .ic{width:24px;height:24px;transform:rotate(180deg)}
@@ -1008,7 +1012,7 @@ function liveMapFull(){
    <div class="mpanel">
      <div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>
      <div class="mfar" id="mfar" hidden></div>
-     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="tlink" data-a="mapBackHome" id="mapback" hidden></button></div></div><div class="handle mh"></div></div>`,'full msheet');
+     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn gray" data-a="mapBackHome" id="mapback" hidden></button></div></div><div class="handle mh"></div></div>`,'full msheet');
   dragToClose(ov, ov.querySelector('.mfull'));
   const m=$('#dragmap'), pin=m.querySelector('.pin'), tip=$('#mtip'), N=$('#mapname'), A=$('#mapaddr'), OK=$('#mapok'), B=$('#mapbtn'), q=$('#mapq'), res=$('#mres');
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
