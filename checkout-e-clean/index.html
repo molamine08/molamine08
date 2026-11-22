@@ -202,6 +202,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .sec,.clean .sec.addr{gap:16px}
 .clean .sec[style*="gap:20px"]{gap:16px!important}
 .clean .orline{margin:0 0 4px}
+.clean .natgrp{margin-top:16px}
 .clean .sec.addr .field+.sms,.clean .sms{margin-top:-4px}
 .clean #paysec .smn.w5{margin-top:20px}
 .clean #paysec .earn{margin-top:-8px}
@@ -1006,15 +1007,16 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
   <button class="btn" data-a="restart" style="flex:none;width:100%;margin-top:12px">تجربة من جديد</button></div>`; }
 };
 function N0E(results){ return `<div class="sec addr">${head('أضف عنوان التوصيل','حدّد موقعك بضغطة، أو أدخل عنوانك الوطني المختصر.')}
+  ${S.addrErr?`<div class="note err" id="addrerr">${ic('alert')}حدّد موقعك أو أدخل عنوانك الوطني لإكمال طلبك</div>`:''}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="opts"><button class="optrow" data-a="locate"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.gps}</span></span><span class="txt"><span class="t1">موقعك الحالي</span></span>${ic('left','arr')}</button>
   <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">${CLEAN?"حدّد على الخريطة":"موقعك على الخريطة"}</span></span>${ic('left','arr')}</button></div>
-  <div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>
-  <div style="display:flex;flex-direction:column;gap:8px">
+  ${CLEAN?'':'<div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>'}
+  <div style="display:flex;flex-direction:column;gap:8px"${CLEAN?' class="natgrp"':''}>
     <div class="field"><span class="label">العنوان الوطني المختصر</span>
-      <div class="ddwrap"><label class="inp ${S.addrErr?'err':''}" id="nbox"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('file')}</label>
+      <div class="ddwrap"><label class="inp" id="nbox"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('file')}</label>
       ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div>
-      ${S.addrErr?`<div class="errtxt">${ic('alert')}حدّد موقعك من الخيارين بالأعلى، أو أدخل عنوانك الوطني المختصر.</div>`:''}</div>
+      </div>
     ${S.smsSent?`<div class="note ok">${ic('check')}أرسلنا عنوانك الوطني المختصر إلى جوالك برسالة نصية.</div>`:`<div class="sms"><span>ما تعرف عنوانك المختصر؟</span><b data-a="sms">أرسله لجوالك</b></div>`}
   </div></div></div>`; }
 function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن رقم جوالك','لنرسل عليه رمز تحقق وتحديثات طلبك')}
@@ -1411,7 +1413,7 @@ function next(){
       loading(b, ()=>{ S.otpTo=S.phone; S.otpAt=Date.now(); S.otpVal=''; S.otpErr=false; go(1,'otp',1); }); return; }
     loading(b, ()=>otpSheet()); return; }
   if(S.step===2){
-    if(S.screen==='N0'){ S.addrErr=true; S.ddOpen=false; rerender(); $('#nbox').classList.add('shake'); return; }
+    if(S.screen==='N0'){ S.addrErr=true; S.ddOpen=false; rerender(); const e=$('#addrerr')||$('#nbox'); if(e===$('#nbox')) e.classList.add('shake'); else { curPage.scrollTo({top:0,behavior:'smooth'}); e.classList.add('shake'); } return; }
     if(S.screen==='N1L') return;
     if(S.screen==='RE'){ const a=SAVED[S.editI];
       if(a.incomplete && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
