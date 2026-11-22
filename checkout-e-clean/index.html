@@ -491,6 +491,9 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .expand{display:flex;flex-direction:column;gap:10px;padding-top:12px;margin-top:12px;border-top:1px solid var(--div)}
 .prow{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px}
 .prow .tx{flex:1;display:flex;flex-direction:column}
+.prow.off{opacity:.4}.prow.off .tog{pointer-events:none}
+.pnote{display:flex;align-items:center;gap:6px;font-size:12px;line-height:18px;color:var(--light)}
+.pnote .ic{width:14px;height:14px;flex:none}
 .methods{display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-inline:20px}
 .methods::-webkit-scrollbar{display:none}
 .tile{flex:none;width:140px;scroll-snap-align:start;height:84px;border:1px solid var(--border);border-radius:16px;background:#fff;padding:10px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;position:relative;transition:border-color .15s}
@@ -944,8 +947,9 @@ pay(){ const tiles = [
    <div class="points"><button class="phead" data-a="points"><span class="tx"><span class="sm w5">الدفع بالنقاط</span><span class="xs c-l">استخدم نقاط مكافأة الراجحي أو قطاف لدفع جزء من طلبك.</span></span>
      <span class="plogos"><span class="lg2"><img src="${IMG.mokafaa}" alt=""></span><span class="lg2"><img src="${IMG.qitaf}" alt=""></span></span>${ic('down','chev '+(S.pointsOpen?'open':''))}</button>
      ${S.pointsOpen?`<div class="expand">
-       <div class="prow"><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx"><span>مكافأة الراجحي</span><span class="xs c-l">2,500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsMok?'on':''}" data-a="ptsMok"></button></div>
-       <div class="prow"><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx"><span>قطاف</span><span class="xs c-l">500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsQit?'on':''}" data-a="ptsQit"></button></div></div>`:''}</div>
+       <div class="prow ${S.ptsQit?'off':''}"><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx"><span>مكافأة الراجحي</span><span class="xs c-l">2,500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsMok?'on':''}" data-a="ptsMok"></button></div>
+       <div class="prow ${S.ptsMok?'off':''}"><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx"><span>قطاف</span><span class="xs c-l">500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsQit?'on':''}" data-a="ptsQit"></button></div>
+       ${S.ptsMok||S.ptsQit?`<p class="pnote">${ic('alert')}تقدر تستخدم برنامج نقاط واحد في الطلب.</p>`:''}</div>`:''}</div>
   </div>
   <div class="earn"><button class="erow" data-a="earnM"><span class="cb ${S.earnM?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx">اكسب نقاط مكافأة الراجحي على هذا الطلب</span></button>
    <button class="erow" data-a="earnQ"><span class="cb ${S.earnQ?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx">اكسب نقاط قطاف على هذا الطلب</span></button></div>
@@ -1446,8 +1450,8 @@ function act(a, el){
   case 'gift': S.giftOpen=!S.giftOpen; rerender(); break;
   case 'giftApply': { const v=($('#giftc').value||'').trim(); if(v.length<4){ $('#giftc').parentNode.classList.add('err','shake'); break; } S.walletBal+=150; S.giftOpen=false; rerender(); renderFoot(); padBottom(); 0; } break;
   case 'points': S.pointsOpen=!S.pointsOpen; rerender(); break;
-  case 'ptsMok': S.ptsMok=!S.ptsMok; rerender(); renderFoot(); break;
-  case 'ptsQit': S.ptsQit=!S.ptsQit; rerender(); renderFoot(); break;
+  case 'ptsMok': if(S.ptsQit) break; S.ptsMok=!S.ptsMok; rerender(); renderFoot(); break;
+  case 'ptsQit': if(S.ptsMok) break; S.ptsQit=!S.ptsQit; rerender(); renderFoot(); break;
   case 'tile': { const id=el.dataset.id;
     if(id==='mada'||id==='visa') cardsSheet(id);
     else if(id==='add') addCardSheet('');
