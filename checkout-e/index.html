@@ -146,6 +146,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .adrow{border:0;background:var(--fill);border-radius:16px;padding:14px 16px}
 .clean .adrow .sm.w5{font-size:16px;font-weight:700}
 .clean .adrow .l2{font-size:14px}
+.clean .adrow{align-items:flex-start}
+.clean .adrow .nmr:empty{display:none}
+.clean .adrow:not(:has(.nmr .sm))>.radio{margin-top:1px}
+.clean .adrow>.ic{align-self:center}
 .clean .acode{background:none;padding:0;color:var(--light);font-size:14px}
 .clean .pill.warn{background:none;padding:0;height:auto;color:#b35c00;font-weight:700;font-size:13px}
 .clean .addcard{border:1.5px dashed #d2d2d2;background:#fff;font-weight:400}
