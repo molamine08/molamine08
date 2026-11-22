@@ -149,7 +149,11 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .adrow{align-items:flex-start}
 .clean .adrow .nmr:empty{display:none}
 .clean .adrow:not(:has(.nmr .sm))>.radio{margin-top:1px}
-.clean .adrow>.ic{align-self:center}
+.clean .adrow>.ic,.clean .adrow>.aded{align-self:center}
+.adrow .aded{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin:-8px;border-radius:99px;flex:none;color:var(--dark)}
+.adrow .aded .ic{width:18px;height:18px}
+.adel{display:flex;align-items:center;justify-content:center;gap:8px;align-self:center;height:44px;padding:0 12px;font-size:15px;font-weight:500;color:var(--danger)}
+.adel .ic{width:18px;height:18px}
 .clean .acode{background:none;padding:0;color:var(--light);font-size:14px}
 .clean .pill.warn{background:none;padding:0;height:auto;color:#b35c00;font-weight:700;font-size:13px}
 .clean .addcard{border:1.5px dashed #d2d2d2;background:#fff;font-weight:400}
@@ -171,7 +175,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 
 .clean .ackov .sheet{gap:0;padding:8px 24px 28px}
 .clean .akx{display:flex;justify-content:flex-end;margin-top:6px;height:32px}
-.clean .akart{display:flex;justify-content:center;margin:-8px 0 16px}
+.clean .akart{display:flex;justify-content:center;margin:8px 0 16px}
 .clean .aktitle{font-size:28px;line-height:40px;font-weight:700;color:#222;letter-spacing:-.3px}
 .clean .akp{font-size:16px;line-height:27px;color:#3f3f3f;margin-top:10px}
 .clean .aksum{background:var(--fill);border-radius:20px;padding:16px 18px;margin-top:10px}
@@ -179,8 +183,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .aksum ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;font-size:15px;line-height:25px;color:var(--dark)}
 .clean .aksum li{display:grid;grid-template-columns:20px 1fr;column-gap:12px;align-items:start}
 .clean .aksum li svg{width:20px;height:20px;margin-top:2.5px;color:#9b9b9b}
-.clean .akmore{align-self:flex-start;margin-top:16px;font-size:13px;line-height:20px;color:var(--dark);font-weight:500}
-.clean .akmore span{color:#a6a6a6;font-weight:400}
+.clean .akmore{align-self:center;margin-top:16px;font-size:14px;line-height:20px;color:var(--dark);font-weight:500;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
 .clean .ackov .sheet>.akbtn{flex:none;align-self:stretch;width:100%;margin-top:32px}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
@@ -198,7 +201,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .page>.sec:first-child{padding-top:20px}
 .clean .sec,.clean .sec.addr{gap:16px}
 .clean .sec[style*="gap:20px"]{gap:16px!important}
-.clean .orline{margin:12px 0 4px}
+.clean .orline{margin:0 0 4px}
 .clean .sec.addr .field+.sms,.clean .sms{margin-top:-4px}
 .clean #paysec .smn.w5{margin-top:20px}
 .clean #paysec .earn{margin-top:-8px}
@@ -220,9 +223,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .handle::before,.clean .handle::after{content:"";position:absolute;inset:auto;top:8px;width:19px;height:5px;border-radius:3px;background:#d6d6d6;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
 .clean .handle::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
 .clean .handle::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
-.clean .shead{padding-bottom:16px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;gap:12px}
+/* clean sheets: no X and no divider; close with the handle, a drag down, or a tap outside */
+.clean .shead{padding-bottom:0;border-bottom:0;margin-bottom:-6px;gap:12px}
+.clean .shead .xbtn,.clean .akx{display:none}
 .clean .shead .h2{font-size:20px;line-height:28px}
-.clean .adov .shead{border-bottom:0;padding-bottom:0;margin-bottom:8px;min-height:32px;align-items:center}
 .clean .xbtn{width:32px;height:32px;flex:none;border-radius:99px;background:var(--fill);font-size:20px;color:var(--dark)}
 .clean .shead+p{margin-top:0!important;font-size:14px;line-height:22px}
 .clean .sheet>.btn{margin-top:8px;flex:none}
@@ -510,7 +514,8 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .expand{display:flex;flex-direction:column;gap:10px;padding-top:12px;margin-top:12px;border-top:1px solid var(--div)}
 .prow{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px}
 .prow .tx{flex:1;display:flex;flex-direction:column}
-.prow.off{opacity:.4}.prow.off .tog{pointer-events:none}
+/* disabled program: dim it, but keep its note (in place of the description) readable */
+.prow.off .elogo,.prow.off .tx>span:first-child,.prow.off .tog{opacity:.4}.prow.off .tog{pointer-events:none}
 .pnote{display:flex;align-items:center;gap:6px;font-size:12px;line-height:18px;color:var(--light)}
 .pnote .ic{width:14px;height:14px;flex:none}
 .methods{display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-inline:20px}
@@ -765,7 +770,7 @@ function renderTop(){
 }
 function btnLabel(){
   if(S.step===1) return S.screen==='otp'?'تحقّق':(PHONEV2||E)?'متابعة':'تسجيل الدخول';
-  if(S.step===2) return ['R0','R1'].includes(S.screen)?'متابعة':'حفظ و متابعة';
+  if(S.step===2) return S.screen==='RE'?'حفظ التعديلات':['R0','R1'].includes(S.screen)?'متابعة':'حفظ و متابعة';
   if(S.step===3) return 'متابعة';
   return 'تأكيد الدفع';
 }
@@ -916,6 +921,14 @@ L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'};
 R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
 
 R0d(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}`, 'mapsheet', true, a.fav?STAR:''); },
+RE(){ const a=SAVED[S.editI]; return `<div class="sec addr">${head('تعديل العنوان', a.incomplete?'ينقص هذا العنوان رقم المبنى. أكمله ثم احفظ.':'عدّل مكان الدبوس أو بيانات العنوان، ثم احفظ.')}
+  <div style="display:flex;flex-direction:column;gap:16px">${mapBlock()}
+  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="mapsheet"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span></span><span class="sm">${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
+  ${a.incomplete?`<div class="note warn">${ic('alert')}ينقص هذا العنوان رقم المبنى</div>
+  <div class="field"><span class="label">رقم المبنى</span><label class="inp ${S.rcErr?'err':''}"><input id="rcb" inputmode="numeric" maxlength="4" placeholder="مثال: 2451" value="${S.rcBno}"></label>
+    ${S.rcErr?`<div class="errtxt">${ic('alert')}أدخل رقم المبنى</div>`:''}</div>`:''}
+  ${floorField()}${instrField()}${saveOpts()}
+  ${SAVED.length>1?`<button class="adel" data-a="delAddr">${ic('trash')}حذف العنوان</button>`:''}</div></div>`; },
 R0E(){ return `<div class="sec addr">${head('عنوان التوصيل','اختر عنوان التوصيل، أو أضف عنوانًا جديدًا.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="adlist">${SAVED.map((a,i)=>`<div class="adcard ${S.saved===i?'on':''}" data-a="selSaved" data-i="${i}"><span class="radio ${S.saved===i?'on':''}"></span>
@@ -966,9 +979,9 @@ pay(){ const tiles = [
    <div class="points"><button class="phead" data-a="points"><span class="tx"><span class="sm w5">الدفع بالنقاط</span><span class="xs c-l">استخدم نقاط مكافأة الراجحي أو قطاف لدفع جزء من طلبك.</span></span>
      <span class="plogos"><span class="lg2"><img src="${IMG.mokafaa}" alt=""></span><span class="lg2"><img src="${IMG.qitaf}" alt=""></span></span>${ic('down','chev '+(S.pointsOpen?'open':''))}</button>
      ${S.pointsOpen?`<div class="expand">
-       <div class="prow ${S.ptsQit?'off':''}"><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx"><span>مكافأة الراجحي</span><span class="xs c-l">2,500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsMok?'on':''}" data-a="ptsMok"></button></div>
-       <div class="prow ${S.ptsMok?'off':''}"><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx"><span>قطاف</span><span class="xs c-l">500 نقطة تساوي 25 ⃁</span></span><button class="tog ${S.ptsQit?'on':''}" data-a="ptsQit"></button></div>
-       ${S.ptsMok||S.ptsQit?`<p class="pnote">${ic('alert')}تقدر تستخدم برنامج نقاط واحد في الطلب.</p>`:''}</div>`:''}</div>
+       <div class="prow ${S.ptsQit?'off':''}"><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx"><span>مكافأة الراجحي</span><span class="xs c-l">${S.ptsQit?"تقدر تستخدم برنامج نقاط واحد في الطلب.":"2,500 نقطة تساوي 25 ⃁"}</span></span><button class="tog ${S.ptsMok?'on':''}" data-a="ptsMok"></button></div>
+       <div class="prow ${S.ptsMok?'off':''}"><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx"><span>قطاف</span><span class="xs c-l">${S.ptsMok?"تقدر تستخدم برنامج نقاط واحد في الطلب.":"500 نقطة تساوي 25 ⃁"}</span></span><button class="tog ${S.ptsQit?'on':''}" data-a="ptsQit"></button></div>
+       </div>`:''}</div>
   </div>
   <div class="earn"><button class="erow" data-a="earnM"><span class="cb ${S.earnM?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.mokafaa}" alt=""></span><span class="tx">اكسب نقاط مكافأة الراجحي على هذا الطلب</span></button>
    <button class="erow" data-a="earnQ"><span class="cb ${S.earnQ?'on':''}">${ic('check')}</span><span class="elogo"><img src="${IMG.qitaf}" alt=""></span><span class="tx">اكسب نقاط قطاف على هذا الطلب</span></button></div>
@@ -1019,7 +1032,7 @@ function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن ر
       <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.fb}</span></button></div>
     <button class="elink" data-a="email">استخدم بالبريد الإلكتروني</button>
   </div></div></div>`; }
-const saveOpts = () => (E && S.user==='old' && S.adding) ? `<div class="field"><span class="label">اسم العنوان <span class="opt">(اختياري)</span></span>
+const saveOpts = () => (E && S.user==='old' && (S.adding || S.screen==='RE')) ? `<div class="field"><span class="label">اسم العنوان <span class="opt">(اختياري)</span></span>
   <div class="nchips">${['البيت','العمل','آخر'].map(n=>`<button class="nchip ${S.newName===n?'on':''}" data-a="nname" data-n="${n}">${n}</button>`).join('')}</div>
   ${S.newName==='آخر'?`<label class="inp"><input id="nnm" placeholder="مثال: بيت أهلي" maxlength="20" value="${S.newCustom||''}"></label>`:''}</div>
   <button class="favrow" data-a="nfav"><span class="tx"><span class="sm w7">اجعله عنواني المفضل</span><span class="xs c-l">نختاره لك تلقائيًا في طلباتك القادمة</span></span><span class="tog ${S.newFav?'on':''}"></span></button>` : '';
@@ -1120,7 +1133,7 @@ function liveMapFull(){
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
   tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp);
   setTimeout(()=>mp.invalidateSize(),380);
-  const sv = (E && S.user==='old' && ['R0','R0d'].includes(S.screen)) ? SAVED[S.saved] : null, R=150;
+  const sv = (E && S.user==='old' && ['R0','R0d','RE'].includes(S.screen)) ? SAVED[S.screen==='RE'?S.editI:S.saved] : null, R=150;
   const anc = sv ? L.latLng(sv.lat||S.loc.lat, sv.lng||S.loc.lng) : null, nm = sv ? (sv.name||'العنوان المحفوظ') : '';
   if(anc) L.circle(anc,{radius:R,color:'#333',weight:1.5,dashArray:'5 5',fillColor:'#333',fillOpacity:.05,interactive:false}).addTo(mp);
   const FAR=$('#mfar'), BK=$('#mapback'); if(anc) BK.textContent='ارجع إلى موقع '+nm;
@@ -1222,7 +1235,7 @@ function mapSheet(){
 }
 function savedSheet(){ let sel=S.saved;
   const draw=()=>`${sheetHead('اختر عنوان التوصيل', !CLEAN)}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
-    <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span>${ic('pen')}</button>`).join('')}
+    <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span><span class="aded" data-a="editAddr" data-i="${i}" role="button" aria-label="تعديل العنوان">${ic('pen')}</span></button>`).join('')}
     <button class="addcard nw" data-a="newAddr"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
   const ov=openSheet(draw(), 'adov'); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
@@ -1268,7 +1281,7 @@ function ackSheet(){
     <div class="aksum"><ul><li>${AK_I.swap}<span>تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></li>
       <li>${AK_I.box}<span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></li>
       <li>${AK_I.time}<span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></li></ul></div>
-    <button class="akmore" data-a="ackFull"><span>اقرأ</span> السياسة كاملة</button>
+    <button class="akmore" data-a="ackFull">اقرأ السياسة كاملة</button>
     <button class="btn akbtn" data-a="ackOk">أوافق وأكمل الدفع</button>`, 'ackov'); return; }
   openSheet(`${sheetHead('الموافقة على سياسة المتجر')}<p class="sm c-l" style="margin-top:-8px">لإتمام الطلب، وافق على سياسة الاستبدال والاسترجاع والتوصيل.</p>
   <ul class="acklist"><li>الاستبدال والاسترجاع خلال المدة التي يحددها المتجر من تاريخ الاستلام.</li><li>المنتج يُعاد بحالته الأصلية وفي تغليفه.</li><li>مدة التوصيل تبدأ من تأكيد الطلب.</li></ul>
@@ -1368,11 +1381,18 @@ function detailsSheet(){
 }
 
 /* ---------- navigation helpers ---------- */
+function startEdit(i){ const a=SAVED[i];
+  Object.assign(S,{editI:i, newName:['البيت','العمل'].includes(a.name)?a.name:(a.name?'آخر':''), newCustom:['البيت','العمل'].includes(a.name)?'':(a.name||''), newFav:!!a.fav, rcBno:'', rcErr:false});
+  if(a.lat) S.loc={lat:a.lat,lng:a.lng}; go(2,'RE',1); }
+function leaveEdit(msg){ S.editI=null; S.newName=''; S.newCustom=''; S.newFav=false; S.rcErr=false;
+  const a=SAVED[S.saved]; if(a&&a.lat) S.loc={lat:a.lat,lng:a.lng};
+  go(2, SAVED[S.saved].incomplete?'Rc':'R0', -1); setTimeout(()=>{ savedSheet(); if(msg) toast(msg); }, 420); }
 function startAddressStep(dir=1){ go(2, S.user==='new'?'N0':(SAVED[S.saved].incomplete?'Rc':'R0'), dir); }
 function back(){
   if(layer.lastElementChild){ closeSheet(); return; }
   if(S.step===1){ if(S.screen==='otp'){ go(1,'login',-1); return; } go(0,'start',-1); return; }
   if(S.step===2){
+    if(E&&S.screen==='RE'){ leaveEdit(); return; }
     if(E&&S.user==='old'&&(S.screen==='R0d'||S.screen==='Rc')){ go(2,'R0',-1); return; }
     if(E&&S.fromFar&&S.screen==='L2'){ S.fromFar=false; S.adding=false; const a=SAVED[S.saved]; if(a.lat) S.loc={lat:a.lat,lng:a.lng}; go(2,'R0',-1); return; }
     if(S.screen==='N2'||S.screen==='L2'){ if(!E&&S.user==='old'&&S.cameFromSaved){ S.cameFromSaved=false; go(2,'R0',-1); } else { S.screen='N0'; S.picked=null; render(-1); } return; }
@@ -1393,6 +1413,13 @@ function next(){
   if(S.step===2){
     if(S.screen==='N0'){ S.addrErr=true; S.ddOpen=false; rerender(); $('#nbox').classList.add('shake'); return; }
     if(S.screen==='N1L') return;
+    if(S.screen==='RE'){ const a=SAVED[S.editI];
+      if(a.incomplete && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
+      const nm = S.newName==='آخر' ? (S.newCustom||'').trim() : (S.newName||'');
+      if(S.newFav) SAVED.forEach(x=>x.fav=false);
+      Object.assign(a,{name:nm, fav:S.newFav, lat:S.loc.lat, lng:S.loc.lng});
+      if(a.incomplete){ a.incomplete=false; a.code=a.code||'MNSM3318'; }
+      loading(b, ()=>leaveEdit('حفظنا تعديلات العنوان'), 450); return; }
     if(S.screen==='Rc' && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
     if(E&&S.screen==='R0'&&SAVED[S.saved].incomplete){ go(2,'Rc',1); return; }
     if(S.screen==='Rc'){ const a=E?SAVED[S.saved]:SAVED[2]; a.incomplete=false; a.code=a.code||'MNSM3318'; }
@@ -1449,6 +1476,8 @@ function act(a, el){
   case 'mapBackHome': layer.lastElementChild&&layer.lastElementChild._home&&layer.lastElementChild._home(); break;
   case 'locateMe': layer.lastElementChild&&layer.lastElementChild._locate&&layer.lastElementChild._locate(); break;
   case 'mapOk': if(LIVE && S.mapPick && S.mapPick.ok===false){ toast('هذا الموقع خارج نطاق التوصيل. حرّك الدبوس داخل مكة المكرمة.'); break; } if(LIVE && S.mapLoc) S.loc=S.mapLoc;
+    if(E && S.user==='old' && S.screen==='RE'){ const far=LIVE&&S.mapFar;
+      closeSheet(()=>{ if(far){ S.adding=true; S.fromFar=true; S.editI=null; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='L2'; render(1); } else rerender(); }); break; }
     if(E && S.user==='old' && ['R0','R0d'].includes(S.screen)){ const far=LIVE&&S.mapFar, a=SAVED[S.saved];
       closeSheet(()=>{ if(far){ S.adding=true; S.fromFar=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='L2'; render(1); }
         else { if(S.mapLoc){ a.lat=S.mapLoc.lat; a.lng=S.mapLoc.lng; } rerender(); toast('حدّثنا موقع الدبوس لعنوان «'+(a.name||'المحفوظ')+'»'); } }); break; }
@@ -1460,6 +1489,13 @@ function act(a, el){
   case 'nname': S.newName = S.newName===el.dataset.n ? '' : el.dataset.n; rerender(); if(S.newName==='آخر') setTimeout(()=>{ const n=$('#nnm'); n&&n.focus(); },30); break;
   case 'nfav': S.newFav=!S.newFav; rerender(); break;
   case 'pickSaved': ov._set(+el.dataset.i); break;
+  case 'editAddr': { const i=+el.dataset.i; closeSheet(()=>startEdit(i)); } break;
+  case 'delAddr': { const a=SAVED[S.editI]; openSheet(`${sheetHead('حذف العنوان؟', !CLEAN)}<p class="sm c-l">سنحذف عنوان «${a.name||a.line.split(' - ').pop()}» من عناوينك المحفوظة.</p>
+    <button class="btn del" data-a="delAddrOk" style="flex:none">حذف العنوان</button><button class="btn sec" data-a="close" style="flex:none">إلغاء</button>`, 'delov'); } break;
+  case 'delAddrOk': { const i=S.editI, wasFav=SAVED[i].fav; SAVED.splice(i,1);
+    if(S.saved===i) S.saved=Math.max(0,SAVED.findIndex(x=>x.fav)); else if(S.saved>i) S.saved--;
+    if(wasFav && !SAVED.some(x=>x.fav)) 0;
+    closeSheet(()=>leaveEdit('حذفنا العنوان')); } break;
   case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; if(SAVED[i].lat) S.loc={lat:SAVED[i].lat,lng:SAVED[i].lng}; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
   case 'newAddr': closeSheet(()=>{ S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='N0'; S.nq=''; S.picked=null; S.mapPick=null; render(); }); break;
   case 'recip': recipSheet(); break;
