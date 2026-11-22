@@ -63,7 +63,6 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .label .opt{font-weight:400}
 .clean .inp,.clean .inp.soft{height:48px;padding:0 16px;border:1.5px solid transparent;background:var(--fill);border-radius:12px}
 .clean .inp input,.clean .inp textarea{font-size:16px}
-@supports (-webkit-touch-callout:none){.clean .inp input{padding-top:5px}.clean .inp textarea{padding-top:4px}.clean .cvv{padding-top:13px;padding-bottom:7px}}
 .clean .inp:focus-within{border-color:var(--dark);background:#fff;box-shadow:none}
 .clean .inp.err{border-color:var(--danger)}
 .clean .inp.ta{height:104px;padding:14px 16px}
@@ -113,7 +112,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .tile.on{border-color:var(--dark);background:#fff}
 .clean .tile .tl{font-size:13px;font-weight:700}
 .clean .tile[data-id=add]{background:#fff;border:1.5px dashed #d2d2d2;align-items:center;justify-content:center}
-.clean .tile[data-id=add] .tl{color:#9a9a9a;font-weight:500;font-size:14px}
+.clean .tile[data-id=add] .tl{color:var(--dark);font-weight:400;font-size:14px}
 .tile .tadd{display:none}
 .clean .tile[data-id=add]{gap:6px;flex-direction:column}
 .clean .tile[data-id=add] .tadd{display:flex;color:#9a9a9a}
@@ -144,7 +143,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .adrow .l2{font-size:14px}
 .clean .acode{background:none;padding:0;color:var(--light);font-size:14px}
 .clean .pill.warn{background:none;padding:0;height:auto;color:#b35c00;font-weight:700;font-size:13px}
-.clean .addcard{border:0;background:var(--fill)}
+.clean .addcard{border:1.5px dashed #d2d2d2;background:#fff;font-weight:400}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
 .clean .otpmeta{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:-8px}
@@ -177,6 +176,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .page{gap:40px}
 .clean .st>span:not(.dot){position:relative;top:1px}
 .clean .st.cur{font-weight:700}
+.clean .st.done .dot{color:#a3a3a3}
 .clean .elink{margin-top:12px}
 .clean .tabs{border-radius:999px}
 .clean .tab{border-radius:999px}
@@ -203,7 +203,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .mfull .handle.mh::before,.clean .mfull .handle.mh::after{content:"";position:absolute;top:8px;width:19px;height:5px;margin:0;border-radius:3px;background:#b3b3b3;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
 .clean .mfull .handle.mh::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
 .clean .mfull .handle.mh::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
-.clean .handle{width:96px;height:20px;background:none;margin:-6px auto -6px;align-self:center}
+.clean .handle{width:96px;height:20px;background:none;margin:-6px auto -6px;align-self:center;cursor:pointer}
 .clean .handle::before,.clean .handle::after{content:"";position:absolute;inset:auto;top:8px;width:19px;height:5px;border-radius:3px;background:#d6d6d6;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
 .clean .handle::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
 .clean .handle::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
@@ -222,6 +222,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .items .vr{font-size:13px}
 .clean .sum{font-size:15px;line-height:24px}
 .clean .kv{font-size:14px;line-height:22px}
+.clean .sheet p.sm.w5{font-size:15px;line-height:22px;font-weight:700;color:var(--dark)}
 .clean .cpnbtn{height:48px;border-radius:12px;font-weight:700;background:var(--dark);color:#fff}
 .clean .card .inp,.clean .points .inp{background:#fff}
 .clean .card .inp:focus-within{border-color:var(--dark)}
@@ -971,7 +972,7 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
 function N0E(results){ return `<div class="sec addr">${head('أضف عنوان التوصيل','حدّد موقعك بضغطة، أو أدخل عنوانك الوطني المختصر.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="opts"><button class="optrow" data-a="locate"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.gps}</span></span><span class="txt"><span class="t1">موقعك الحالي</span></span>${ic('left','arr')}</button>
-  <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">موقعك على الخريطة</span></span>${ic('left','arr')}</button></div>
+  <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">${CLEAN?"حدّد على الخريطة":"موقعك على الخريطة"}</span></span>${ic('left','arr')}</button></div>
   <div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <div class="field"><span class="label">العنوان الوطني المختصر</span>
@@ -1041,7 +1042,7 @@ function dragToClose(ov, sh){
     const setA=d=>sh.style.setProperty('--a',d+'deg');
     if(st.up){ sh.style.transform=`translateY(${Math.max(-18,Math.min(0,dy)*.2)}px)`; setA(-16); e.preventDefault(); return; }
     if(!st.on){ if(dy>6 && sh.scrollTop<=0){ st.on=true; sh.setPointerCapture(e.pointerId); sh.style.transition='none'; scrim.style.transition='none'; } else if(dy<-6){ if(CLEAN && (fits()||st.h)){ st.up=true; sh.setPointerCapture(e.pointerId); sh.style.transition='transform .1s'; } else st=null; } return; }
-    setA(12+Math.min(16,Math.max(0,dy)/8));
+    setA(Math.max(-14,12-Math.max(0,dy)/5));
     st.dy=Math.max(0,dy); sh.style.transform=`translateY(${st.dy}px)`; scrim.style.opacity=String(Math.max(0,1-st.dy/sh.offsetHeight)); e.preventDefault(); });
   const end=e=>{ if(!st) return; const was=st; st=null; sh.style.removeProperty('--a'); if(was.up){ sh.style.transition=''; sh.style.transform=''; sh._noClick=true; setTimeout(()=>sh._noClick=false,50); return; } if(!was.on) return;
     const v=was.dy/Math.max(1,Date.now()-was.t); sh.style.transition=''; scrim.style.transition='';
@@ -1485,6 +1486,7 @@ function act(a, el){
 function reset(){ Object.assign(S,{phone:'',loginErr:'',nq:'',ddOpen:false,picked:null,smsSent:false,addrErr:false,saved:0,rcBno:'',rcErr:false,floor:'',instr:'',recipient:null,speed:'normal',wallet:false,walletBal:80,giftOpen:false,pointsOpen:false,ptsMok:false,ptsQit:false,pay:null,payLabel:{},payErr:false,earnM:false,earnQ:false,ack:false,ackErr:false,coupon:null,cpnErr:'',invoice:null,cameFromSaved:false,adding:false,newName:'',newCustom:'',newFav:false,fromFar:false,mapFar:false,otpTo:'',otpAt:0,otpVal:'',otpErr:false}); S.loc = S.user==='old' ? {lat:21.4105,lng:39.8680} : {lat:21.3895,lng:39.8275}; SAVED.splice(0,SAVED.length,...JSON.parse(SAVED0)); }
 
 phone.addEventListener('click', e => {
+  if(CLEAN && e.target.closest('.ov.show .handle')){ closeSheet(); return; }
   const el = e.target.closest('[data-a]'); if(!el) return;
   if(el.dataset.a==='close' && !e.target.closest('.xbtn,.mback') && el!==e.target) return;
   act(el.dataset.a, el);

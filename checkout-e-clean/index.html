@@ -972,7 +972,7 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
 function N0E(results){ return `<div class="sec addr">${head('أضف عنوان التوصيل','حدّد موقعك بضغطة، أو أدخل عنوانك الوطني المختصر.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="opts"><button class="optrow" data-a="locate"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.gps}</span></span><span class="txt"><span class="t1">موقعك الحالي</span></span>${ic('left','arr')}</button>
-  <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">موقعك على الخريطة</span></span>${ic('left','arr')}</button></div>
+  <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">${CLEAN?"حدّد على الخريطة":"موقعك على الخريطة"}</span></span>${ic('left','arr')}</button></div>
   <div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>
   <div style="display:flex;flex-direction:column;gap:8px">
     <div class="field"><span class="label">العنوان الوطني المختصر</span>
