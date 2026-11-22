@@ -137,17 +137,15 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .addcard{border:0;background:var(--fill)}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
-.clean .ackov .sheet{gap:0;padding:10px 24px 20px}
-.clean .akhead{display:flex;align-items:center;justify-content:space-between;margin:12px 0 24px}
-.clean .akmark{width:52px;height:52px;border-radius:16px;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center}
-.clean .akmark svg{width:26px;height:26px}
-.clean .aktitle{font-size:26px;line-height:36px;font-weight:700;color:var(--dark);letter-spacing:-.2px}
-.clean .akdesc{font-size:15px;line-height:24px;color:var(--light);margin-top:8px}
-.clean .aklist{list-style:none;margin:24px 0 28px;padding:0;display:flex;flex-direction:column;gap:16px}
-.clean .aklist li{display:flex;gap:14px;align-items:flex-start;font-size:15px;line-height:24px;color:var(--dark)}
-.clean .aklist b{width:24px;height:24px;flex:none;border-radius:99px;background:var(--fill);font-size:12px;line-height:24px;font-weight:700;text-align:center;color:var(--dark)}
-.clean .aklist span{flex:1}
-.clean .aklink{align-self:center;margin-top:14px;font-size:14px;line-height:20px;font-weight:500;color:var(--light);text-decoration:underline;text-underline-offset:4px}
+.clean .ackov .sheet{gap:0;padding:8px 28px 28px}
+.clean .akart{display:flex;justify-content:center;margin:20px 0 20px}
+.clean .aktitle{font-size:28px;line-height:40px;font-weight:700;color:#222;letter-spacing:-.3px}
+.clean .akp{font-size:16px;line-height:27px;color:#3f3f3f;margin-top:12px}
+.clean .akp+.akp{margin-top:16px}
+.clean .akrule{height:1px;background:#ececec;margin:24px 0 14px}
+.clean .akmore{align-self:flex-start;font-size:13px;line-height:20px;color:var(--dark);font-weight:500}
+.clean .akmore span{color:#a6a6a6;font-weight:400}
+.clean .akbtn{flex:none;align-self:center;width:auto;padding:0 32px;margin-top:36px}
 
 /* clean · spacing by proximity: 8 inside a pair, 16 inside a group, 24-32 between groups, 40 between sections */
 .clean .page{gap:40px}
@@ -169,7 +167,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 /* clean · sheets (inset card, round close, hairline header, filled groups) */
 .clean .scrim{background:rgba(0,0,0,.35)}
 .clean .sheet{width:calc(100% - 16px);margin:0 8px 8px;border-radius:32px;padding:10px 20px 20px;gap:16px}
-.clean .handle{width:36px;height:5px;background:#e3e3e3;margin-bottom:-4px}
+.clean .handle{width:34px;height:6px;border-radius:3px;background:#e4e4e4;margin:-2px auto -2px}
 .clean .shead{padding-bottom:16px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;gap:12px}
 .clean .shead .h2{font-size:20px;line-height:28px}
 .clean .xbtn{width:32px;height:32px;flex:none;border-radius:99px;background:var(--fill);font-size:20px;color:var(--dark)}
@@ -1149,17 +1147,27 @@ const ACK_ART = `<svg viewBox="0 0 120 104" width="120" height="104" aria-hidden
   <path d="M45 70c4-4 7 3 11-1s6 2 10-1" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></g>
   <circle cx="84" cy="74" r="14" fill="#00AF6C" stroke="#fff" stroke-width="3"/><path d="M77.5 74.5l4.5 4.5 8.5-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M24 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#FFC93C"/><path d="M98 18l1.5 3.5 3.5 1.5-3.5 1.5-1.5 3.5-1.5-3.5-3.5-1.5 3.5-1.5z" fill="#FFC93C"/><circle cx="100" cy="44" r="3" fill="#BAF3E6"/></svg>`;
+const ACK_BOX = `<svg viewBox="0 0 160 132" width="160" height="132" aria-hidden="true" fill="none" stroke="#2B2B2B" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M80 6v11M50 13l6 9M110 13l-6 9M28 32l10 3M132 32l-10 3"/>
+  <rect x="42" y="56" width="76" height="58" rx="9" fill="#F07D63"/>
+  <rect x="34" y="38" width="92" height="22" rx="8" fill="#F59A82"/>
+  <path d="M72 38v22M88 38v22M72 60v54M88 60v54" stroke-width="4"/>
+  <rect x="72" y="38" width="16" height="76" fill="#FFD2C4" stroke="none"/>
+  <path d="M72 38v76M88 38v76" stroke-width="4"/>
+  <rect x="42" y="56" width="76" height="58" rx="9"/><rect x="34" y="38" width="92" height="22" rx="8"/>
+  <path d="M42 46h14" stroke="#fff" stroke-width="4" opacity=".75"/>
+  <circle cx="120" cy="106" r="17" fill="#5BAE6A"/><path d="M111.5 106.5l6 6 11-12" stroke="#fff"/>
+  <circle cx="120" cy="106" r="17"/></svg>`;
 const ACK_MARK = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 14.5l2 2 4-4.5"/></svg>`;
 function ackSheet(){
   if(CLEAN){ openSheet(`<div class="handle"></div>
-    <div class="akhead"><span class="akmark">${ACK_MARK}</span><button class="xbtn" data-a="close" aria-label="إغلاق">×</button></div>
+    <div class="akart">${ACK_BOX}</div>
     <p class="aktitle">قبل ما تدفع، خلّنا نتفق</p>
-    <p class="akdesc">بالموافقة تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر.</p>
-    <ol class="aklist"><li><b>1</b><span>تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر من يوم الاستلام.</span></li>
-     <li><b>2</b><span>يرجع المنتج بحالته الأصلية وفي تغليفه.</span></li>
-     <li><b>3</b><span>مدة التوصيل تبدأ من لحظة تأكيد طلبك.</span></li></ol>
-    <button class="btn" data-a="ackOk" style="flex:none">أوافق وأكمل الدفع</button>
-    <button class="aklink" data-a="ackFull">اقرأ السياسة كاملة</button>`, 'ackov'); return; }
+    <p class="akp">بالضغط على «أوافق» تُقرّ بأنك اطّلعت على سياسة الاستبدال والاسترجاع والتوصيل لهذا المتجر.</p>
+    <p class="akp">باختصار: تقدر تستبدل أو ترجع المنتج خلال المدة اللي يحددها المتجر، بشرط يرجع بحالته الأصلية وفي تغليفه. ومدة التوصيل تُحسب من لحظة تأكيد طلبك.</p>
+    <div class="akrule"></div>
+    <button class="akmore" data-a="ackFull"><span>اقرأ</span> السياسة كاملة</button>
+    <button class="btn akbtn" data-a="ackOk">أوافق وأكمل الدفع</button>`, 'ackov'); return; }
   openSheet(`${sheetHead('الموافقة على سياسة المتجر')}<p class="sm c-l" style="margin-top:-8px">لإتمام الطلب، وافق على سياسة الاستبدال والاسترجاع والتوصيل.</p>
   <ul class="acklist"><li>الاستبدال والاسترجاع خلال المدة التي يحددها المتجر من تاريخ الاستلام.</li><li>المنتج يُعاد بحالته الأصلية وفي تغليفه.</li><li>مدة التوصيل تبدأ من تأكيد الطلب.</li></ul>
   <button class="btn big" data-a="ackOk" style="flex:none">أوافق</button>`);
