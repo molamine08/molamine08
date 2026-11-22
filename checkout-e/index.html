@@ -178,6 +178,8 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .pill.ok{background:var(--succ);color:#fff}
 .pill.warn{background:#fff4e5;color:#b35c00}
 .pill.gray{background:var(--bg);color:var(--light)}
+.pill.fav{background:#BAF3E6;color:#004956}
+.nmr{display:flex;align-items:center;gap:8px}
 .pill.fast{background:#a4ffe5;color:#004956}
 .ddempty{padding:16px 12px;font-size:12px;line-height:16px;color:var(--light);text-align:center}
 /* map */
@@ -463,10 +465,11 @@ const NATIONAL = [
   {code:'MSHQ2931', desc:'حي الشوقية، مكة المكرمة · مبنى 2457 · 24351', hood:'الشوقية', street:'شارع الشوقية', bno:'2457', zip:'24351'}
 ];
 const SAVED = [
-  {name:'البيت', line:'السعودية - مكة المكرمة - العزيزية', code:'MAZZ2660'},
+  {name:'البيت', line:'السعودية - مكة المكرمة - العزيزية', code:'MAZZ2660', fav:true},
   {name:'العمل', line:'السعودية - مكة المكرمة - العوالي', code:'MAWL4512'},
   {name:'', line:'السعودية - مكة المكرمة - النسيم', code:'MNSM3318', incomplete:true, hood:'النسيم', street:'شارع النسيم', zip:'24236'}
 ];
+const addrTag = a => a.fav?'<span class="pill fav">مفضل</span>':'<span class="pill gray">محفوظ</span>';
 const SPEEDS = [
   {id:'normal', t:'توصيل عادي', e:'من يوم إلى يومين', price:0},
   {id:'fast', t:'توصيل سريع', e:'من 2-4 س', price:18, note:'شامل الضريبة'},
@@ -664,7 +667,7 @@ N2(){ const p=S.picked; return `<div class="sec addr">${head('أضف عنوان 
   ${floorField()}</div></div>${afterAddr()}`; },
 
 L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'}; return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
-R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0); },
+R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
 
 Rc(){ const a=SAVED[2]; return `<div class="sec addr">${head('أكمل بيانات العنوان','هذا العنوان ينقصه رقم المبنى. أكمله لنوصل طلبك.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
@@ -754,9 +757,9 @@ function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن ر
       <button class="btn2 soc" data-a="social" style="flex:1"><span class="ic" style="width:20px;height:20px">${I.fb}</span></button></div>
     <button class="elink" data-a="email">استخدم بالبريد الإلكتروني</button>
   </div></div></div>`; }
-function detailsView(line, editAct, withFloor){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
+function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
-  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="sm w7">عنوان التوصيل</span><span class="sm">${line}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
   ${withFloor?floorField():''}${instrField()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
@@ -928,7 +931,7 @@ function mapSheet(){
 }
 function savedSheet(){ let sel=S.saved;
   const draw=()=>`${sheetHead('اختر عنوان التوصيل')}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
-    <span class="tx">${a.name?`<span class="sm w5">${a.name}</span>`:''}<span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span>${ic('pen')}</button>`).join('')}
+    <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span>${ic('pen')}</button>`).join('')}
     <button class="addcard" data-a="newAddr"><span>إضافة عنوان جديد</span><span class="pl">${ic('add')}</span></button></div>
     <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
   const ov=openSheet(draw()); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
