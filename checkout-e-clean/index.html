@@ -314,6 +314,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 
 body.kb .sheet,body.kb .sheet.tall{padding-bottom:122px}
 body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none}
+.kbfab{display:flex;align-items:center;justify-content:center;padding:0;position:fixed;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:396px;height:48px;z-index:1000;border:0;border-radius:999px;background:#333;color:#fff;font:inherit;font-size:16px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.18);animation:fabIn .25s cubic-bezier(.32,.72,0,1)}
+.kbfab[hidden]{display:none}
+.kbfab.off{background:#d6d6d6;box-shadow:none}
+@keyframes fabIn{from{opacity:0;transform:translate(-50%,8px)}}
 .phone{position:relative;width:428px;height:926px;overflow:hidden;background:var(--bg)}
 .xs{font-size:12px;line-height:16px}.sm{font-size:14px;line-height:20px}.base{font-size:16px;line-height:1.875}.lg{font-size:18px;line-height:28px}
 .smn{font-size:14px;line-height:1.875}.xsn{font-size:12px;line-height:1.875}
@@ -1635,7 +1639,7 @@ function fit(){ const st=$('#stage'), vw=VV?Math.min(innerWidth,Math.round(VV.wi
   const dyn = vw<=500 && !kb && DVH;
   const hh = dyn ? `calc(100dvh / ${s})` : h+'px';
   phone.style.height=hh; st.style.transform=`translateY(${dyn?0:off}px) scale(${s})`; st.style.width='428px'; st.style.height=hh; phone.dataset.scale=s;
-  if(curPage && S.step) padBottom(); keepFocus(); }
+  if(curPage && S.step) padBottom(); keepFocus(); if(typeof placeFab==='function') placeFab(); }
 const KB_EXTRA=110;
 const DVH = !!(window.CSS && CSS.supports && CSS.supports('height','100dvh'));
 /* iOS browsers collapse their toolbars without always firing resize: re-check the viewport size */
@@ -1643,6 +1647,15 @@ let lastVH=innerHeight; setInterval(()=>{ if(innerHeight!==lastVH){ lastVH=inner
 function keepFocus(){ const el=document.activeElement; if(!el||!/^(INPUT|TEXTAREA)$/.test(el.tagName)||!phone.contains(el)) return;
   clearTimeout(keepFocus.t); keepFocus.t=setTimeout(()=>{ if(curPage) curPage._lock=Date.now()+700; const box=el.closest('.inp,.msearch,.scard,.field')||el; box.scrollIntoView({block:'center',behavior:'smooth'}); },120); }
 addEventListener('resize', fit); if(VV){ VV.addEventListener('resize', fit); VV.addEventListener('scroll', fit); }
+/* iOS number pads have no return key: float the step's main action just above the keyboard */
+const KBFAB=document.createElement('button'); KBFAB.type='button'; KBFAB.className='kbfab'; KBFAB.hidden=true; document.body.appendChild(KBFAB);
+KBFAB.addEventListener('pointerdown', e=>e.preventDefault());   // keep the field focused while tapping
+KBFAB.addEventListener('click', ()=>{ const b=document.getElementById('mainbtn'); if(b && !KBFAB.classList.contains('off')) b.click(); });
+function placeFab(){ const b=document.getElementById('mainbtn'), on=CLEAN && !!S.step && !!b && document.body.classList.contains('kb') && !layer.querySelector('.ov.show');
+  KBFAB.hidden=!on; if(!on) return;
+  KBFAB.textContent=b.textContent.trim(); KBFAB.classList.toggle('off', b.disabled||b.classList.contains('off'));
+  KBFAB.style.top=Math.round((VV?VV.offsetTop+VV.height:innerHeight)-48-12)+'px'; }
+document.addEventListener('input', ()=>setTimeout(placeFab,0)); document.addEventListener('focusout', ()=>setTimeout(placeFab,60));
 phone.addEventListener('focusin', e=>{ if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)){ setTimeout(fit,350); setTimeout(keepFocus,300); } });
 phone.addEventListener('focusout', ()=>setTimeout(fit,120));
 fit();
