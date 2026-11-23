@@ -51,6 +51,7 @@ p{margin:0}
 .mtip i{display:block;width:12px;height:7px}.mtip i svg{width:100%;height:100%;display:block}
 .mtip.no{color:#f55157}
 .mtip.far{color:#b35c00}
+.mtip.zoom{color:var(--dark)}
 /* ===== CLEAN (side version): filled groups, no strokes, two text levels, no tags ===== */
 body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .phone,.clean .page{background:#fff}
@@ -256,6 +257,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ov.full.msheet .mfull{border-radius:32px 32px 0 0}
 .clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
 .clean .mpanel .btn{height:48px;border-radius:12px}
+.clean .mpanel{border-radius:0;box-shadow:none;border-top:1px solid #f0f0f0}
 /* picked address sits in the same gray card as the address rows */
 .clean .maddr.mcard{display:flex;align-items:center;gap:14px;min-height:64px;padding:12px 16px;background:var(--fill);border-radius:20px}
 .clean .maddr.mcard .mic{width:22px;height:22px;flex:none;color:var(--dark)}
@@ -1154,7 +1156,15 @@ function liveMapFull(){
   ov._home=()=>anc&&mp.flyTo(anc,17,{duration:.6});
   let seq=0;
   const wait=()=>{ N.textContent='جارٍ تحديد العنوان…'; N.classList.add('wait'); A.textContent=''; OK.style.opacity=0; };
-  const look=async()=>{ const c=mp.getCenter(), id=++seq, ok=inRiyadh(c.lat,c.lng); wait();
+  /* zoomed out too far to place a door: the button zooms in on the pin instead of confirming */
+  const ZMIN=15, ZTO=17, zoomedOut=()=>mp.getZoom()<ZMIN;
+  const zoomState=()=>{ ++seq; N.classList.remove('wait'); N.textContent='قرّب الخريطة لتحديد موقعك'; A.textContent='حتى يكون الدبوس على باب البيت'; OK.style.opacity=0;
+    tip.classList.remove('no','far'); tip.classList.add('zoom'); tip.querySelector('span').textContent='قرّب الخريطة'; FAR.hidden=true; BK.hidden=true; S.mapFar=false;
+    B.classList.remove('off'); B.dataset.a='mapZoomIn'; B.textContent='قرّب إلى الدبوس'; };
+  ov._zoomIn=()=>mp.flyTo(mp.getCenter(),ZTO,{duration:.7});
+  /* keep the locate button just above the panel, whatever the panel's height */
+  { const P=ov.querySelector('.mpanel'), LB=m.querySelector('.locate'); if(P&&LB){ const place=()=>{ LB.style.bottom=(P.getBoundingClientRect().height+12)+'px'; }; place(); if(window.ResizeObserver) new ResizeObserver(place).observe(P); } }
+  const look=async()=>{ if(zoomedOut()) return zoomState(); B.dataset.a='mapOk'; tip.classList.remove('zoom'); const c=mp.getCenter(), id=++seq, ok=inRiyadh(c.lat,c.lng); wait();
     let w={}; try{ w=await revGeo(c.lat,c.lng); }catch(e){} if(id!==seq) return;
     const city=(w.city||'').replace(/^منطقة\s+/,''); const hood=w.hood&&w.hood!==city&&!city.includes(w.hood)?w.hood:'';
     S.mapPick={hood:hood||'—',road:w.road,city,ok}; S.mapLoc={lat:c.lat,lng:c.lng};
@@ -1491,6 +1501,7 @@ function act(a, el){
     else setTimeout(done,900); }); break;
   case 'deny': closeSheet(); break;
   case 'mapsheet': mapSheet(); break;
+  case 'mapZoomIn': { const o=el.closest('.ov'); o&&o._zoomIn&&o._zoomIn(); } break;
   case 'zin': ov._zoom(1.5); break;
   case 'zout': ov._zoom(1/1.5); break;
   case 'mapClear': { const q=$('#mapq'); q.value=''; const r=$('#mres'); if(r) r.hidden=true; q.focus(); } break;
