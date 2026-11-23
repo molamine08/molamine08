@@ -534,6 +534,10 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .tog{width:39px;height:24px;border-radius:99px;background:#e6e6e6;position:relative;flex:none;transition:background .2s}
 .tog::after{content:"";position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:99px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s var(--ease)}
 .tog.on{background:var(--p)}.tog.on::after{transform:translateX(-15px)}
+/* clean: slightly larger switch */
+.clean .tog{width:46px;height:28px}
+.clean .tog::after{width:24px;height:24px}
+.clean .tog.on::after{transform:translateX(-18px)}
 .ghead{display:flex;align-items:center;justify-content:space-between;width:100%;font-size:12px;line-height:16px;color:var(--light)}
 .ghead .lb{display:flex;align-items:center;gap:8px}
 .ghead .lb .ic{width:16px;height:16px}
