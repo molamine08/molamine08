@@ -87,6 +87,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .arow+.divider,.clean .divider{display:none}
 .clean .card .divider{display:block;background:#e6e6e6}
 .clean .ic.cbtn{background:none!important;padding:6px!important}
+.clean .arow .edtx{flex:none;display:flex;align-items:center;height:32px;padding:0 14px;border-radius:10px;background:#fff;font-size:14px;font-weight:500;color:var(--dark)}
 .clean .speeds{gap:0;background:var(--fill);border-radius:20px;padding:0 16px}
 .clean .speed{border:0;border-radius:0;background:none;padding:0;min-height:68px}
 .clean .speed+.speed{border-top:1px solid #e9e9e9}
@@ -1041,7 +1042,7 @@ const saveOpts = () => (E && S.user==='old' && S.adding) ? `<div class="field"><
   <button class="favrow" data-a="nfav"><span class="tx"><span class="sm w7">اجعله عنواني المفضل</span><span class="xs c-l">نختاره لك تلقائيًا في طلباتك القادمة</span></span><span class="tog ${S.newFav?'on':''}"></span></button>` : '';
 function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
-  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${ic('pen','cbtn')}</button><div class="divider"></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button><div class="divider"></div></div>
   ${withFloor?floorField():''}${instrField()}${saveOpts()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
@@ -1239,7 +1240,7 @@ function mapSheet(){
 function editSheet(i){ const a=SAVED[i], known=['البيت','العمل'].includes(a.name); S.editI=i;
   const e={name:known?a.name:(a.name?'آخر':''), custom:known?'':(a.name||''), fav:!!a.fav, floor:a.floor??(i===S.saved?S.floor:''), instr:a.instr??(i===S.saved?S.instr:''), bno:'', err:false, loc:null};
   const draw=()=>`${sheetHead('تعديل العنوان', !CLEAN)}
-    <button class="arow" data-a="editMap"><span class="tx"><span class="nmr"><span class="sm w7">الموقع على الخريطة</span></span><span class="sm">${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}</span></span>${ic('pen','cbtn')}</button>
+    <button class="arow" data-a="editMap"><span class="tx"><span class="nmr"><span class="sm w7">الموقع على الخريطة</span></span><span class="sm">${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}</span></span>${CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button>
     ${a.incomplete?`<div class="note warn">${ic('alert')}ينقص هذا العنوان رقم المبنى</div>
     <div class="field"><span class="label">رقم المبنى</span><label class="inp ${e.err?'err':''}"><input id="ebno" inputmode="numeric" maxlength="4" placeholder="مثال: 2451" value="${e.bno}"></label>
       ${e.err?`<div class="errtxt">${ic('alert')}أدخل رقم المبنى</div>`:''}</div>`:''}
