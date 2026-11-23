@@ -257,10 +257,12 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
 .clean .mpanel .btn{height:48px;border-radius:12px}
 /* picked address sits in the same gray card as the address rows */
-.clean .maddr.mcard{display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--fill);border-radius:20px}
-.clean .maddr.mcard .mic{width:22px;height:22px;flex:none;margin-top:3px;color:var(--dark)}
-.clean .maddr.mcard .tx{flex:1;min-width:0}
-.clean .maddr.mcard .t1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.clean .maddr.mcard{display:flex;align-items:center;gap:14px;min-height:64px;padding:12px 16px;background:var(--fill);border-radius:20px}
+.clean .maddr.mcard .mic{width:22px;height:22px;flex:none;color:var(--dark)}
+.clean .maddr.mcard .tx{flex:1;min-width:0;gap:0}
+.clean .maddr.mcard .t1{font-size:16px;line-height:24px;font-weight:700}
+.clean .maddr.mcard .t1.wait{font-weight:400}
+.clean .maddr.mcard .t2{font-size:14px;line-height:20px;min-height:0}
 
 
 .mbtns .tlink{height:40px;font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:3px}
@@ -1136,7 +1138,7 @@ function liveMapFull(){
      <button class="locate" data-a="locateMe" aria-label="موقعي">${I.gps}</button></div>
    <div class="mhead"><button class="mback mx" data-a="close" aria-label="إغلاق">${XI}</button><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="ابحث عن حي أو شارع" autocomplete="off"><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
    <div class="mpanel">
-     ${CLEAN?`<div class="maddr mcard"><span class="ic mic">${I.locpin}</span><div class="tx"><p class="t1"><span id="mapname">جارٍ تحديد العنوان…</span><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></p><p class="t2" id="mapaddr"></p></div></div>`
+     ${CLEAN?`<div class="maddr mcard"><span class="ic mic">${I.locpin}</span><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`
       :`<div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`}
      <div class="mfar" id="mfar" hidden></div>
      <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn gray" data-a="mapBackHome" id="mapback" hidden></button></div></div><div class="handle mh"></div></div>`,'full msheet');
