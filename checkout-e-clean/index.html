@@ -1042,7 +1042,7 @@ const saveOpts = () => (E && S.user==='old' && S.adding) ? `<div class="field"><
   <button class="favrow" data-a="nfav"><span class="tx"><span class="sm w7">اجعله عنواني المفضل</span><span class="xs c-l">نختاره لك تلقائيًا في طلباتك القادمة</span></span><span class="tog ${S.newFav?'on':''}"></span></button>` : '';
 function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
-  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button><div class="divider"></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${editAct==='savedsheet'?ic('left','arr'):CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button><div class="divider"></div></div>
   ${withFloor?floorField():''}${instrField()}${saveOpts()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
