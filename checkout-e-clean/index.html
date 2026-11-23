@@ -169,10 +169,11 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .adrow .aded .ic{width:18px;height:18px}
 .adel{display:flex;align-items:center;justify-content:center;gap:8px;align-self:center;height:44px;padding:0 12px;font-size:15px;font-weight:500;color:var(--danger)}
 .adel .ic{width:18px;height:18px}
+.rclear{align-self:center;height:40px;padding:0 12px;font-size:14px;font-weight:500;color:var(--dark);text-decoration:underline;text-underline-offset:4px}
 .clean .acode{background:none;padding:0;color:var(--light);font-size:14px}
 .clean .pill.warn{background:none;padding:0;height:auto;color:#b35c00;font-weight:700;font-size:13px}
 .clean .addcard{border:1.5px dashed #d2d2d2;background:#fff;font-weight:400}
-.clean .addcard[data-a=newAddr],.clean .addcard[data-a=addNew]{border:0;background:var(--fill)}
+.clean .addcard[data-a=newAddr],.clean .addcard[data-a=addNew],.clean .addcard[data-a=newRecip]{border:0;background:var(--fill)}
 .clean .nchip{border:0;background:var(--fill)}
 .clean .nchip.on{background:var(--dark);color:#fff}
 .clean .otpmeta{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:-8px}
@@ -1390,7 +1391,27 @@ function useMyLoc(el){
       done(); },
     ()=>{ el&&el.classList.remove('busy'); },{enableHighAccuracy:true,timeout:10000});
 }
-function recipSheet(){ const r=S.recipient||{name:'',phone:''};
+const RECIPS=[{name:'سارة العتيبي',phone:'551234567'},{name:'خالد الحربي',phone:'503334411'}];
+const sameRecip=(a,b)=>!!a&&!!b&&a.phone===b.phone;
+/* returning customer: pick from people added before, edit or delete them, or add someone new */
+function recipListSheet(){ let sel=RECIPS.findIndex(x=>sameRecip(x,S.recipient));
+  const draw=()=>`${sheetHead('من سيستلم الطلب؟', !CLEAN)}<div class="adlist">${RECIPS.map((r,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickRecip" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
+    <span class="tx"><span class="nmr"><span class="sm w5">${r.name}</span></span><span class="l2"><span dir="ltr">+966 ${r.phone}</span></span></span><span class="aded" data-a="editRecip" data-i="${i}" role="button" aria-label="تعديل المستلم">${ic('pen')}</span></button>`).join('')}
+    <button class="addcard nw" data-a="newRecip"><span class="pl">${ic('add')}</span><span>مستلم جديد</span></button></div>
+    <button class="btn ${sel<0?'off':''}" data-a="recipPickOk" style="flex:none">تأكيد المستلم</button>
+    ${S.recipient?`<button class="rclear" data-a="recipDel">سأستلم الطلب بنفسي</button>`:''}`;
+  const ov=openSheet(draw(), 'adov rlov'); ov._sel=()=>sel; ov._set=i=>{ sel=i; ov.querySelector('.sheet').innerHTML=draw(); };
+}
+function recipSheet(ctx){ const r=ctx&&ctx.i!=null?RECIPS[ctx.i]:(ctx?{name:'',phone:''}:(S.recipient||{name:'',phone:''})); const editing=ctx?ctx.i!=null:!!S.recipient;
+  const ov=openSheet(`${sheetHead(editing?'تعديل المستلم':(ctx?'مستلم جديد':'سيستلم الطلب شخص آخر'), !CLEAN)}<p class="xs c-l" style="margin-top:-8px">أضف اسم المستلم وجواله ليتواصل معه المندوب عند التوصيل.</p>
+  <div class="field"><span class="label w4">اسم المستلم</span><label class="inp soft" id="rnb"><input id="rname" placeholder="الاسم الكامل" value="${r.name}"></label></div>
+  <div class="field"><span class="label w4">جوال المستلم</span><label class="inp soft phonein" id="rpb"><span class="cc">+966</span><input id="rphone" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${r.phone}"></label></div>
+  <div id="rerr"></div><button class="btn" data-a="recipOk" style="flex:none">${editing?'حفظ التعديلات':'حفظ المستلم'}</button>
+  ${editing?(ctx?`<button class="adel" data-a="recipForget">${ic('trash')}حذف المستلم</button>`:`<button class="btn del" data-a="recipDel" style="flex:none">حذف المستلم</button>`):''}`, ctx?'rfov':'');
+  if(ctx){ ov._ctx=ctx; ov._after=()=>recipListSheet(); }
+  setTimeout(()=>{const p=$('#rphone'); p&&(p.oninput=e=>e.target.value=e.target.value.replace(/\D/g,''));},50);
+}
+function recipSheetLegacy(){ const r=S.recipient||{name:'',phone:''};
   openSheet(`${sheetHead(S.recipient?'تعديل المستلم':'سيستلم الطلب شخص آخر')}<p class="xs c-l" style="margin-top:-8px">أضف اسم المستلم وجواله ليتواصل معه المندوب عند التوصيل.</p>
   <div class="field"><span class="label w4">اسم المستلم</span><label class="inp soft" id="rnb"><input id="rname" placeholder="الاسم الكامل" value="${r.name}"></label></div>
   <div class="field"><span class="label w4">جوال المستلم</span><label class="inp soft phonein" id="rpb"><span class="cc">+966</span><input id="rphone" inputmode="numeric" maxlength="9" placeholder="5xx xxxx xxx" value="${r.phone}"></label></div>
@@ -1592,11 +1613,21 @@ function act(a, el){
     closeSheet(()=>{ const ed=layer.querySelector('.edov'); if(ed) ed._after=()=>{ S.editI=null; rerender(); savedSheet(); toast('حذفنا العنوان'); }; closeSheet(); }); } break;
   case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; if(SAVED[i].floor!=null) S.floor=SAVED[i].floor; if(SAVED[i].instr!=null) S.instr=SAVED[i].instr; if(SAVED[i].lat) S.loc={lat:SAVED[i].lat,lng:SAVED[i].lng}; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
   case 'newAddr': closeSheet(()=>{ S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='N0'; S.nq=''; S.picked=null; S.mapPick=null; render(); }); break;
-  case 'recip': recipSheet(); break;
+  case 'recip': (E && S.user==='old') ? recipListSheet() : recipSheet(); break;
+  case 'pickRecip': ov._set(+el.dataset.i); break;
+  case 'recipPickOk': { const i=ov._sel(); if(i<0) break; S.recipient={...RECIPS[i]}; closeSheet(()=>rerender()); } break;
+  case 'newRecip': closeSheet(()=>recipSheet({i:null})); break;
+  case 'editRecip': { const i=+el.dataset.i; closeSheet(()=>recipSheet({i})); } break;
+  case 'recipForget': { const f=layer.querySelector('.rfov'), i=f._ctx.i; if(sameRecip(RECIPS[i],S.recipient)) S.recipient=null; RECIPS.splice(i,1);
+    f._after=()=>{ rerender(); recipListSheet(); toast('حذفنا المستلم'); }; closeSheet(); } break;
   case 'recipOk': { const n=$('#rname').value.trim(), p=$('#rphone').value; const er=[];
     if(n.length<3) er.push('أدخل اسم المستلم'); if(!/^5\d{8}$/.test(p)) er.push('أدخل جوالًا صحيحًا يبدأ بـ 5');
     $('#rnb').classList.toggle('err', n.length<3); $('#rpb').classList.toggle('err', !/^5\d{8}$/.test(p));
     if(er.length){ $('#rerr').innerHTML=`<div class="errtxt">${ic('alert')}${er.join('، و')}</div>`; break; }
+    { const f=layer.querySelector('.rfov');
+      if(f){ const i=f._ctx.i; if(i==null){ RECIPS.push({name:n,phone:p}); S.recipient={name:n,phone:p}; f._after=()=>{ rerender(); recipListSheet(); }; }
+        else { const was=sameRecip(RECIPS[i],S.recipient); RECIPS[i]={name:n,phone:p}; if(was) S.recipient={name:n,phone:p}; f._after=()=>{ rerender(); recipListSheet(); toast('حفظنا تعديلات المستلم'); }; }
+        closeSheet(); break; } }
     S.recipient={name:n, phone:p}; closeSheet(()=>rerender()); } break;
   case 'recipDel': S.recipient=null; closeSheet(()=>{ rerender(); 0; }); break;
   case 'invDel': S.invoice=null; closeSheet(()=>{ rerender(); 0; }); break;
