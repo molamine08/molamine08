@@ -149,6 +149,11 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 /* savings band fades from green into the white pay bar, no divider between them */
 .clean .footer.sv .saving.foot{border-radius:0;box-shadow:none;margin:0 -20px;padding:16px 20px 10px;background:linear-gradient(to bottom,#e6f7f0 0%,#eefaf5 45%,#fff 100%)}
 .clean .footer.sv .saving.foot.enter::after{border-radius:0}
+/* calm entrance: a short rise with a fade, no bounce, no coin pop, no shine */
+.clean .footer.sv .saving.foot.enter{animation:bandRise .45s cubic-bezier(.32,.72,0,1) .2s both}
+.clean .footer.sv .saving.foot.enter>.ic{animation:none}
+.clean .footer.sv .saving.foot.enter::after{display:none}
+@keyframes bandRise{from{transform:translateY(10px);opacity:0}}
 .clean .btn{height:48px;min-height:48px;border-radius:99px;font-weight:700}
 .clean .btn2.soc{height:48px;border-radius:99px}
 .clean .st .dot{border:0;background:var(--fill)}
