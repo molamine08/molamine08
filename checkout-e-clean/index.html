@@ -536,6 +536,7 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .tog.on{background:var(--p)}.tog.on::after{transform:translateX(-15px)}
 /* clean: slightly larger switch */
 .clean .tog{width:46px;height:28px}
+#tot{font-variant-numeric:tabular-nums}
 .clean .tog::after{width:24px;height:24px}
 .clean .tog.on::after{transform:translateX(-18px)}
 .ghead{display:flex;align-items:center;justify-content:space-between;width:100%;font-size:12px;line-height:16px;color:var(--light)}
@@ -823,6 +824,17 @@ function renderFoot(){
     <button class="summary" data-a="details"><span class="amt big">${ic('riyal','ry')}<span id="tot">${fmt(total())}</span></span>
       <span class="detlink">عرض التفاصيل ${ic('up')}</span></button>
     <button class="btn" id="mainbtn" data-a="next">${btnLabel()}</button></div>`;
+  /* the total counts up or down to its new value instead of snapping */
+  { const to=total(), A=renderFoot.anim, D=650;
+    if(A && A.running && Math.abs(A.to-to)<.005){ /* footer re-drawn mid-count: keep counting on the new element */ }
+    else if(renderFoot.cur!=null && Math.abs(renderFoot.cur-to)>.004 && !matchMedia('(prefers-reduced-motion: reduce)').matches){
+      cancelAnimationFrame(renderFoot.raf); renderFoot.anim={from:renderFoot.cur, to, t0:performance.now(), running:true};
+      const step=now=>{ const a=renderFoot.anim, k=Math.min(1,(now-a.t0)/D), e=1-Math.pow(1-k,3), v=a.from+(a.to-a.from)*e;
+        renderFoot.cur=v; const el=footer.querySelector('#tot'); if(el) el.textContent=fmt(v);
+        if(k<1) renderFoot.raf=requestAnimationFrame(step); else { a.running=false; renderFoot.cur=a.to; } };
+      renderFoot.raf=requestAnimationFrame(step); }
+    else if(!(A&&A.running)) renderFoot.cur=to;
+    const el=footer.querySelector('#tot'); if(el && renderFoot.anim && renderFoot.anim.running) el.textContent=fmt(renderFoot.cur); }
   if(!band){ footer._bandShown=false; return; }
   if(footer._bandShown) return;
   footer._bandShown=true;
