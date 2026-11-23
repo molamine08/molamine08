@@ -267,8 +267,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
 .clean .mpanel .btn{height:48px;border-radius:99px}
 .clean .mpanel{border-radius:0;box-shadow:none;border-top:1px solid #f0f0f0}
-.clean .ov.full.msheet .mback.mx{display:none}
-.clean .mpanel .mcancel{flex:none;margin-top:-12px;background:#f3f3f3;color:var(--dark);border:0}
+/* close sits on the left, after the search field */
+.clean .ov.full.msheet .mback.mx{order:2}
 /* picked address sits in the same gray card as the address rows */
 .clean .maddr.mcard{display:flex;align-items:center;gap:14px;height:72px;padding:12px 16px;background:var(--fill);border-radius:20px}
 .clean .maddr.mcard .mic{width:22px;height:22px;flex:none;color:var(--dark)}
@@ -1161,7 +1161,7 @@ function liveMapFull(){
      ${CLEAN?`<div class="maddr mcard"><span class="ic mic">${I.locpin}</span><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`
       :`<div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`}
      <div class="mfar" id="mfar" hidden></div>
-     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn gray" data-a="mapBackHome" id="mapback" hidden></button></div>${CLEAN?'<button class="btn gray mcancel" data-a="close" id="mapcancel">إلغاء</button>':''}</div><div class="handle mh"></div></div>`,'full msheet');
+     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn gray" data-a="mapBackHome" id="mapback" hidden></button></div></div><div class="handle mh"></div></div>`,'full msheet');
   dragToClose(ov, ov.querySelector('.mfull'));
   const m=$('#dragmap'), pin=m.querySelector('.pin'), tip=$('#mtip'), N=$('#mapname'), A=$('#mapaddr'), OK=$('#mapok'), B=$('#mapbtn'), q=$('#mapq'), res=$('#mres');
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
