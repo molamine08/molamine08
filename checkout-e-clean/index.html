@@ -90,6 +90,9 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ic.cbtn{background:none!important;padding:6px!important}
 /* map preview is a static picture: tap opens the editor, no hint label */
 .clean .map.tap::after{display:none}
+.clean .arow.pinrow{align-items:center;gap:14px}
+.clean .arow.pinrow .mic{width:22px;height:22px;flex:none;color:var(--dark)}
+.clean .arow.pinrow .tx>.sm{color:var(--light);font-size:14px}
 .clean .arow .edtx{flex:none;display:flex;align-items:center;height:32px;padding:0 14px;border-radius:10px;background:#fff;font-size:14px;font-weight:500;color:var(--dark)}
 .clean .speeds{gap:0;background:var(--fill);border-radius:20px;padding:0 16px}
 .clean .speed{border:0;border-radius:0;background:none;padding:0;min-height:68px}
@@ -939,7 +942,10 @@ N2(){ const p=S.picked; return `<div class="sec addr">${head('أضف عنوان 
   <div class="row2">${roField('رقم المبنى',p.bno)}${roField('الرمز البريدي',p.zip)}</div>
   ${floorField()}${saveOpts()}</div></div>${afterAddr()}`; },
 
-L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'}; return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
+L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'};
+  /* clean: same wording as the map card the customer just confirmed */
+  if(CLEAN){ const city=w.city||'مكة المكرمة', hood=w.hood&&w.hood!=='—'?w.hood:''; return detailsView([hood&&w.road?w.road:'', city].filter(Boolean).join('، '), 'mapsheet', true, '', hood?'حي '+hood:(w.road||city), true); }
+  return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
 R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
 
 R0d(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}`, 'mapsheet', true, a.fav?STAR:''); },
@@ -1051,9 +1057,9 @@ const saveOpts = () => (E && S.user==='old' && S.adding) ? `<div class="field"><
   <div class="nchips">${['البيت','العمل','آخر'].map(n=>`<button class="nchip ${S.newName===n?'on':''}" data-a="nname" data-n="${n}">${n}</button>`).join('')}</div>
   ${S.newName==='آخر'?`<label class="inp"><input id="nnm" placeholder="مثال: بيت أهلي" maxlength="20" value="${S.newCustom||''}"></label>`:''}</div>
   <button class="favrow" data-a="nfav"><span class="tx"><span class="sm w7">اجعله عنواني المفضل</span><span class="xs c-l">نختاره لك تلقائيًا في طلباتك القادمة</span></span><span class="tog ${S.newFav?'on':''}"></span></button>` : '';
-function detailsView(line, editAct, withFloor, tag=''){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
+function detailsView(line, editAct, withFloor, tag='', title='عنوان التوصيل', pin=false){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
-  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow" data-a="${editAct}"><span class="tx"><span class="nmr"><span class="sm w7">عنوان التوصيل</span>${tag}</span><span class="sm">${line}</span></span>${editAct==='savedsheet'?ic('left','arr'):CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button><div class="divider"></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><button class="arow${pin?' pinrow':''}" data-a="${editAct}">${pin?`<span class="ic mic">${I.locpin}</span>`:''}<span class="tx"><span class="nmr"><span class="sm w7">${title}</span>${tag}</span><span class="sm">${line}</span></span>${editAct==='savedsheet'?ic('left','arr'):CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button><div class="divider"></div></div>
   ${withFloor?floorField():''}${instrField()}${saveOpts()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
