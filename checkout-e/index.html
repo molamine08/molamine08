@@ -267,6 +267,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
 .clean .mpanel .btn{height:48px;border-radius:99px}
 .clean .mpanel{border-radius:0;box-shadow:none;border-top:1px solid #f0f0f0}
+.clean .ov.full.msheet .mback.mx{display:none}
+.clean .mpanel .mcancel{flex:none;margin-top:-12px;background:#f3f3f3;color:var(--dark);border:0}
 /* picked address sits in the same gray card as the address rows */
 .clean .maddr.mcard{display:flex;align-items:center;gap:14px;height:72px;padding:12px 16px;background:var(--fill);border-radius:20px}
 .clean .maddr.mcard .mic{width:22px;height:22px;flex:none;color:var(--dark)}
@@ -1159,7 +1161,7 @@ function liveMapFull(){
      ${CLEAN?`<div class="maddr mcard"><span class="ic mic">${I.locpin}</span><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`
       :`<div class="maddr"><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`}
      <div class="mfar" id="mfar" hidden></div>
-     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn gray" data-a="mapBackHome" id="mapback" hidden></button></div></div><div class="handle mh"></div></div>`,'full msheet');
+     <div class="mbtns"><button class="btn" data-a="mapOk" id="mapbtn">تأكيد الموقع</button><button class="btn gray" data-a="mapBackHome" id="mapback" hidden></button></div>${CLEAN?'<button class="btn gray mcancel" data-a="close" id="mapcancel">إلغاء</button>':''}</div><div class="handle mh"></div></div>`,'full msheet');
   dragToClose(ov, ov.querySelector('.mfull'));
   const m=$('#dragmap'), pin=m.querySelector('.pin'), tip=$('#mtip'), N=$('#mapname'), A=$('#mapaddr'), OK=$('#mapok'), B=$('#mapbtn'), q=$('#mapq'), res=$('#mres');
   const mp=L.map(m.querySelector('.leaf'),{zoomControl:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],17);
@@ -1168,7 +1170,7 @@ function liveMapFull(){
   const sv = (E && S.user==='old' && S.editI!=null) ? SAVED[S.editI] : (E && S.user==='old' && ['R0','R0d'].includes(S.screen)) ? SAVED[S.saved] : null, R=150;
   const anc = sv ? L.latLng(sv.lat||S.loc.lat, sv.lng||S.loc.lng) : null, nm = sv ? (sv.name||'العنوان المحفوظ') : '';
   if(anc) L.circle(anc,{radius:R,color:'#333',weight:1.5,dashArray:'5 5',fillColor:'#333',fillOpacity:.05,interactive:false}).addTo(mp);
-  const FAR=$('#mfar'), BK=$('#mapback'); if(anc) BK.textContent='ارجع إلى موقع '+nm;
+  const FAR=$('#mfar'), BK=$('#mapback'), CX=$('#mapcancel'); if(anc) BK.textContent='ارجع إلى موقع '+nm;
   ov._home=()=>anc&&mp.flyTo(anc,17,{duration:.6});
   let seq=0;
   const CARD=N.closest('.maddr');
@@ -1176,7 +1178,7 @@ function liveMapFull(){
   /* zoomed out too far to place a door: the button zooms in on the pin instead of confirming */
   const ZMIN=15, ZTO=17, zoomedOut=()=>mp.getZoom()<ZMIN;
   const zoomState=()=>{ ++seq; N.classList.remove('wait'); CARD&&CARD.classList.remove('sk'); N.textContent='قرّب الخريطة لتحديد موقعك'; A.textContent='حتى يكون الدبوس على باب البيت'; OK.style.opacity=0;
-    tip.classList.remove('no','far'); tip.classList.add('zoom'); tip.querySelector('span').textContent='قرّب الخريطة'; FAR.hidden=true; BK.hidden=true; S.mapFar=false;
+    tip.classList.remove('no','far'); tip.classList.add('zoom'); tip.querySelector('span').textContent='قرّب الخريطة'; FAR.hidden=true; BK.hidden=true; if(CX) CX.hidden=false; S.mapFar=false;
     B.classList.remove('off'); B.dataset.a='mapZoomIn'; B.textContent='قرّب إلى الدبوس'; };
   ov._zoomIn=()=>mp.flyTo(mp.getCenter(),ZTO,{duration:.7});
   /* keep the locate button just above the panel, whatever the panel's height */
@@ -1192,7 +1194,7 @@ function liveMapFull(){
     const far = !!anc && ok && mp.distance(c,anc)>R; S.mapFar=far;
     tip.classList.toggle('far',far); if(far) tip.querySelector('span').textContent='بعيد عن عنوان '+nm;
     FAR.hidden=!far; FAR.innerHTML=far?`${ic('alert')}<span>هذا الموقع بعيد عن عنوان «${nm}»، فلن نغيّره. نحفظه لك كعنوان جديد، أو ارجع إلى موقع ${nm}.</span>`:'';
-    B.textContent=far?'حفظه كعنوان جديد':'تأكيد الموقع'; BK.hidden=!far; };
+    B.textContent=far?'حفظه كعنوان جديد':'تأكيد الموقع'; BK.hidden=!far; if(CX) CX.hidden=far; };
   let t; mp.on('movestart',()=>{ pin.classList.add('up'); tip.classList.add('hide'); res.hidden=true; wait(); });
   mp.on('moveend',()=>{ pin.classList.remove('up'); tip.classList.remove('hide'); clearTimeout(t); t=setTimeout(look,350); });
   let tq; q.oninput=()=>{ clearTimeout(tq); const v=q.value.trim(); if(v.length<2){ res.hidden=true; return; } tq=setTimeout(async()=>{
