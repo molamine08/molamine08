@@ -262,12 +262,16 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .mpanel .btn{height:48px;border-radius:99px}
 .clean .mpanel{border-radius:0;box-shadow:none;border-top:1px solid #f0f0f0}
 /* picked address sits in the same gray card as the address rows */
-.clean .maddr.mcard{display:flex;align-items:center;gap:14px;min-height:64px;padding:12px 16px;background:var(--fill);border-radius:20px}
+.clean .maddr.mcard{display:flex;align-items:center;gap:14px;height:72px;padding:12px 16px;background:var(--fill);border-radius:20px}
 .clean .maddr.mcard .mic{width:22px;height:22px;flex:none;color:var(--dark)}
 .clean .maddr.mcard .tx{flex:1;min-width:0;gap:0}
 .clean .maddr.mcard .t1{font-size:16px;line-height:24px;font-weight:700}
 .clean .maddr.mcard .t1.wait{font-weight:400}
-.clean .maddr.mcard .t2{font-size:14px;line-height:20px;min-height:0}
+.clean .maddr.mcard .t2{font-size:14px;line-height:20px;min-height:20px}
+/* loading: fixed-height card with skeleton lines instead of text */
+.clean .maddr.mcard.sk .t1,.clean .maddr.mcard.sk .t2{color:transparent!important;position:relative}
+.clean .maddr.mcard.sk .t1::before,.clean .maddr.mcard.sk .t2::before{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);height:14px;width:96px;border-radius:7px;background:linear-gradient(90deg,#e4e4e4 25%,#eeeeee 50%,#e4e4e4 75%);background-size:200% 100%;animation:sk 1.2s linear infinite}
+.clean .maddr.mcard.sk .t2::before{height:11px;width:168px}
 
 
 .mbtns .tlink{height:40px;font-size:14px;font-weight:700;color:var(--dark);text-decoration:underline;text-underline-offset:3px}
@@ -1161,10 +1165,11 @@ function liveMapFull(){
   const FAR=$('#mfar'), BK=$('#mapback'); if(anc) BK.textContent='ارجع إلى موقع '+nm;
   ov._home=()=>anc&&mp.flyTo(anc,17,{duration:.6});
   let seq=0;
-  const wait=()=>{ N.textContent='جارٍ تحديد العنوان…'; N.classList.add('wait'); A.textContent=''; OK.style.opacity=0; };
+  const CARD=N.closest('.maddr');
+  const wait=()=>{ N.textContent='جارٍ تحديد العنوان…'; N.classList.add('wait'); A.textContent=''; OK.style.opacity=0; CARD&&CARD.classList.add('sk'); };
   /* zoomed out too far to place a door: the button zooms in on the pin instead of confirming */
   const ZMIN=15, ZTO=17, zoomedOut=()=>mp.getZoom()<ZMIN;
-  const zoomState=()=>{ ++seq; N.classList.remove('wait'); N.textContent='قرّب الخريطة لتحديد موقعك'; A.textContent='حتى يكون الدبوس على باب البيت'; OK.style.opacity=0;
+  const zoomState=()=>{ ++seq; N.classList.remove('wait'); CARD&&CARD.classList.remove('sk'); N.textContent='قرّب الخريطة لتحديد موقعك'; A.textContent='حتى يكون الدبوس على باب البيت'; OK.style.opacity=0;
     tip.classList.remove('no','far'); tip.classList.add('zoom'); tip.querySelector('span').textContent='قرّب الخريطة'; FAR.hidden=true; BK.hidden=true; S.mapFar=false;
     B.classList.remove('off'); B.dataset.a='mapZoomIn'; B.textContent='قرّب إلى الدبوس'; };
   ov._zoomIn=()=>mp.flyTo(mp.getCenter(),ZTO,{duration:.7});
@@ -1174,7 +1179,7 @@ function liveMapFull(){
     let w={}; try{ w=await revGeo(c.lat,c.lng); }catch(e){} if(id!==seq) return;
     const city=(w.city||'').replace(/^منطقة\s+/,''); const hood=w.hood&&w.hood!==city&&!city.includes(w.hood)?w.hood:'';
     S.mapPick={hood:hood||'—',road:w.road,city,ok}; S.mapLoc={lat:c.lat,lng:c.lng};
-    N.classList.remove('wait'); N.textContent= hood?('حي '+hood):(w.road||city||'موقع بدون اسم');
+    N.classList.remove('wait'); CARD&&CARD.classList.remove('sk'); N.textContent= hood?('حي '+hood):(w.road||city||'موقع بدون اسم');
     A.textContent= [w.road&&hood?w.road:'', city].filter(Boolean).join('، ')||`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
     OK.textContent=ok?'يوصلك':'ما يوصلك'; OK.className='pill '+(ok?'ok':'bad'); OK.style.opacity=1; B.classList.toggle('off',!ok);
     tip.classList.toggle('no',!ok); tip.querySelector('span').textContent=ok?'طلبك يوصل هنا':'ما نوصل لهذا الموقع';
