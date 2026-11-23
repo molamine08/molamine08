@@ -87,6 +87,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .arow+.divider,.clean .divider{display:none}
 .clean .card .divider{display:block;background:#e6e6e6}
 .clean .ic.cbtn{background:none!important;padding:6px!important}
+/* map preview is a static picture: tap opens the editor, no hint label */
+.clean .map.tap::after{display:none}
 .clean .arow .edtx{flex:none;display:flex;align-items:center;height:32px;padding:0 14px;border-radius:10px;background:#fff;font-size:14px;font-weight:500;color:var(--dark)}
 .clean .speeds{gap:0;background:var(--fill);border-radius:20px;padding:0 16px}
 .clean .speed{border:0;border-radius:0;background:none;padding:0;min-height:68px}
