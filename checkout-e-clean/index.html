@@ -206,7 +206,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .page.anim{transition:transform .5s cubic-bezier(.32,.72,0,1),opacity .5s cubic-bezier(.32,.72,0,1),translate .25s var(--ease)}
 .clean .st>span:not(.dot){position:relative;top:1px}
 .clean .st.cur{font-weight:700}
-.clean .dn{transform:none}
+/* center digits by their own ink box, independent of font ascent/descent (iOS and Chrome differ) */
+.clean .dn{line-height:normal;text-box:trim-both cap alphabetic;transform:translateY(1px)}
 .clean .st.done .dot{color:#a3a3a3}
 .clean .elink{margin-top:12px}
 .clean .tabs{border-radius:999px}
