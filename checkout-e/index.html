@@ -1435,7 +1435,7 @@ function savedSheet(){ let sel=S.saved;
   const draw=()=>`${sheetHead('اختر عنوان التوصيل', !CLEAN)}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
     <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span><span class="aded" data-a="editAddr" data-i="${i}" role="button" aria-label="تعديل العنوان">${ic('pen')}</span></button>`).join('')}
     <button class="addcard nw" data-a="newAddr"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
-    <button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`;
+    ${CLEAN?'':`<button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`}`;
   const ov=openSheet(draw(), 'adov'); ov._sel=()=>sel; ov._set=i=>{sel=i; ov.querySelector('.sheet').innerHTML=draw();};
 }
 const ACK_ART = `<svg viewBox="0 0 120 104" width="120" height="104" aria-hidden="true">
@@ -1501,7 +1501,7 @@ function recipListSheet(){ let sel=RECIPS.findIndex(x=>sameRecip(x,S.recipient))
   const draw=()=>`${sheetHead('من سيستلم الطلب؟', !CLEAN)}<div class="adlist">${RECIPS.map((r,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickRecip" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
     <span class="tx"><span class="nmr"><span class="sm w5">${r.name}</span></span><span class="l2"><span dir="ltr">+966 ${r.phone}</span></span></span><span class="aded" data-a="editRecip" data-i="${i}" role="button" aria-label="تعديل المستلم">${ic('pen')}</span></button>`).join('')}
     <button class="addcard nw" data-a="newRecip"><span class="pl">${ic('add')}</span><span>مستلم جديد</span></button></div>
-    <button class="btn ${sel<0?'off':''}" data-a="recipPickOk" style="flex:none">تأكيد المستلم</button>
+    ${CLEAN?'':`<button class="btn ${sel<0?'off':''}" data-a="recipPickOk" style="flex:none">تأكيد المستلم</button>`}
     ${S.recipient?`<button class="rclear" data-a="recipDel">سأستلم الطلب بنفسي</button>`:''}`;
   const ov=openSheet(draw(), 'adov rlov'); ov._sel=()=>sel; ov._set=i=>{ sel=i; ov.querySelector('.sheet').innerHTML=draw(); };
 }
@@ -1705,7 +1705,7 @@ function act(a, el){
   case 'addNew': S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.nq=''; S.picked=null; S.mapPick=null; S.addrErr=false; go(2,'N0',1); break;
   case 'nname': S.newName = S.newName===el.dataset.n ? '' : el.dataset.n; rerender(); if(S.newName==='آخر') setTimeout(()=>{ const n=$('#nnm'); n&&n.focus(); },30); break;
   case 'nfav': smoothToggle(el, ()=>{ S.newFav=!S.newFav; rerender(); }); break;
-  case 'pickSaved': ov._set(+el.dataset.i); break;
+  case 'pickSaved': ov._set(+el.dataset.i); if(CLEAN){ const i=+el.dataset.i; setTimeout(()=>{ if(ov.classList.contains('show')) act('savedOk', ov.querySelector('.sheet'), ov); },220); } break;
   case 'editAddr': { const i=+el.dataset.i; closeSheet(()=>editSheet(i)); } break;
   case 'editMap': { const ed=layer.querySelector('.edov'), a=SAVED[S.editI], prev={...S.loc}; const l=ed._e.loc||(a.lat?{lat:a.lat,lng:a.lng}:null); if(l) S.loc={...l};
     mapSheet(); const mo=layer.lastElementChild; mo._after=()=>{ S.loc=prev; }; } break;
@@ -1728,7 +1728,7 @@ function act(a, el){
   case 'savedOk': { const i=ov._sel(); closeSheet(()=>{ S.saved=i; if(SAVED[i].floor!=null) S.floor=SAVED[i].floor; if(SAVED[i].instr!=null) S.instr=SAVED[i].instr; if(SAVED[i].lat) S.loc={lat:SAVED[i].lat,lng:SAVED[i].lng}; S.screen = SAVED[i].incomplete?'Rc':'R0'; S.rcErr=false; render(); }); } break;
   case 'newAddr': closeSheet(()=>{ S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='N0'; S.nq=''; S.picked=null; S.mapPick=null; render(); }); break;
   case 'recip': (E && S.user==='old') ? recipListSheet() : recipSheet(); break;
-  case 'pickRecip': ov._set(+el.dataset.i); break;
+  case 'pickRecip': ov._set(+el.dataset.i); if(CLEAN){ setTimeout(()=>{ if(ov.classList.contains('show')) act('recipPickOk', ov.querySelector('.sheet'), ov); },220); } break;
   case 'recipPickOk': { const i=ov._sel(); if(i<0) break; S.recipient={...RECIPS[i]}; closeSheet(()=>rerender()); } break;
   case 'newRecip': closeSheet(()=>recipSheet({i:null})); break;
   case 'editRecip': { const i=+el.dataset.i; closeSheet(()=>recipSheet({i})); } break;
