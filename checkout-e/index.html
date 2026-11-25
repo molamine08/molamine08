@@ -90,6 +90,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ic.cbtn{background:none!important;padding:6px!important}
 /* map preview is a static picture: tap opens the editor, no hint label */
 .clean .map.tap::after{display:none}
+.leaf .leaflet-tile-pane{filter:grayscale(1) brightness(1.03) contrast(1.05)}
 .clean .arow.pinrow{align-items:center;gap:14px}
 .clean .arow.pinrow .mic{width:22px;height:22px;flex:none;color:var(--dark)}
 .clean .arow.pinrow .tx>.sm{color:var(--light);font-size:14px}
@@ -1276,7 +1277,7 @@ function otpSheet(){ const code = String(Math.floor(1000+Math.random()*9000)); S
 }
 function permDialog(){ openSheet(`<div class="dialog"><p class="base w7">يريد store.salla.sa معرفة موقعك</p><p class="sm c-l">نستخدم موقعك لتحديد عنوان التوصيل بدقة.</p>
   <div class="sbtns"><button class="btn" data-a="allow" style="flex:none">السماح</button><button class="btn sec" data-a="deny" style="flex:none">عدم السماح</button></div></div>`,'center'); }
-const tiles=()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'});
+const tiles=()=>L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'});
 const RIY={s:21.25,n:21.62,w:39.65,e:40.05};
 const inRiyadh=(lat,lng)=>lat>RIY.s&&lat<RIY.n&&lng>RIY.w&&lng<RIY.e;
 const strip=t=>(t||'').replace(/^حي\s+/,'').trim();
