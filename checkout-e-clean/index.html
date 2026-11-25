@@ -220,6 +220,24 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .sec[style*="gap:20px"]{gap:16px!important}
 .clean .orline{margin:0 0 4px}
 .clean .natgrp{margin-top:16px}
+.clean .cbox{background:var(--fill);border-radius:24px;border:1.5px solid transparent;overflow:hidden}
+.clean .cbox:focus-within{border-color:var(--dark);background:#fff}
+.clean .cbox.err{border-color:var(--danger)}
+.clean .crow{display:flex;align-items:center;gap:10px;width:100%;height:52px;padding:0 20px;font-size:16px;color:var(--dark);border-bottom:1px solid rgba(0,0,0,.07)}
+.clean .crow .flag,.clean .cli .flag{font-size:20px;line-height:1}
+.clean .crow .cn{flex:1;text-align:right;font-weight:500}
+.clean .crow .cdn{width:18px;height:18px;color:var(--light);transform:rotate(180deg)}
+.clean .cin{display:flex;align-items:center;gap:8px;height:52px;padding:0 20px}
+.clean .cin input{flex:1;min-width:0;font-size:16px;background:none;border:0;outline:0;color:var(--dark)}
+.clean .cin .ic{width:20px;height:20px;color:var(--light)}
+.clean .cin+.cin,.clean .cin+.cin2{border-top:1px solid rgba(0,0,0,.07)}
+.clean .cin2{display:flex}.clean .cin2 .cin{flex:1}.clean .cin2 .cin+.cin{border-top:0;border-inline-start:1px solid rgba(0,0,0,.07)}
+.clean .cin.bad input::placeholder{color:var(--danger)}
+.clean .clist{display:flex;flex-direction:column}
+.clean .cli{display:flex;align-items:center;gap:12px;height:56px;font-size:16px;color:var(--dark);border-bottom:1px solid #f0f0f0}
+.clean .cli:last-child{border-bottom:0}.clean .cli .cn{flex:1;text-align:right}.clean .cli.on .cn{font-weight:600}
+.clean .cli .ck{width:20px;height:20px;color:var(--dark)}
+
 .clean .sec.addr .field+.sms,.clean .sms{margin-top:-4px}
 .clean #paysec .smn.w5{font-size:16px;margin-top:8px!important;margin-bottom:-6px}
 .clean #paysec .earn{margin-top:-8px}
@@ -826,7 +844,8 @@ const CARDS = {
 const BASE = 202.03, VAT = 29.15, SAVE_BASE = 18.50;
 
 /* ---------- state ---------- */
-const S = {
+const COUNTRIES=[{c:"SA",n:"السعودية",f:"🇸🇦"},{c:"AE",n:"الإمارات",f:"🇦🇪"},{c:"KW",n:"الكويت",f:"🇰🇼"},{c:"BH",n:"البحرين",f:"🇧🇭"},{c:"QA",n:"قطر",f:"🇶🇦"},{c:"OM",n:"عُمان",f:"🇴🇲"},{c:"EG",n:"مصر",f:"🇪🇬"},{c:"JO",n:"الأردن",f:"🇯🇴"}];
+const S = {country:"SA",mf:{},
   custom:'#2f6fed',
   loc:{lat:21.3895,lng:39.8275}, mapLoc:null,
   theme:'black', user:'new', step:0, screen:'start',
@@ -1130,18 +1149,35 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
   <p class="xs c-l">${SPEEDS.find(s=>s.id===S.speed).t} · ${SPEEDS.find(s=>s.id===S.speed).e}</p>
   <button class="btn" data-a="restart" style="flex:none;width:100%;margin-top:12px">تجربة من جديد</button></div>`; }
 };
+const ctry=()=>COUNTRIES.find(c=>c.c===S.country)||COUNTRIES[0];
+/* clean: country + national address in one grouped box; outside Saudi the national address gives way to plain address fields */
+function natBlock(results){ const k=ctry(), sa=k.c==='SA', m=S.mf, er=S.addrErr;
+  const crow=`<button class="crow" data-a="country"><span class="flag">${k.f}</span><span class="cn">${k.n}</span>${ic('down','cdn')}</button>`;
+  if(sa) return `<div class="natgrp"><div class="field"><span class="label">العنوان الوطني المختصر</span>
+    <div class="ddwrap"><div class="cbox ${er?'err':''}" id="nbox">${crow}<label class="cin"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('search')}</label></div>
+    ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div>
+    ${er?`<div class="errtxt">${ic('alert')}أدخل عنوانك الوطني، أو حدّد موقعك على الخريطة.</div>`:''}</div>
+    ${S.smsSent?`<div class="note ok">${ic('check')}أرسلنا عنوانك الوطني المختصر إلى جوالك برسالة نصية.</div>`:`<div class="sms"><span>ما تعرف عنوانك المختصر؟</span><b data-a="sms">أرسله لجوالك</b></div>`}</div>`;
+  const f=(id,ph,v,bad,extra='')=>`<label class="cin ${bad?'bad':''}"><input id="${id}" class="mfi" placeholder="${ph}" value="${v||''}" autocomplete="off"${extra}></label>`;
+  return `<div class="natgrp"><div class="field"><span class="label">عنوان التوصيل</span>
+    <div class="cbox ${er?'err':''}" id="nbox">${crow}${f('mcity','المدينة',m.mcity,er&&!m.mcity)}${f('mstreet','الحي والشارع',m.mstreet,er&&!m.mstreet)}
+    <div class="cin2">${f('mbno','رقم المبنى',m.mbno,false)}${f('mzip','الرمز البريدي',m.mzip,false,' inputmode="numeric" dir="ltr" style="text-align:right"')}</div></div>
+    ${er?`<div class="errtxt">${ic('alert')}أدخل المدينة والحي والشارع لنوصل طلبك.</div>`:''}</div></div>`; }
+function countrySheet(){ const draw=()=>`${sheetHead('دولة التوصيل')}<div class="clist">${COUNTRIES.map(k=>`<button class="cli ${k.c===S.country?'on':''}" data-a="pickCountry" data-c="${k.c}"><span class="flag">${k.f}</span><span class="cn">${k.n}</span>${k.c===S.country?ic('check','ck'):''}</button>`).join('')}</div>`;
+  openSheet(draw(),'adov'); }
 function N0E(results){ return `<div class="sec addr">${head('أضف عنوان التوصيل','حدّد موقعك بضغطة، أو أدخل عنوانك الوطني المختصر.')}
-  ${S.addrErr?`<div class="note err" id="addrerr">${ic('alert')}حدّد موقعك أو أدخل عنوانك الوطني لإكمال طلبك</div>`:''}
+  ${S.addrErr&&!CLEAN?`<div class="note err" id="addrerr">${ic('alert')}حدّد موقعك أو أدخل عنوانك الوطني لإكمال طلبك</div>`:''}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="opts"><button class="optrow" data-a="locate"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.gps}</span></span><span class="txt"><span class="t1">موقعك الحالي</span></span>${ic('left','arr')}</button>
   <button class="optrow" data-a="mapsheet"><span class="circ"><span class="ic" style="width:18px;height:18px">${I.mapl}</span></span><span class="txt"><span class="t1">${CLEAN?"حدّد على الخريطة":"موقعك على الخريطة"}</span></span>${ic('left','arr')}</button></div>
   ${CLEAN?'':'<div class="orline"><i></i>أو استخدم عنوانك الوطني<i></i></div>'}
-  <div style="display:flex;flex-direction:column;gap:8px"${CLEAN?' class="natgrp"':''}>
+  ${CLEAN?natBlock(results):`<div style="display:flex;flex-direction:column;gap:8px">
     <div class="field"><span class="label">العنوان الوطني المختصر</span>
       <div class="ddwrap"><label class="inp" id="nbox"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('file')}</label>
       ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div>
       </div>
     ${S.smsSent?`<div class="note ok">${ic('check')}أرسلنا عنوانك الوطني المختصر إلى جوالك برسالة نصية.</div>`:`<div class="sms"><span>ما تعرف عنوانك المختصر؟</span><b data-a="sms">أرسله لجوالك</b></div>`}
+  </div>`}
   </div></div></div>`; }
 function loginE(){ return `<div class="sec" style="gap:20px">${head('ممكن رقم جوالك','لنرسل عليه رمز تحقق وتحديثات طلبك')}
   <div style="display:flex;flex-direction:column;gap:24px">
@@ -1173,6 +1209,7 @@ function after(){
   const ph = $("#phonein"); if(ph) ph.oninput = e => { e.target.value = e.target.value.replace(/\D/g,''); S.phone = e.target.value; if(S.loginErr){ S.loginErr=''; $('#phonebox').classList.remove('err'); const er=$('#phonebox').parentNode.querySelector('.errtxt'); if(er) er.remove(); } };
   const nq = $('#nq'); if(nq){ nq.oninput = e => { const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); S.nq=v; S.ddOpen=true; S.addrErr=false; rerender(); const n=$('#nq'); n.focus(); n.setSelectionRange(v.length,v.length); };
     nq.onfocus = () => { if(S.nq.length>=2 && !S.ddOpen){ S.ddOpen=true; rerender(); const n=$('#nq'); n.focus(); } }; }
+  curPage.querySelectorAll('.mfi').forEach(i=>i.oninput=()=>{ S.mf[i.id]=i.value; if(S.addrErr){ i.parentNode.classList.remove('bad'); } });
   const pc = $('#pickc'); if(pc){ pc.oninput = e => { S.custom=e.target.value; S.theme='custom'; applyTheme(); const l=pc.parentNode; l.querySelector('i').style.background=S.custom; document.querySelectorAll('.thm').forEach(t=>t.classList.toggle('on',t===l)); }; }
   const fl = $('#floor'); if(fl) fl.oninput = e => S.floor = e.target.value;
   const ins = $('#instr'); if(ins) ins.oninput = e => S.instr = e.target.value;
@@ -1622,6 +1659,9 @@ function next(){
       loading(b, ()=>{ S.otpTo=S.phone; S.otpAt=Date.now(); S.otpVal=''; S.otpErr=false; go(1,'otp',1); }); return; }
     loading(b, ()=>otpSheet()); return; }
   if(S.step===2){
+    if(S.screen==='N0' && CLEAN && S.country!=='SA'){ const m=S.mf; if(!(m.mcity||'').trim()||!(m.mstreet||'').trim()){ S.addrErr=true; rerender(); $('#nbox').classList.add('shake'); return; }
+      SAVED.push({name:'', line:ctry().n+' - '+m.mcity.trim()+' - '+m.mstreet.trim(), code:'', fav:false, floor:'', instr:'', bno:m.mbno||'', zip:m.mzip||''}); S.saved=SAVED.length-1; S.adding=false; S.addrErr=false;
+      S.lastAddr = S.user==='old' ? 'R0' : 'N0'; if(S.user==='old') S.screen='R0'; loading(b, ()=>go(3,'ship',1), 450); return; }
     if(S.screen==='N0'){ S.addrErr=true; S.ddOpen=false; rerender(); const e=$('#addrerr')||$('#nbox'); if(e===$('#nbox')) e.classList.add('shake'); else { curPage.scrollTo({top:0,behavior:'smooth'}); e.classList.add('shake'); } return; }
     if(S.screen==='N1L') return;
     if(S.screen==='Rc' && !/^\d{4}$/.test(S.rcBno)){ S.rcErr=true; rerender(); const r=$('#rcb'); r.parentNode.classList.add('shake'); r.focus(); return; }
@@ -1661,6 +1701,8 @@ function act(a, el){
   case 'otpOk': { const o=$('#otp'); if(!o||ov.dataset.done) break; if(/^\d{4}$/.test(o.value)){ ov.dataset.done=1; closeSheet(()=>startAddressStep(1)); $('#toast').classList.remove('show'); }
     else { $('#otperr').innerHTML=`<div class="errtxt">${ic('alert')}أدخل رمز التحقق المكوّن من 4 أرقام.</div>`; $('#otpbox').classList.add('err','shake'); setTimeout(()=>$('#otpbox')&&$('#otpbox').classList.remove('shake'),400); } } break;
   case 'pickup': toast('الاستلام من الفرع غير متاح في هذا النموذج.'); break;
+  case 'country': countrySheet(); break;
+  case 'pickCountry': { const c=el.dataset.c, ov=layer.lastElementChild; ov.querySelectorAll('.cli').forEach(x=>x.classList.toggle('on',x===el)); setTimeout(()=>closeSheet(()=>{ if(S.country!==c){ S.country=c; S.addrErr=false; S.ddOpen=false; rerender(); } }),220); break; }
   case 'sms': S.smsSent=true; S.addrErr=false; rerender(); toast(`رسالة نصية · عنوانك الوطني المختصر: <b>MSHQ2929</b>`,6000); break;
   case 'pickNat': S.picked=NATIONAL[+el.dataset.i]; S.loc={lat:21.3895,lng:39.8275}; S.nq=S.picked.code; S.ddOpen=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); break;
   case 'editNat': S.screen='N0'; S.ddOpen=true; render(); setTimeout(()=>{const n=$('#nq'); n&&n.focus();},50); break;
@@ -1699,7 +1741,7 @@ function act(a, el){
   case 'savedsheet': savedSheet(); break;
   case 'msBack': { const o=el.closest('.ov'); o&&o._msBack&&o._msBack(); } break;
   case 'msClear': { const o=el.closest('.ov'); o&&o._msClear&&o._msClear(); } break;
-  case 'mapManual': closeSheet(()=>{ const n=$('#nq'); if(n){ n.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>n.focus(),250); } }); break;
+  case 'mapManual': closeSheet(()=>{ const n=$('#nq')||$('#mcity'); if(n){ n.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(()=>n.focus(),250); } }); break;
   case 'selSaved': S.saved=+el.dataset.i; rerender(); break;
   case 'editSaved': S.saved=+el.dataset.i; go(2, SAVED[S.saved].incomplete?'Rc':'R0d', 1); break;
   case 'addNew': S.adding=true; S.newName=''; S.newCustom=''; S.newFav=false; S.nq=''; S.picked=null; S.mapPick=null; S.addrErr=false; go(2,'N0',1); break;
