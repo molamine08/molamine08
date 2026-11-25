@@ -332,6 +332,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ncmeta>span{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid #e3e3e3;border-radius:16px}
 .clean .ncmeta b{font-family:Inter,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:var(--dark)}
 .clean .nchead .nccode{flex:none;height:26px;display:inline-flex;align-items:center;padding:0 12px;border-radius:999px;background:linear-gradient(to right,#1288c4,#5b3a8e 55%,#a51f3d);font-family:Inter,sans-serif;font-size:13px;font-weight:600;letter-spacing:.04em;color:#fff}
+.clean .nchead .nccode{background:#fff;color:var(--dark)}
+.clean .nchead .nccode>span{background:linear-gradient(to right,#1288c4,#5b3a8e 55%,#a51f3d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 .mmanual{position:absolute;left:12px;bottom:164px;z-index:3;height:44px;padding:0 16px;border-radius:22px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;color:var(--dark)}
 .mmanual .ic{width:18px;height:18px}
 .clean .mpanel .mextra{height:48px;gap:10px}
@@ -1055,7 +1057,7 @@ N2(){ const p=S.picked;
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="natcard">${mapBlock(148)}
     <div class="ncbody">
-      <div class="nchead"><p class="nct">حي ${p.hood}</p><span class="nccode" dir="ltr">${p.code}</span><button class="edtx" data-a="editNat">تعديل</button></div>
+      <div class="nchead"><p class="nct">حي ${p.hood}</p><span class="nccode" dir="ltr"><span>${p.code}</span></span><button class="edtx" data-a="editNat">تعديل</button></div>
       <p class="ncs">${p.street}، مكة المكرمة</p>
     </div>
     <div class="ncmeta"><span>رقم المبنى<b>${p.bno}</b></span><span>الرمز البريدي<b>${p.zip}</b></span><span>الرقم الإضافي<b>${p.add||'—'}</b></span></div></div>
