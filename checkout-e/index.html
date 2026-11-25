@@ -328,8 +328,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .nchead .edtx{margin-inline-start:auto;display:flex;align-items:center;height:32px;padding:0 14px;border-radius:999px;background:#e6e6e6;font-size:14px;font-weight:500;color:var(--dark);flex:none}
 .clean .nct{font-size:16px;line-height:24px;font-weight:700;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clean .ncs{font-size:14px;line-height:20px;color:var(--light)}
-.clean .ncmeta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 16px 16px;font-size:13px;line-height:18px;color:var(--light)}
-.clean .ncmeta>span{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid #e3e3e3;border-radius:16px}
+.clean .ncmeta{display:grid;grid-template-columns:repeat(3,1fr);padding:4px 16px 16px;font-size:13px;line-height:18px;color:var(--light)}
+.clean .ncmeta>span{display:flex;flex-direction:column;gap:6px;padding:12px 16px 4px}
+.clean .ncmeta>span:first-child{padding-inline-start:0}
+.clean .ncmeta>span+span{border-inline-start:1px solid #e3e3e3}
 .clean .ncmeta b{font-family:Inter,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:var(--dark)}
 .clean .nchead .nccode{flex:none;height:26px;display:inline-flex;align-items:center;padding:0 12px;border-radius:999px;background:linear-gradient(to right,#1288c4,#5b3a8e 55%,#a51f3d);font-family:Inter,sans-serif;font-size:13px;font-weight:600;letter-spacing:.04em;color:#fff}
 .clean .nchead .nccode{background:#fff;color:var(--dark)}
