@@ -314,6 +314,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .msfhead .mback .ic,.msfhead .mback svg{width:20px;height:20px}
 .msearch.fs{position:relative;left:auto;right:auto;top:auto;flex:1;height:48px;border:0;border-radius:999px;background:#f3f3f3;padding:0 16px}
 .msearch.fs input{font-size:16px;color:var(--dark)}
+.msearch.fs .c[hidden]{display:none}
+.msearch.fs .c .xi{width:18px;height:18px;color:var(--dark)}
 .msfbody{flex:1;overflow-y:auto;padding:8px 20px 24px}
 .mshint{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:#f6f6f6;font-size:14px;line-height:20px;color:var(--light)}
 .mshint .ic{width:18px;height:18px;flex:none}.mshint b{color:var(--dark)}
@@ -1308,7 +1310,7 @@ function addRecent(r){ RECENTS=[r, ...RECENTS.filter(x=>x.t!==r.t)].slice(0,5); 
 function natSearch(){ if(document.querySelector('.natsrch')) return;
   const esc=t=>String(t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
   const F=document.createElement('div'); F.className='msfull natsrch';
-  F.innerHTML=`<div class="msfhead"><button class="mback" data-ns="back" aria-label="إغلاق">${XI}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="nsq" placeholder="ABCD1234" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="search" dir="ltr" style="text-align:right"><button class="ic c" data-ns="clear" aria-label="مسح">${I.cancel}</button></label></div><div class="msfbody" id="nsbody"></div>`;
+  F.innerHTML=`<div class="msfhead"><button class="mback" data-ns="back" aria-label="إغلاق">${XI}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="nsq" placeholder="ABCD1234" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="search" dir="ltr" style="text-align:right"><button class="ic c" data-ns="clear" aria-label="مسح" hidden>${XI}</button></label></div><div class="msfbody" id="nsbody"></div>`;
   phone.appendChild(F); document.body.classList.add('nsopen'); placeFab();
   const Q=F.querySelector('#nsq'), BD=F.querySelector('#nsbody');
   const item=(n,icon)=>`<button class="msitem" data-ni="${NATIONAL.indexOf(n)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t code" dir="ltr">${n.code}</span><span class="d">${esc(n.desc.split(' · ')[0])}، ${esc(n.street)}</span></span></button>`;
@@ -1322,10 +1324,10 @@ function natSearch(){ if(document.querySelector('.natsrch')) return;
     BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(n)).join('')}${map}`
       : `<div class="msnone">${v.length===8?'ما لقينا هذا العنوان الوطني. تأكد من الحروف والأرقام.':'اكتب العنوان المختصر كاملًا: 4 حروف و4 أرقام.'}</div>${map}`; };
   const close=(then)=>{ F.classList.remove('on'); Q.blur(); document.body.classList.remove('nsopen'); setTimeout(()=>{ F.remove(); then&&then(); },220); };
-  Q.oninput=run; idle(); requestAnimationFrame(()=>F.classList.add('on')); Q.focus();
+  const CB=F.querySelector('[data-ns=clear]'); Q.oninput=()=>{ run(); CB.hidden=!Q.value; }; idle(); requestAnimationFrame(()=>F.classList.add('on')); Q.focus();
   F.addEventListener('click',e=>{ const b=e.target.closest('[data-ns],[data-ni]'); if(!b) return; e.preventDefault();
     if(b.dataset.ns==='back') return close();
-    if(b.dataset.ns==='clear'){ Q.value=''; idle(); Q.focus(); return; }
+    if(b.dataset.ns==='clear'){ Q.value=''; CB.hidden=true; idle(); Q.focus(); return; }
     if(b.dataset.ns==='map') return close(()=>mapSheet());
     const n=NATIONAL[+b.dataset.ni]; addRecent({t:n.code, d:n.desc.split(' · ')[0], lat:n.lat, lng:n.lng, code:true});
     close(()=>{ S.picked=n; S.loc={lat:21.3895,lng:39.8275}; S.natLoc={...S.loc}; S.nq=n.code; S.ddOpen=false; S.addrErr=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); }); });
@@ -1339,10 +1341,11 @@ function mapSearchFull(ov, mp, q){
   const idle=()=>{ BD.innerHTML=`<div class="mshint"><span class="ic">${I.info}</span><span>العنوان المختصر 4 حروف و4 أرقام، مثل <b dir="ltr">MSHQ2929</b></span></div>
     ${RECENTS.length?`<p class="mssec">عمليات البحث الأخيرة</p>${RECENTS.map(r=>item(r,I.clock)).join('')}`:''}
     <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(natItem(n))).join('')}${manual()}`; };
-  const open=()=>{ F.hidden=false; requestAnimationFrame(()=>F.classList.add('on')); SQ.value=''; idle(); setTimeout(()=>SQ.focus(),60); };
+  const open=()=>{ F.hidden=false; requestAnimationFrame(()=>F.classList.add('on')); SQ.value=''; F.querySelector('[data-a=msClear]').hidden=true; idle(); setTimeout(()=>SQ.focus(),60); };
   const close=()=>{ F.classList.remove('on'); SQ.blur(); setTimeout(()=>{ F.hidden=true; },220); };
   q.addEventListener('click',e=>{ e.preventDefault(); open(); }); q.addEventListener('focus',()=>{ q.blur(); open(); });
-  ov._msBack=close; ov._msClear=()=>{ SQ.value=''; idle(); SQ.focus(); };
+  ov._msBack=close; ov._msClear=()=>{ SQ.value=''; MCB.hidden=true; idle(); SQ.focus(); };
+  const MCB=F.querySelector('[data-a=msClear]'); SQ.addEventListener('input',()=>{ MCB.hidden=!SQ.value; });
   let tq, seq=0; SQ.oninput=()=>{ clearTimeout(tq); const raw=SQ.value.trim(), v=raw.toUpperCase().replace(/\s+/g,'');
     if(!raw){ idle(); return; }
     if(/^[A-Z]{1,4}\d{0,4}$/.test(v)){ const hits=NATIONAL.filter(n=>n.code.startsWith(v));
@@ -1365,7 +1368,7 @@ function liveMapFull(){
      <span class="pin">${I.pin}</span><i class="pshadow"></i>
      <button class="locate" data-a="locateMe" aria-label="موقعي">${I.gps}</button>
      ${CLEAN&&mapIsNew()?`<button class="mmanual" data-a="mapManual">${ic('pen')}إدخال يدوي</button>`:''}</div>
-   ${CLEAN?`<div class="msfull" id="msfull" hidden><div class="msfhead"><button class="mback" data-a="msBack" aria-label="رجوع">${I.back}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="msq" placeholder="العنوان الوطني المختصر أو الحي" autocomplete="off" enterkeyhint="search"><button class="ic c" data-a="msClear" aria-label="مسح">${I.cancel}</button></label></div><div class="msfbody" id="msbody"></div></div>`:''}
+   ${CLEAN?`<div class="msfull" id="msfull" hidden><div class="msfhead"><button class="mback" data-a="msBack" aria-label="رجوع">${I.back}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="msq" placeholder="العنوان الوطني المختصر أو الحي" autocomplete="off" enterkeyhint="search"><button class="ic c" data-a="msClear" aria-label="مسح" hidden>${XI}</button></label></div><div class="msfbody" id="msbody"></div></div>`:''}
    <div class="mhead"><button class="mback mx" data-a="close" aria-label="إغلاق">${XI}</button><div class="msrch"><label class="msearch static"><span class="ic s">${I.search}</span><input id="mapq" placeholder="${CLEAN?'العنوان الوطني المختصر أو الحي':'ابحث عن حي أو شارع'}" autocomplete="off" ${CLEAN?'readonly':''}><button class="ic c" data-a="mapClear" aria-label="مسح">${I.cancel}</button></label><div class="mres" id="mres" hidden></div></div></div>
    <div class="mpanel">
      ${CLEAN?`<div class="maddr mcard"><span class="ic mic">${I.locpin}</span><div class="tx"><p class="t1" id="mapname">جارٍ تحديد العنوان…</p><p class="t2" id="mapaddr"></p></div><span class="pill ok" id="mapok" style="opacity:0">يوصلك</span></div>`
