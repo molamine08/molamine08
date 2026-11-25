@@ -227,6 +227,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .sec,.clean .sec.addr{gap:16px}
 .clean .sec[style*="gap:20px"]{gap:16px!important}
 .clean .orline{margin:0 0 4px}
+.clean .field .hint{margin-top:6px;font-size:13px;line-height:18px;color:#a35300}
 .clean .natgrp{margin-top:16px;display:flex;flex-direction:column;gap:12px}
 .clean .natgrp .sms{margin-top:0}
 .clean .cbox{background:var(--fill);border-radius:24px;border:1.5px solid transparent;overflow:hidden}
@@ -1102,7 +1103,12 @@ R0E(){ return `<div class="sec addr">${head('عنوان التوصيل','اخت�
     <button class="ed" data-a="editSaved" data-i="${i}" aria-label="تعديل">${ic('pen')}</button></div>`).join('')}
   <button class="addcard nw" data-a="addNew"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
   ${instrField()}</div></div>`; },
-Rc(){ const a=E?SAVED[S.saved]:SAVED[2]; return `<div class="sec addr">${head('أكمل بيانات العنوان','هذا العنوان ينقصه رقم المبنى. أكمله لنوصل طلبك.')}
+Rc(){ const a=E?SAVED[S.saved]:SAVED[2];
+  /* clean: an incomplete address looks like any saved address; only the missing field is added */
+  if(CLEAN) return detailsView([a.name?`<span class="w5">${a.name}</span>`:'', a.line, a.code?`<span dir="ltr">${a.code}</span>`:''].filter(Boolean).join(' · '), 'savedsheet', true, '', 'عنوان التوصيل', false,
+    `<div class="field"><span class="label">رقم المبنى</span><label class="inp ${S.rcErr?'err':''}"><input id="rcb" inputmode="numeric" maxlength="4" placeholder="مثال: 2451" value="${S.rcBno}"></label>
+    ${S.rcErr?`<div class="errtxt">${ic('alert')}أدخل رقم المبنى لنوصل طلبك</div>`:`<p class="hint">ينقص هذا العنوان رقم المبنى</p>`}</div>`);
+  return `<div class="sec addr">${head('أكمل بيانات العنوان','هذا العنوان ينقصه رقم المبنى. أكمله لنوصل طلبك.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="field"><span class="label">العنوان الوطني المختصر <span class="opt">(اختياري)</span></span><div class="inp soft"><input value="${a.code}" readonly style="direction:ltr;text-align:right">${ic('file')}</div></div>
   ${mapBlock()}
@@ -1220,10 +1226,10 @@ const saveOpts = () => (E && !CLEAN && S.user==='old' && S.adding) ? `<div class
   <div class="nchips">${['البيت','العمل','آخر'].map(n=>`<button class="nchip ${S.newName===n?'on':''}" data-a="nname" data-n="${n}">${n}</button>`).join('')}</div>
   ${S.newName==='آخر'?`<label class="inp"><input id="nnm" placeholder="مثال: بيت أهلي" maxlength="20" value="${S.newCustom||''}"></label>`:''}</div>
   <button class="favrow" data-a="nfav"><span class="tx"><span class="sm w7">اجعله عنواني المفضل</span><span class="xs c-l">نختاره لك تلقائيًا في طلباتك القادمة</span></span><span class="tog ${S.newFav?'on':''}"></span></button>` : '';
-function detailsView(line, editAct, withFloor, tag='', title='عنوان التوصيل', pin=false){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
+function detailsView(line, editAct, withFloor, tag='', title='عنوان التوصيل', pin=false, extra=''){ return `<div class="sec addr">${head('تفاصيل العنوان','تأكّد من مكان الدبوس، ثم أكمل بيانات المبنى.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}${mapBlock()}
   <div style="display:flex;flex-direction:column;gap:8px"><button class="arow${pin?' pinrow':''}" data-a="${editAct}">${pin?`<span class="ic mic">${I.locpin}</span>`:''}<span class="tx"><span class="nmr"><span class="sm w7">${title}</span>${tag}</span><span class="sm">${line}</span></span>${editAct==='savedsheet'?ic('left','arr'):CLEAN?'<span class="edtx">تعديل</span>':ic('pen','cbtn')}</button><div class="divider"></div></div>
-  ${withFloor?floorField():''}${instrField()}${saveOpts()}</div></div>${afterAddr()}`; }
+  ${extra}${withFloor?floorField():''}${instrField()}${saveOpts()}</div></div>${afterAddr()}`; }
 
 /* ---------- after-render bindings ---------- */
 function after(){
