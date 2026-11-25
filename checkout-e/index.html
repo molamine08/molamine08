@@ -331,6 +331,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .msearch.fs .c .xi{width:18px;height:18px;color:var(--dark)}
 .msfbody{flex:1;overflow-y:auto;padding:8px 20px 24px}
 .mshint{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:#f6f6f6;font-size:14px;line-height:20px;color:var(--light)}
+.fsrch .mshint{background:none;padding:4px 0;color:#a3a3a3;font-size:13px}
+.fsrch .mshint b{color:#8a8a8a;font-weight:600}
 .mshint .ic{width:18px;height:18px;flex:none}.mshint b{color:var(--dark)}
 .mssec{margin:20px 0 4px;font-size:13px;color:var(--light)}
 .msitem{display:flex;align-items:center;gap:12px;width:100%;padding:12px 0;text-align:right}
@@ -1335,11 +1337,11 @@ function fullSearch(host, o){ if(host.querySelector(':scope > .fsrch')) return;
   const nat=n=>({t:n.code, d:n.desc.split(' · ')[0]+'، '+n.street, lat:n.lat, lng:n.lng, code:true});
   const item=(r,icon)=>`<button class="msitem" data-lat="${r.lat}" data-lng="${r.lng}" data-t="${esc(r.t)}" data-d="${esc(r.d)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t ${r.code?'code':''}" ${r.code?'dir="ltr"':''}>${esc(r.t)}</span><span class="d">${esc(r.d)}</span></span></button>`;
   const empty=(t,sub)=>`<div class="nsempty"><span class="nsei">${I.mapl}</span><p class="nset">${t}</p><p class="nses">${sub}</p>${o.empty?`<button class="nsebtn" data-fs="empty">${o.empty.label}</button>`:''}</div>`;
-  const fit=()=>{ const e=BD.querySelector('.nsempty'); if(!e) return; const vh=window.visualViewport?visualViewport.height:innerHeight; e.style.minHeight=Math.max(220,Math.min(F.clientHeight,vh)-F.querySelector('.msfhead').offsetHeight-16)+'px'; };
+  const fit=()=>{ const e=BD.querySelector('.nsempty'); if(!e) return; e.style.minHeight=''; const vh=window.visualViewport?visualViewport.height:innerHeight; const avail=Math.min(F.clientHeight,vh)-BD.offsetTop-16; e.style.minHeight=Math.max(200,avail-(e.offsetTop-BD.offsetTop))+'px'; };
   if(window.visualViewport) visualViewport.addEventListener('resize',fit);
   const idle=()=>{ BD.innerHTML=`<div class="mshint"><span class="ic">${I.info}</span><span>العنوان المختصر 4 حروف و4 أرقام، مثل <b dir="ltr">MSHQ2929</b></span></div>
     ${RECENTS.length?`<p class="mssec">عمليات البحث الأخيرة</p>${RECENTS.map(r=>item(r,I.clock)).join('')}`:''}
-    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(nat(n))).join('')}`; };
+    ${empty('ابحث عن عنوانك','اكتب العنوان الوطني المختصر أو اسم الحي أو الشارع.')}`; fit(); };
   let tq, seq=0;
   const run=()=>{ clearTimeout(tq); const raw=Q.value.trim(), v=raw.toUpperCase().replace(/\s+/g,''); CB.hidden=!Q.value; if(!raw){ ++seq; return idle(); }
     if(/^[A-Z]{1,4}\d{0,4}$/.test(v)){ ++seq; const hits=NATIONAL.filter(n=>n.code.startsWith(v));
