@@ -308,6 +308,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .msfull{position:absolute;inset:0;z-index:20;background:#fff;display:flex;flex-direction:column;opacity:0;transform:translateY(12px);transition:opacity .22s var(--ease),transform .22s var(--ease)}
 .msfull.on{opacity:1;transform:none}
 .msfull[hidden]{display:none}
+.msfull.natsrch{position:absolute;inset:0;z-index:80}
 .msfhead{display:flex;align-items:center;gap:10px;padding:16px 16px 8px}
 .msfhead .mback{flex:none;width:44px;height:44px;border-radius:22px;background:#f3f3f3;display:flex;align-items:center;justify-content:center}
 .msfhead .mback .ic,.msfhead .mback svg{width:20px;height:20px}
@@ -1219,7 +1220,8 @@ function detailsView(line, editAct, withFloor, tag='', title='عنوان الت�
 function after(){
   const $ = sel => curPage.querySelector(sel);
   const ph = $("#phonein"); if(ph) ph.oninput = e => { e.target.value = e.target.value.replace(/\D/g,''); S.phone = e.target.value; if(S.loginErr){ S.loginErr=''; $('#phonebox').classList.remove('err'); const er=$('#phonebox').parentNode.querySelector('.errtxt'); if(er) er.remove(); } };
-  const nq = $('#nq'); if(nq){ nq.oninput = e => { const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); S.nq=v; S.ddOpen=true; S.addrErr=false; rerender(); const n=$('#nq'); n.focus(); n.setSelectionRange(v.length,v.length); };
+  const nq = $('#nq'); if(nq && CLEAN && nq.closest('.cbox')){ nq.readOnly=true; nq.setAttribute('inputmode','none'); nq.onclick=e=>{ e.preventDefault(); natSearch(); }; nq.onfocus=()=>{ nq.blur(); natSearch(); }; }
+  else if(nq){ nq.oninput = e => { const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); S.nq=v; S.ddOpen=true; S.addrErr=false; rerender(); const n=$('#nq'); n.focus(); n.setSelectionRange(v.length,v.length); };
     nq.onfocus = () => { if(S.nq.length>=2 && !S.ddOpen){ S.ddOpen=true; rerender(); const n=$('#nq'); n.focus(); } }; }
   curPage.querySelectorAll('.mfi').forEach(i=>i.oninput=()=>{ S.mf[i.id]=i.value; if(S.addrErr){ i.parentNode.classList.remove('bad'); } });
   const pc = $('#pickc'); if(pc){ pc.oninput = e => { S.custom=e.target.value; S.theme='custom'; applyTheme(); const l=pc.parentNode; l.querySelector('i').style.background=S.custom; document.querySelectorAll('.thm').forEach(t=>t.classList.toggle('on',t===l)); }; }
@@ -1302,6 +1304,32 @@ function saveNewFromMap(extra){ const w=S.mapPick||{hood:'—'}, hood=w.hood&&w.
 /* clean: the map search opens a full screen (recent searches, national-address hint, examples), not a dropdown */
 const RECENT_KEY='ck_recent_addr'; let RECENTS=(()=>{ try{ return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]'); }catch(e){ return []; } })();
 function addRecent(r){ RECENTS=[r, ...RECENTS.filter(x=>x.t!==r.t)].slice(0,5); try{ localStorage.setItem(RECENT_KEY, JSON.stringify(RECENTS)); }catch(e){} }
+/* clean: the national-address field opens a full-screen search, so results sit right under the field, above the keyboard */
+function natSearch(){ if(document.querySelector('.natsrch')) return;
+  const esc=t=>String(t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  const F=document.createElement('div'); F.className='msfull natsrch';
+  F.innerHTML=`<div class="msfhead"><button class="mback" data-ns="back" aria-label="رجوع">${I.back}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="nsq" placeholder="ABCD1234" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="search" dir="ltr" style="text-align:right"><button class="ic c" data-ns="clear" aria-label="مسح">${I.cancel}</button></label></div><div class="msfbody" id="nsbody"></div>`;
+  phone.appendChild(F); document.body.classList.add('nsopen'); placeFab();
+  const Q=F.querySelector('#nsq'), BD=F.querySelector('#nsbody');
+  const item=(n,icon)=>`<button class="msitem" data-ni="${NATIONAL.indexOf(n)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t code" dir="ltr">${n.code}</span><span class="d">${esc(n.desc.split(' · ')[0])}، ${esc(n.street)}</span></span></button>`;
+  const map=`<button class="msmanual" data-ns="map"><span>ما لقيت عنوانك؟ <b>حدّد على الخريطة</b></span>${I.left}</button>`;
+  const rec=()=>RECENTS.map(r=>NATIONAL.find(n=>n.code===r.t)).filter(Boolean);
+  const idle=()=>{ const R=rec(); BD.innerHTML=`<div class="mshint"><span class="ic">${I.info}</span><span>العنوان المختصر 4 حروف و4 أرقام، مثل <b dir="ltr">MSHQ2929</b></span></div>
+    ${R.length?`<p class="mssec">عمليات البحث الأخيرة</p>${R.map(n=>item(n,I.clock)).join('')}`:''}
+    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(n)).join('')}${map}`; };
+  const run=()=>{ const v=Q.value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(Q.value!==v) Q.value=v; if(!v) return idle();
+    const hits=NATIONAL.filter(n=>n.code.startsWith(v));
+    BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(n)).join('')}${map}`
+      : `<div class="msnone">${v.length===8?'ما لقينا هذا العنوان الوطني. تأكد من الحروف والأرقام.':'اكتب العنوان المختصر كاملًا: 4 حروف و4 أرقام.'}</div>${map}`; };
+  const close=(then)=>{ F.classList.remove('on'); Q.blur(); document.body.classList.remove('nsopen'); setTimeout(()=>{ F.remove(); then&&then(); },220); };
+  Q.oninput=run; idle(); requestAnimationFrame(()=>F.classList.add('on')); Q.focus();
+  F.addEventListener('click',e=>{ const b=e.target.closest('[data-ns],[data-ni]'); if(!b) return; e.preventDefault();
+    if(b.dataset.ns==='back') return close();
+    if(b.dataset.ns==='clear'){ Q.value=''; idle(); Q.focus(); return; }
+    if(b.dataset.ns==='map') return close(()=>mapSheet());
+    const n=NATIONAL[+b.dataset.ni]; addRecent({t:n.code, d:n.desc.split(' · ')[0], lat:n.lat, lng:n.lng, code:true});
+    close(()=>{ S.picked=n; S.loc={lat:21.3895,lng:39.8275}; S.natLoc={...S.loc}; S.nq=n.code; S.ddOpen=false; S.addrErr=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); }); });
+}
 function mapSearchFull(ov, mp, q){
   const F=ov.querySelector('#msfull'), SQ=ov.querySelector('#msq'), BD=ov.querySelector('#msbody'); if(!F) return;
   const esc=t=>String(t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -1884,7 +1912,7 @@ addEventListener('resize', fit); if(VV){ VV.addEventListener('resize', fit); VV.
 const KBFAB=document.createElement('button'); KBFAB.type='button'; KBFAB.className='kbfab'; KBFAB.hidden=true; document.body.appendChild(KBFAB);
 KBFAB.addEventListener('pointerdown', e=>e.preventDefault());   // keep the field focused while tapping
 KBFAB.addEventListener('click', ()=>{ const b=document.getElementById('mainbtn'); if(b && !KBFAB.classList.contains('off')) b.click(); });
-function placeFab(){ const b=document.getElementById('mainbtn'), on=CLEAN && !!S.step && !!b && document.body.classList.contains('kb') && !layer.querySelector('.ov.show');
+function placeFab(){ const b=document.getElementById('mainbtn'), on=CLEAN && !!S.step && !!b && document.body.classList.contains('kb') && !layer.querySelector('.ov.show') && !document.querySelector('.natsrch');
   KBFAB.hidden=!on; if(!on) return;
   KBFAB.textContent=b.textContent.trim(); KBFAB.classList.toggle('off', b.disabled||b.classList.contains('off'));
   KBFAB.style.top=Math.round((VV?VV.offsetTop+VV.height:innerHeight)-48-12)+'px'; }
