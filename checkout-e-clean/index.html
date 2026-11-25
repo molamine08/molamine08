@@ -309,7 +309,8 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .msfull{position:absolute;inset:0;z-index:20;background:#fff;display:flex;flex-direction:column;opacity:0;transform:translateY(12px);transition:opacity .22s var(--ease),transform .22s var(--ease)}
 .msfull.on{opacity:1;transform:none}
 .msfull[hidden]{display:none}
-.msfull.natsrch{position:absolute;inset:0;z-index:80}
+.msfull.fsrch{position:absolute;inset:0;z-index:30}
+.msfull.natsrch{z-index:80}
 .nsempty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 24px}
 .nsei{width:56px;height:56px;border-radius:28px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;color:var(--light);margin-bottom:14px}
 .nsei svg{width:26px;height:26px}
@@ -1319,62 +1320,50 @@ function saveNewFromMap(extra){ const w=S.mapPick||{hood:'—'}, hood=w.hood&&w.
 /* clean: the map search opens a full screen (recent searches, national-address hint, examples), not a dropdown */
 const RECENT_KEY='ck_recent_addr'; let RECENTS=(()=>{ try{ return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]'); }catch(e){ return []; } })();
 function addRecent(r){ RECENTS=[r, ...RECENTS.filter(x=>x.t!==r.t)].slice(0,5); try{ localStorage.setItem(RECENT_KEY, JSON.stringify(RECENTS)); }catch(e){} }
-/* clean: the national-address field opens a full-screen search, so results sit right under the field, above the keyboard */
-function natSearch(){ if(document.querySelector('.natsrch')) return;
+/* clean: one full-screen address search, used by the national-address field and by the map.
+   National codes match as you type; other text searches neighbourhoods and streets; no match shows a centred empty state. */
+function fullSearch(host, o){ if(host.querySelector(':scope > .fsrch')) return;
   const esc=t=>String(t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-  const F=document.createElement('div'); F.className='msfull natsrch';
-  F.innerHTML=`<div class="msfhead"><button class="mback" data-ns="back" aria-label="إغلاق">${XI}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="nsq" placeholder="ABCD1234" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="search" dir="ltr" style="text-align:right"><button class="ic c" data-ns="clear" aria-label="مسح" hidden>${XI}</button></label></div><div class="msfbody" id="nsbody"></div>`;
-  phone.appendChild(F); document.body.classList.add('nsopen'); placeFab();
-  const Q=F.querySelector('#nsq'), BD=F.querySelector('#nsbody');
-  const item=(n,icon)=>`<button class="msitem" data-ni="${NATIONAL.indexOf(n)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t code" dir="ltr">${n.code}</span><span class="d">${esc(n.desc.split(' · ')[0])}، ${esc(n.street)}</span></span></button>`;
-  /* no match: a centred empty state in the visible area (above the keyboard) that offers the map */
-  const empty=v=>`<div class="nsempty"><span class="nsei">${I.mapl}</span><p class="nset">${v.length===8?'ما لقينا هذا العنوان الوطني':'العنوان المختصر 4 حروف و4 أرقام'}</p><p class="nses">${v.length===8?'تأكد من الحروف والأرقام، أو حدّد موقعك على الخريطة.':'أكمل كتابة الرمز، أو حدّد موقعك على الخريطة.'}</p><button class="nsebtn" data-ns="map">حدّد على الخريطة</button></div>`;
+  const F=document.createElement('div'); F.className='msfull fsrch'+(o.page?' natsrch':'');
+  F.innerHTML=`<div class="msfhead"><button class="mback" data-fs="back" aria-label="إغلاق">${XI}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input class="fsq" placeholder="العنوان الوطني المختصر أو الحي" autocomplete="off" enterkeyhint="search"><button class="ic c" data-fs="clear" aria-label="مسح" hidden>${XI}</button></label></div><div class="msfbody"></div>`;
+  host.appendChild(F); if(o.page){ document.body.classList.add('nsopen'); placeFab(); }
+  const Q=F.querySelector('.fsq'), BD=F.querySelector('.msfbody'), CB=F.querySelector('[data-fs=clear]');
+  const nat=n=>({t:n.code, d:n.desc.split(' · ')[0]+'، '+n.street, lat:n.lat, lng:n.lng, code:true});
+  const item=(r,icon)=>`<button class="msitem" data-lat="${r.lat}" data-lng="${r.lng}" data-t="${esc(r.t)}" data-d="${esc(r.d)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t ${r.code?'code':''}" ${r.code?'dir="ltr"':''}>${esc(r.t)}</span><span class="d">${esc(r.d)}</span></span></button>`;
+  const empty=(t,sub)=>`<div class="nsempty"><span class="nsei">${I.mapl}</span><p class="nset">${t}</p><p class="nses">${sub}</p>${o.empty?`<button class="nsebtn" data-fs="empty">${o.empty.label}</button>`:''}</div>`;
   const fit=()=>{ const e=BD.querySelector('.nsempty'); if(!e) return; const vh=window.visualViewport?visualViewport.height:innerHeight; e.style.minHeight=Math.max(220,Math.min(F.clientHeight,vh)-F.querySelector('.msfhead').offsetHeight-16)+'px'; };
   if(window.visualViewport) visualViewport.addEventListener('resize',fit);
-  const rec=()=>RECENTS.map(r=>NATIONAL.find(n=>n.code===r.t)).filter(Boolean);
-  const idle=()=>{ const R=rec(); BD.innerHTML=`<div class="mshint"><span class="ic">${I.info}</span><span>العنوان المختصر 4 حروف و4 أرقام، مثل <b dir="ltr">MSHQ2929</b></span></div>
-    ${R.length?`<p class="mssec">عمليات البحث الأخيرة</p>${R.map(n=>item(n,I.clock)).join('')}`:''}
-    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(n)).join('')}`; };
-  const run=()=>{ const v=Q.value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(Q.value!==v) Q.value=v; if(!v) return idle();
-    const hits=NATIONAL.filter(n=>n.code.startsWith(v));
-    BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(n)).join('')}` : empty(v); fit(); };
-  const close=(then)=>{ F.classList.remove('on'); Q.blur(); document.body.classList.remove('nsopen'); setTimeout(()=>{ F.remove(); then&&then(); },220); };
-  const CB=F.querySelector('[data-ns=clear]'); Q.oninput=()=>{ run(); CB.hidden=!Q.value; }; idle(); requestAnimationFrame(()=>F.classList.add('on')); Q.focus();
-  F.addEventListener('click',e=>{ const b=e.target.closest('[data-ns],[data-ni]'); if(!b) return; e.preventDefault();
-    if(b.dataset.ns==='back') return close();
-    if(b.dataset.ns==='clear'){ Q.value=''; CB.hidden=true; idle(); Q.focus(); return; }
-    if(b.dataset.ns==='map') return close(()=>mapSheet());
-    const n=NATIONAL[+b.dataset.ni]; addRecent({t:n.code, d:n.desc.split(' · ')[0], lat:n.lat, lng:n.lng, code:true});
-    close(()=>{ S.picked=n; S.loc={lat:21.3895,lng:39.8275}; S.natLoc={...S.loc}; S.nq=n.code; S.ddOpen=false; S.addrErr=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); }); });
-}
-function mapSearchFull(ov, mp, q){
-  const F=ov.querySelector('#msfull'), SQ=ov.querySelector('#msq'), BD=ov.querySelector('#msbody'); if(!F) return;
-  const esc=t=>String(t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-  const item=(r,icon)=>`<button class="msitem" data-lat="${r.lat}" data-lng="${r.lng}" data-t="${esc(r.t)}" data-d="${esc(r.d)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t ${r.code?'code':''}" ${r.code?'dir="ltr"':''}>${esc(r.t)}</span><span class="d">${esc(r.d)}</span></span></button>`;
-  const manual=()=>mapIsNew()?`<button class="msmanual" data-a="mapManual"><span>ما لقيت عنوانك؟ <b>أدخله يدوي</b></span>${I.left}</button>`:'';
-  const natItem=n=>({t:n.code, d:n.desc.split(' · ')[0]+'، '+n.street, lat:n.lat, lng:n.lng, code:true});
   const idle=()=>{ BD.innerHTML=`<div class="mshint"><span class="ic">${I.info}</span><span>العنوان المختصر 4 حروف و4 أرقام، مثل <b dir="ltr">MSHQ2929</b></span></div>
     ${RECENTS.length?`<p class="mssec">عمليات البحث الأخيرة</p>${RECENTS.map(r=>item(r,I.clock)).join('')}`:''}
-    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(natItem(n))).join('')}${manual()}`; };
-  const open=()=>{ F.hidden=false; requestAnimationFrame(()=>F.classList.add('on')); SQ.value=''; F.querySelector('[data-a=msClear]').hidden=true; idle(); setTimeout(()=>SQ.focus(),60); };
-  const close=()=>{ F.classList.remove('on'); SQ.blur(); setTimeout(()=>{ F.hidden=true; },220); };
-  q.addEventListener('click',e=>{ e.preventDefault(); open(); }); q.addEventListener('focus',()=>{ q.blur(); open(); });
-  ov._msBack=close; ov._msClear=()=>{ SQ.value=''; MCB.hidden=true; idle(); SQ.focus(); };
-  const MCB=F.querySelector('[data-a=msClear]'); SQ.addEventListener('input',()=>{ MCB.hidden=!SQ.value; });
-  let tq, seq=0; SQ.oninput=()=>{ clearTimeout(tq); const raw=SQ.value.trim(), v=raw.toUpperCase().replace(/\s+/g,'');
-    if(!raw){ idle(); return; }
-    if(/^[A-Z]{1,4}\d{0,4}$/.test(v)){ const hits=NATIONAL.filter(n=>n.code.startsWith(v));
-      BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(natItem(n))).join('')}${manual()}`
-        : `<div class="msnone">${v.length===8?'ما لقينا هذا العنوان الوطني. تأكد من الحروف والأرقام.':'اكتب العنوان المختصر كاملًا: 4 حروف و4 أرقام.'}</div>${manual()}`; return; }
-    if(raw.length<2) return; const id=++seq;
-    BD.innerHTML=`<div class="msnone">جارٍ البحث…</div>`;
+    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(nat(n))).join('')}`; };
+  let tq, seq=0;
+  const run=()=>{ clearTimeout(tq); const raw=Q.value.trim(), v=raw.toUpperCase().replace(/\s+/g,''); CB.hidden=!Q.value; if(!raw){ ++seq; return idle(); }
+    if(/^[A-Z]{1,4}\d{0,4}$/.test(v)){ ++seq; const hits=NATIONAL.filter(n=>n.code.startsWith(v));
+      BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(nat(n))).join('')}`
+        : v.length===8 ? empty('ما لقينا هذا العنوان الوطني', o.emptySub||'تأكد من الحروف والأرقام.') : empty('العنوان المختصر 4 حروف و4 أرقام', 'أكمل كتابة الرمز، أو ابحث باسم الحي.'); return fit(); }
+    if(raw.length<2) return; const id=++seq; BD.innerHTML=`<div class="msnone">جارٍ البحث…</div>`;
     tq=setTimeout(async()=>{ try{ const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(raw)}&countrycodes=sa&viewbox=${RIY.w},${RIY.n},${RIY.e},${RIY.s}&bounded=1&limit=8&accept-language=ar`); const j=await r.json(); if(id!==seq) return;
-        BD.innerHTML = j.length ? `<p class="mssec">الأحياء والشوارع</p>${j.map(x=>item({t:(x.name||x.display_name.split('،')[0]), d:x.display_name, lat:x.lat, lng:x.lon},I.locpin)).join('')}${manual()}`
-          : `<div class="msnone">لا توجد نتائج. جرّب اسم حي أو شارع آخر، أو العنوان الوطني المختصر.</div>${manual()}`;
-      }catch(e){ if(id!==seq) return; BD.innerHTML=`<div class="msnone">تعذّر البحث الآن.</div>${manual()}`; } },400); };
-  BD.addEventListener('click',e=>{ const b=e.target.closest('.msitem'); if(!b) return; e.stopPropagation();
-    addRecent({t:b.dataset.t, d:b.dataset.d, lat:+b.dataset.lat, lng:+b.dataset.lng, code:/^[A-Z]{4}\d{4}$/.test(b.dataset.t)});
-    q.value=b.dataset.t; close(); mp.flyTo([+b.dataset.lat,+b.dataset.lng],17,{duration:.8}); });
+        BD.innerHTML = j.length ? `<p class="mssec">الأحياء والشوارع</p>${j.map(x=>item({t:(x.name||x.display_name.split('،')[0]), d:x.display_name, lat:x.lat, lng:x.lon},I.locpin)).join('')}`
+          : empty('ما لقينا نتائج لـ «'+esc(raw)+'»', o.emptySub||'جرّب اسم حي أو شارع آخر.');
+      }catch(e){ if(id!==seq) return; BD.innerHTML=empty('تعذّر البحث الآن', 'حاول مرة ثانية بعد قليل.'); } fit(); },400); };
+  const close=then=>{ F.classList.remove('on'); Q.blur(); if(o.page) document.body.classList.remove('nsopen'); setTimeout(()=>{ F.remove(); if(o.page) placeFab(); then&&then(); },220); };
+  Q.oninput=run; idle(); requestAnimationFrame(()=>F.classList.add('on')); Q.focus();
+  F.addEventListener('click',e=>{ const b=e.target.closest('[data-fs],.msitem'); if(!b) return; e.preventDefault(); e.stopPropagation();
+    if(b.dataset.fs==='back') return close();
+    if(b.dataset.fs==='clear'){ Q.value=''; run(); Q.focus(); return; }
+    if(b.dataset.fs==='empty') return close(()=>o.empty.fn());
+    const r={t:b.dataset.t, d:b.dataset.d, lat:+b.dataset.lat, lng:+b.dataset.lng, code:/^[A-Z]{4}\d{4}$/.test(b.dataset.t)}; addRecent(r);
+    const n=r.code&&NATIONAL.find(x=>x.code===r.t); close(()=>n?o.onNat(n,r):o.onPlace(r)); });
+}
+function natSearch(){ fullSearch(phone,{page:true,
+  empty:{label:'حدّد على الخريطة', fn:()=>mapSheet()}, emptySub:'تأكد من المدخل، أو حدّد موقعك على الخريطة.',
+  onNat:n=>{ S.picked=n; S.loc={lat:21.3895,lng:39.8275}; S.natLoc={...S.loc}; S.nq=n.code; S.ddOpen=false; S.addrErr=false; S.screen='N1L'; render(); setTimeout(()=>{ if(S.screen==='N1L'){ S.screen='N2'; render(); } },1200); },
+  onPlace:r=>{ S.loc={lat:r.lat,lng:r.lng}; mapSheet(); } }); }
+function mapSearchFull(ov, mp, q){
+  const host=(ov.querySelector('#msfull')||{}).parentNode||ov; const go=r=>{ q.value=r.t; mp.flyTo([r.lat,r.lng],17,{duration:.8}); };
+  const open=()=>fullSearch(host,{ onNat:(n,r)=>go(r), onPlace:go,
+    empty:{label:'حرّك الخريطة بنفسك', fn:()=>{}}, emptySub:'جرّب كلمة ثانية، أو حرّك الخريطة بنفسك.' });
+  q.addEventListener('click',e=>{ e.preventDefault(); open(); }); q.addEventListener('focus',()=>{ q.blur(); open(); });
 }
 function liveMapFull(){
   const ov=openSheet(`<div class="mfull">
