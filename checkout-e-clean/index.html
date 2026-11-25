@@ -1081,9 +1081,9 @@ L2(){ const w=S.mapPick||{hood:'الشوقية',road:'شارع الشوقية'};
   /* clean: same wording as the map card the customer just confirmed */
   if(CLEAN){ const city=w.city||'مكة المكرمة', hood=w.hood&&w.hood!=='—'?w.hood:''; return detailsView([hood&&w.road?w.road:'', city].filter(Boolean).join('، '), 'mapsheet', true, '', hood?'حي '+hood:(w.road||city), true); }
   return detailsView(`السعودية - مكة المكرمة - ${w.hood}${w.road?' · '+w.road:''}`, 'mapsheet', true); },
-R0(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line} · <span dir="ltr">${a.code}</span>`, 'savedsheet', S.saved!==0, addrTag(a)); },
+R0(){ const a=SAVED[S.saved]; return detailsView([a.name?`<span class="w5">${a.name}</span>`:'', a.line, a.code?`<span dir="ltr">${a.code}</span>`:''].filter(Boolean).join(' · '), 'savedsheet', S.saved!==0, addrTag(a)); },
 
-R0d(){ const a=SAVED[S.saved]; return detailsView(`<span class="w5">${a.name?a.name+' ':''}</span>· ${a.line}${a.code?` · <span dir="ltr">${a.code}</span>`:''}`, 'mapsheet', true, a.fav?STAR:''); },
+R0d(){ const a=SAVED[S.saved]; return detailsView([a.name?`<span class="w5">${a.name}</span>`:'', a.line, a.code?`<span dir="ltr">${a.code}</span>`:''].filter(Boolean).join(' · '), 'mapsheet', true, a.fav?STAR:''); },
 R0E(){ return `<div class="sec addr">${head('عنوان التوصيل','اختر عنوان التوصيل، أو أضف عنوانًا جديدًا.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="adlist">${SAVED.map((a,i)=>`<div class="adcard ${S.saved===i?'on':''}" data-a="selSaved" data-i="${i}"><span class="radio ${S.saved===i?'on':''}"></span>
@@ -1744,9 +1744,9 @@ function act(a, el){
       const finish=()=>{ S.editI=null; if(!['R0','R0d'].includes(S.screen)) S.screen='R0'; rerender(); toast('حفظنا العنوان الجديد واخترناه لطلبك'); };
       closeSheet(()=>{ if(ed) closeSheet(finish); else finish(); }); break; }
     if(CLEAN && mapIsNew()){ const ex=(($('#mextra')||{}).value||'').trim(); const b=$('#mapbtn');
-      if(S.user==='old') saveNewFromMap(ex); else { S.floor=ex; S.instr=''; }
-      S.lastAddr = S.user==='old' ? 'R0' : 'N0'; if(S.user==='old') S.screen='R0';
-      b&&b.classList.add('busy'); setTimeout(()=>closeSheet(()=>go(3,'ship',1)), 350); break; }
+      /* saved right away: the shopper now has a saved address, so they land on its details page (R0), not straight in shipping */
+      saveNewFromMap(ex); S.lastAddr='R0';
+      b&&b.classList.add('busy'); setTimeout(()=>closeSheet(()=>{ go(2,'R0',1); toast('حفظنا عنوانك'); }), 350); break; }
     if(E && S.user==='old' && S.editI!=null){ const far=LIVE&&S.mapFar, ed=layer.querySelector('.edov');
       if(far){ const loc={...S.loc}; closeSheet(()=>{ const e2=layer.querySelector('.edov'); if(e2) e2._after=null; closeSheet(()=>{ S.editI=null; S.loc=loc; S.adding=true; S.fromFar=true; S.newName=''; S.newCustom=''; S.newFav=false; S.screen='L2'; render(1); }); }); break; }
       if(ed) ed._e.loc={...S.loc}; closeSheet(()=>{ ed&&ed._redraw(); toast('عدّلنا الموقع. احفظ التعديلات لتثبيته'); }); break; }
