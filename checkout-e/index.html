@@ -295,6 +295,10 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ov.full.msheet .mfull{border-radius:32px 32px 0 0}
 .clean .ov.full.msheet .mmap{border-radius:32px 32px 0 0}
 .clean .mpanel .btn{height:48px;border-radius:99px}
+.clean .ov.msheet .mpanel{transition:transform .28s cubic-bezier(.32,.72,0,1)}
+.clean .ov.msheet.moving .mpanel{transform:translateY(100%)}
+.clean .ov.msheet .locate,.clean .ov.msheet .mmanual{transition:opacity .18s}
+.clean .ov.msheet.moving .locate,.clean .ov.msheet.moving .mmanual{opacity:0;pointer-events:none}
 .clean .mpanel{background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.06);border-top:0}
 /* close sits on the left, after the search field */
 /* adding an address is a full-screen map, not a sheet */
@@ -1419,6 +1423,8 @@ function liveMapFull(){
     FAR.hidden=!far; FAR.innerHTML=far?`${ic('alert')}<span>هذا الموقع بعيد عن عنوان «${nm}»، فلن نغيّره. نحفظه لك كعنوان جديد، أو ارجع إلى موقع ${nm}.</span>`:'';
     B.textContent=far?'حفظه كعنوان جديد':(CLEAN&&mapIsNew()?'حفظ العنوان':'تأكيد الموقع'); BK.hidden=!far; if(CX) CX.hidden=far;
     { const X=$('#mextrab'); if(X) X.hidden=!(far||mapIsNew()); } };
+  /* while the shopper drags the map, the panel slides away and the floating buttons hide, so the map gets the whole screen */
+  mp.on('dragstart',()=>ov.classList.add('moving')); mp.on('moveend',()=>ov.classList.remove('moving'));
   let t; mp.on('movestart',()=>{ pin.classList.add('up'); tip.classList.add('hide'); res.hidden=true; wait(); });
   mp.on('moveend',()=>{ pin.classList.remove('up'); tip.classList.remove('hide'); clearTimeout(t); t=setTimeout(look,350); });
   let tq; q.oninput=()=>{ clearTimeout(tq); const v=q.value.trim(); if(v.length<2){ res.hidden=true; return; } tq=setTimeout(async()=>{
