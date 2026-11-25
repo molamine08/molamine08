@@ -517,6 +517,7 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .leaf{position:absolute;inset:0;z-index:0;direction:ltr;background:#eef0f2}
 .map.tap .leaf{pointer-events:none}
 .leaf .leaflet-tile-pane{filter:grayscale(.92) brightness(1.06) contrast(.9)}
+.clean .leaf .leaflet-tile-pane{filter:grayscale(.95) brightness(1.1) contrast(.78)}
 .leaf .leaflet-control-attribution{font-size:11px;line-height:14px;background:rgba(255,255,255,.8)}
 .mres{position:absolute;left:8px;right:8px;top:56px;z-index:4;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.08);overflow:hidden;max-height:260px;overflow-y:auto}
 .mres button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:10px 12px;border-bottom:1px solid var(--div);text-align:right}
@@ -1432,7 +1433,7 @@ function editSheet(i){ const a=SAVED[i], known=['البيت','العمل'].inclu
   ov._after=()=>{ S.editI=null; savedSheet(); };
 }
 function savedSheet(){ let sel=S.saved;
-  const draw=()=>`${sheetHead('اختر عنوان التوصيل', !CLEAN)}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
+  const draw=()=>`${sheetHead(CLEAN?'عناوينك المحفوظة':'اختر عنوان التوصيل', !CLEAN)}<div class="adlist">${SAVED.map((a,i)=>`<button class="adrow ${sel===i?'on':''}" data-a="pickSaved" data-i="${i}"><span class="radio ${sel===i?'on':''}"></span>
     <span class="tx"><span class="nmr">${a.name?`<span class="sm w5">${a.name}</span>`:''}${addrTag(a)}</span><span class="l2"><span>${a.line}</span>${a.incomplete?'<span class="pill warn">يحتاج إكمال</span>':`<span class="acode">${a.code}</span>`}</span></span><span class="aded" data-a="editAddr" data-i="${i}" role="button" aria-label="تعديل العنوان">${ic('pen')}</span></button>`).join('')}
     <button class="addcard nw" data-a="newAddr"><span class="pl">${ic('add')}</span><span>عنوان جديد</span></button></div>
     ${CLEAN?'':`<button class="btn" data-a="savedOk" style="flex:none">تأكيد العنوان</button>`}`;
