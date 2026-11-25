@@ -309,6 +309,13 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .msfull.on{opacity:1;transform:none}
 .msfull[hidden]{display:none}
 .msfull.natsrch{position:absolute;inset:0;z-index:80}
+.nsempty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 24px}
+.nsei{width:56px;height:56px;border-radius:28px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;color:var(--light);margin-bottom:14px}
+.nsei svg{width:26px;height:26px}
+.nset{font-size:16px;line-height:24px;font-weight:600;color:var(--dark)}
+.nses{margin-top:4px;font-size:14px;line-height:22px;color:var(--light);max-width:280px}
+.nsebtn{margin-top:16px;height:44px;padding:0 20px;border-radius:999px;background:#f3f3f3;font-size:15px;font-weight:500;color:var(--dark)}
+
 .msfhead{display:flex;align-items:center;gap:10px;padding:16px 16px 8px}
 .msfhead .mback{flex:none;width:44px;height:44px;border-radius:22px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;box-shadow:none;padding:0}
 .msfhead .mback .ic,.msfhead .mback svg{width:20px;height:20px}
@@ -1314,15 +1321,17 @@ function natSearch(){ if(document.querySelector('.natsrch')) return;
   phone.appendChild(F); document.body.classList.add('nsopen'); placeFab();
   const Q=F.querySelector('#nsq'), BD=F.querySelector('#nsbody');
   const item=(n,icon)=>`<button class="msitem" data-ni="${NATIONAL.indexOf(n)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t code" dir="ltr">${n.code}</span><span class="d">${esc(n.desc.split(' · ')[0])}، ${esc(n.street)}</span></span></button>`;
-  const map=`<button class="msmanual" data-ns="map"><span>ما لقيت عنوانك؟ <b>حدّد على الخريطة</b></span>${I.left}</button>`;
+  /* no match: a centred empty state in the visible area (above the keyboard) that offers the map */
+  const empty=v=>`<div class="nsempty"><span class="nsei">${I.mapl}</span><p class="nset">${v.length===8?'ما لقينا هذا العنوان الوطني':'العنوان المختصر 4 حروف و4 أرقام'}</p><p class="nses">${v.length===8?'تأكد من الحروف والأرقام، أو حدّد موقعك على الخريطة.':'أكمل كتابة الرمز، أو حدّد موقعك على الخريطة.'}</p><button class="nsebtn" data-ns="map">حدّد على الخريطة</button></div>`;
+  const fit=()=>{ const e=BD.querySelector('.nsempty'); if(!e) return; const vh=window.visualViewport?visualViewport.height:innerHeight; e.style.minHeight=Math.max(220,Math.min(F.clientHeight,vh)-F.querySelector('.msfhead').offsetHeight-16)+'px'; };
+  if(window.visualViewport) visualViewport.addEventListener('resize',fit);
   const rec=()=>RECENTS.map(r=>NATIONAL.find(n=>n.code===r.t)).filter(Boolean);
   const idle=()=>{ const R=rec(); BD.innerHTML=`<div class="mshint"><span class="ic">${I.info}</span><span>العنوان المختصر 4 حروف و4 أرقام، مثل <b dir="ltr">MSHQ2929</b></span></div>
     ${R.length?`<p class="mssec">عمليات البحث الأخيرة</p>${R.map(n=>item(n,I.clock)).join('')}`:''}
-    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(n)).join('')}${map}`; };
+    <p class="mssec">أمثلة للتجربة</p>${NATIONAL.map(n=>item(n)).join('')}`; };
   const run=()=>{ const v=Q.value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(Q.value!==v) Q.value=v; if(!v) return idle();
     const hits=NATIONAL.filter(n=>n.code.startsWith(v));
-    BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(n)).join('')}${map}`
-      : `<div class="msnone">${v.length===8?'ما لقينا هذا العنوان الوطني. تأكد من الحروف والأرقام.':'اكتب العنوان المختصر كاملًا: 4 حروف و4 أرقام.'}</div>${map}`; };
+    BD.innerHTML = hits.length ? `<p class="mssec">نتائج العنوان الوطني</p>${hits.map(n=>item(n)).join('')}` : empty(v); fit(); };
   const close=(then)=>{ F.classList.remove('on'); Q.blur(); document.body.classList.remove('nsopen'); setTimeout(()=>{ F.remove(); then&&then(); },220); };
   const CB=F.querySelector('[data-ns=clear]'); Q.oninput=()=>{ run(); CB.hidden=!Q.value; }; idle(); requestAnimationFrame(()=>F.classList.add('on')); Q.focus();
   F.addEventListener('click',e=>{ const b=e.target.closest('[data-ns],[data-ni]'); if(!b) return; e.preventDefault();
