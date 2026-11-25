@@ -1308,7 +1308,7 @@ function addRecent(r){ RECENTS=[r, ...RECENTS.filter(x=>x.t!==r.t)].slice(0,5); 
 function natSearch(){ if(document.querySelector('.natsrch')) return;
   const esc=t=>String(t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
   const F=document.createElement('div'); F.className='msfull natsrch';
-  F.innerHTML=`<div class="msfhead"><button class="mback" data-ns="back" aria-label="رجوع">${I.back}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="nsq" placeholder="ABCD1234" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="search" dir="ltr" style="text-align:right"><button class="ic c" data-ns="clear" aria-label="مسح">${I.cancel}</button></label></div><div class="msfbody" id="nsbody"></div>`;
+  F.innerHTML=`<div class="msfhead"><button class="mback" data-ns="back" aria-label="إغلاق">${XI}</button><label class="msearch fs"><span class="ic s">${I.search}</span><input id="nsq" placeholder="ABCD1234" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="search" dir="ltr" style="text-align:right"><button class="ic c" data-ns="clear" aria-label="مسح">${I.cancel}</button></label></div><div class="msfbody" id="nsbody"></div>`;
   phone.appendChild(F); document.body.classList.add('nsopen'); placeFab();
   const Q=F.querySelector('#nsq'), BD=F.querySelector('#nsbody');
   const item=(n,icon)=>`<button class="msitem" data-ni="${NATIONAL.indexOf(n)}">${icon?`<span class="ic mi">${icon}</span>`:''}<span class="tx"><span class="t code" dir="ltr">${n.code}</span><span class="d">${esc(n.desc.split(' · ')[0])}، ${esc(n.street)}</span></span></button>`;
