@@ -232,7 +232,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .cbox:focus-within{border-color:var(--dark);background:#fff}
 .clean .cbox.err{border-color:var(--danger)}
 .clean .crow{display:flex;align-items:center;gap:10px;width:100%;height:52px;padding:0 20px;font-size:16px;color:var(--dark);border-bottom:1px solid rgba(0,0,0,.07)}
-.clean .crow .flag,.clean .cli .flag{font-size:20px;line-height:1}
+.clean .crow .flag,.clean .cli .flag{width:24px;height:16px;flex:none;object-fit:cover;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
 .clean .crow .cn{flex:1;text-align:right;font-weight:500}
 .clean .crow .cdn{width:18px;height:18px;color:var(--light);transform:rotate(180deg)}
 .clean .cin{display:flex;align-items:center;gap:8px;height:52px;padding:0 20px}
@@ -1174,7 +1174,7 @@ done(){ return `<div class="donepg"><div class="badge">${ic('check')}</div><p cl
 const ctry=()=>COUNTRIES.find(c=>c.c===S.country)||COUNTRIES[0];
 /* clean: country + national address in one grouped box; outside Saudi the national address gives way to plain address fields */
 function natBlock(results){ const k=ctry(), sa=k.c==='SA', m=S.mf, er=S.addrErr;
-  const crow=`<button class="crow" data-a="country"><span class="flag">${k.f}</span><span class="cn">${k.n}</span>${ic('down','cdn')}</button>`;
+  const crow=`<button class="crow" data-a="country"><img class="flag" src="https://flagcdn.com/${k.c.toLowerCase()}.svg" alt="" width="24" height="16"><span class="cn">${k.n}</span>${ic('down','cdn')}</button>`;
   if(sa) return `<div class="natgrp"><div class="field"><span class="label">العنوان الوطني المختصر</span>
     <div class="ddwrap"><div class="cbox ${er?'err':''}" id="nbox">${crow}<label class="cin"><input id="nq" placeholder="ABCD1234" maxlength="8" value="${S.nq}" autocomplete="off" style="direction:ltr;text-align:right">${ic('search')}</label></div>
     ${S.ddOpen && S.nq.length>=2 ? `<div class="dd">${results.length? results.map(r=>`<button class="ddi" data-a="pickNat" data-i="${NATIONAL.indexOf(r)}"><span class="t"><span class="code">${r.code}</span><span class="desc">${r.desc}</span></span><span class="pill ok">يوصلك</span></button>`).join('') : `<div class="ddempty">لا يوجد عنوان بهذا الرمز. تأكّد من الرمز أو حدّد موقعك على الخريطة.</div>`}</div>`:''}</div>
@@ -1185,7 +1185,7 @@ function natBlock(results){ const k=ctry(), sa=k.c==='SA', m=S.mf, er=S.addrErr;
     <div class="cbox ${er?'err':''}" id="nbox">${crow}${f('mcity','المدينة',m.mcity,er&&!m.mcity)}${f('mstreet','الحي والشارع',m.mstreet,er&&!m.mstreet)}
     <div class="cin2">${f('mbno','رقم المبنى',m.mbno,false)}${f('mzip','الرمز البريدي',m.mzip,false,' inputmode="numeric" dir="ltr" style="text-align:right"')}</div></div>
     ${er?`<div class="errtxt">${ic('alert')}أدخل المدينة والحي والشارع لنوصل طلبك.</div>`:''}</div></div>`; }
-function countrySheet(){ const draw=()=>`${sheetHead('دولة التوصيل')}<div class="clist">${COUNTRIES.map(k=>`<button class="cli ${k.c===S.country?'on':''}" data-a="pickCountry" data-c="${k.c}"><span class="flag">${k.f}</span><span class="cn">${k.n}</span>${k.c===S.country?ic('check','ck'):''}</button>`).join('')}</div>`;
+function countrySheet(){ const draw=()=>`${sheetHead('دولة التوصيل')}<div class="clist">${COUNTRIES.map(k=>`<button class="cli ${k.c===S.country?'on':''}" data-a="pickCountry" data-c="${k.c}"><img class="flag" src="https://flagcdn.com/${k.c.toLowerCase()}.svg" alt="" width="24" height="16"><span class="cn">${k.n}</span>${k.c===S.country?ic('check','ck'):''}</button>`).join('')}</div>`;
   openSheet(draw(),'adov'); }
 function N0E(results){ return `<div class="sec addr">${head('أضف عنوان التوصيل','حدّد موقعك بضغطة، أو أدخل عنوانك الوطني المختصر.')}
   ${S.addrErr&&!CLEAN?`<div class="note err" id="addrerr">${ic('alert')}حدّد موقعك أو أدخل عنوانك الوطني لإكمال طلبك</div>`:''}
