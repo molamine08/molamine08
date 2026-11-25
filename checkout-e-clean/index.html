@@ -308,9 +308,9 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .nct{font-size:16px;line-height:24px;font-weight:700;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clean .ncs{font-size:14px;line-height:20px;color:var(--light)}
 .clean .ncmeta{display:flex;align-items:center;flex-wrap:wrap;gap:2px 0;margin-top:8px;font-size:13px;line-height:20px;color:var(--light);white-space:nowrap}
-.clean .ncmeta>span+span::before{content:"";display:inline-block;width:3px;height:3px;border-radius:50%;background:#bdbdbd;margin:0 8px;vertical-align:middle}
+.clean .ncmeta>span+span::before{content:"";display:inline-block;width:1px;height:12px;background:#d4d4d4;margin:0 10px;vertical-align:middle}
 .clean .ncmeta b{font-family:Inter,sans-serif;font-size:13px;font-weight:600;color:var(--dark)}
-.clean .ncmeta .cd b{letter-spacing:.03em}
+.clean .nchead .nccode{flex:none;height:24px;display:inline-flex;align-items:center;padding:0 10px;border-radius:999px;background:#e6e6e6;font-family:Inter,sans-serif;font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--dark)}
 .mmanual{position:absolute;left:12px;bottom:164px;z-index:3;height:44px;padding:0 16px;border-radius:22px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;color:var(--dark)}
 .mmanual .ic{width:18px;height:18px}
 .clean .mpanel .mextra{height:48px;gap:10px}
@@ -1033,9 +1033,9 @@ N2(){ const p=S.picked;
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="natcard">${mapBlock(148)}
     <div class="ncbody">
-      <div class="nchead"><p class="nct">حي ${p.hood}</p><span class="pill ok">يوصلك</span><button class="edtx" data-a="editNat">تغيير</button></div>
+      <div class="nchead"><p class="nct">حي ${p.hood}</p><span class="nccode" dir="ltr">${p.code}</span><button class="edtx" data-a="editNat">تغيير</button></div>
       <p class="ncs">${p.street}، مكة المكرمة</p>
-      <div class="ncmeta"><span class="cd"><b dir="ltr">${p.code}</b></span><span>مبنى <b>${p.bno}</b></span><span>بريدي <b>${p.zip}</b></span><span>إضافي <b>${p.add||'—'}</b></span></div>
+      <div class="ncmeta"><span>رقم المبنى <b>${p.bno}</b></span><span>الرمز البريدي <b>${p.zip}</b></span><span>الرقم الإضافي <b>${p.add||'—'}</b></span></div>
     </div></div>
   ${floorField()}</div></div>${afterAddr()}`;
   return `<div class="sec addr">${head('أضف عنوان التوصيل','تحقّق من بيانات عنوانك، وعدّل ما يلزم.')}
