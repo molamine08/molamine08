@@ -90,7 +90,7 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .ic.cbtn{background:none!important;padding:6px!important}
 /* map preview is a static picture: tap opens the editor, no hint label */
 .clean .map.tap::after{display:none}
-.leaf .leaflet-tile-pane{filter:grayscale(1) brightness(1.03) contrast(1.05)}
+.leaf .leaflet-tile-pane{filter:grayscale(1) brightness(.98) contrast(1.06)}
 .clean .arow.pinrow{align-items:center;gap:14px}
 .clean .arow.pinrow .mic{width:22px;height:22px;flex:none;color:var(--dark)}
 .clean .arow.pinrow .tx>.sm{color:var(--light);font-size:14px}
@@ -1224,7 +1224,9 @@ function after(){
   const pc = $('#pickc'); if(pc){ pc.oninput = e => { S.custom=e.target.value; S.theme='custom'; applyTheme(); const l=pc.parentNode; l.querySelector('i').style.background=S.custom; document.querySelectorAll('.thm').forEach(t=>t.classList.toggle('on',t===l)); }; }
   const fl = $('#floor'); if(fl) fl.oninput = e => S.floor = e.target.value;
   const ins = $('#instr'); if(ins) ins.oninput = e => S.instr = e.target.value;
-  if(LIVE) curPage.querySelectorAll('.map.tap .leaf').forEach(el=>{ const mp=L.map(el,{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false,attributionControl:false}).setView([S.loc.lat,S.loc.lng],16); tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp); const ctr=()=>{ mp.invalidateSize(); mp.setView([S.loc.lat,S.loc.lng],16,{animate:false}); mp.panBy([0,-27.52],{animate:false}); }; ctr(); setTimeout(ctr,350); });
+  /* the small map follows the address on screen: a saved address shows its own pin, otherwise the picked location */
+  const here=()=>{ const a=['R0','R0d'].includes(S.screen)&&SAVED[S.saved]; return a&&a.lat?{lat:a.lat,lng:a.lng}:S.loc; };
+  if(LIVE) curPage.querySelectorAll('.map.tap .leaf').forEach(el=>{ const mp=L.map(el,{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false,attributionControl:false}).setView([here().lat,here().lng],16); tiles().addTo(mp); L.control.attribution({position:'bottomleft',prefix:false}).addTo(mp); const ctr=()=>{ mp.invalidateSize(); mp.setView([here().lat,here().lng],16,{animate:false}); mp.panBy([0,-27.52],{animate:false}); }; ctr(); setTimeout(ctr,350); });
   const nnm = $('#nnm'); if(nnm) nnm.oninput = e => S.newCustom = e.target.value;
   const oi = $('#otpin'); if(oi){ otpTick(); setTimeout(()=>oi.focus(),350);
     oi.oninput = e => { const v=e.target.value.replace(/\D/g,'').slice(0,4); e.target.value=v; S.otpVal=v;
