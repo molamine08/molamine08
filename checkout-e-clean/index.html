@@ -1314,7 +1314,7 @@ function liveMapFull(){
     B.classList.remove('off'); B.dataset.a='mapZoomIn'; B.textContent='قرّب إلى الدبوس'; };
   ov._zoomIn=()=>mp.flyTo(mp.getCenter(),ZTO,{duration:.7});
   /* keep the locate button just above the panel, whatever the panel's height */
-  { const P=ov.querySelector('.mpanel'), LB=m.querySelector('.locate'), MM=m.querySelector('.mmanual'); if(P&&LB){ const place=()=>{ const b=(P.getBoundingClientRect().height+12)+'px'; LB.style.bottom=b; if(MM) MM.style.bottom=b; }; place(); if(window.ResizeObserver) new ResizeObserver(place).observe(P); } }
+  { const P=ov.querySelector('.mpanel'), LB=m.querySelector('.locate'), MM=m.querySelector('.mmanual'); if(P&&LB){ const place=()=>{ const mr=m.getBoundingClientRect(), pr=P.getBoundingClientRect(); const b=Math.max(12,(mr.bottom-pr.top)+12)+'px'; LB.style.bottom=b; if(MM) MM.style.bottom=b; }; place(); if(window.ResizeObserver){ const ro=new ResizeObserver(place); ro.observe(P); ro.observe(m); } window.addEventListener('resize',place); if(window.visualViewport) visualViewport.addEventListener('resize',place); [80,300,700].forEach(t=>setTimeout(place,t)); } }
   const look=async()=>{ if(zoomedOut()) return zoomState(); B.dataset.a='mapOk'; tip.classList.remove('zoom'); const c=mp.getCenter(), id=++seq, ok=inRiyadh(c.lat,c.lng); wait();
     let w={}; try{ w=await revGeo(c.lat,c.lng); }catch(e){} if(id!==seq) return;
     const city=(w.city||'').replace(/^منطقة\s+/,''); const hood=w.hood&&w.hood!==city&&!city.includes(w.hood)?w.hood:'';
