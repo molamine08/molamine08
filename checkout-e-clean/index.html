@@ -328,9 +328,9 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .nchead .edtx{margin-inline-start:auto;display:flex;align-items:center;height:32px;padding:0 14px;border-radius:999px;background:#e6e6e6;font-size:14px;font-weight:500;color:var(--dark);flex:none}
 .clean .nct{font-size:16px;line-height:24px;font-weight:700;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clean .ncs{font-size:14px;line-height:20px;color:var(--light)}
-.clean .ncmeta{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 14px;border-top:1px solid #e6e6e6;font-size:14px;line-height:20px;color:var(--light);white-space:nowrap}
-.clean .ncmeta>i{width:1px;height:20px;background:#dcdcdc;flex:none}
-.clean .ncmeta b{font-family:Inter,sans-serif;font-size:15px;font-weight:600;color:var(--dark);margin-inline-start:4px}
+.clean .ncmeta{display:flex;flex-direction:column;gap:12px;padding:16px 16px 18px;border-top:1px solid #e6e6e6;font-size:14px;line-height:20px;color:var(--light)}
+.clean .ncmeta>span{display:flex;align-items:center;justify-content:space-between}
+.clean .ncmeta b{font-family:Inter,sans-serif;font-size:15px;font-weight:600;color:var(--dark);direction:ltr;min-width:56px;text-align:left}
 .clean .nchead .nccode{flex:none;height:26px;display:inline-flex;align-items:center;padding:0 12px;border-radius:999px;background:linear-gradient(to right,#1288c4,#5b3a8e 55%,#a51f3d);font-family:Inter,sans-serif;font-size:13px;font-weight:600;letter-spacing:.04em;color:#fff}
 .mmanual{position:absolute;left:12px;bottom:164px;z-index:3;height:44px;padding:0 16px;border-radius:22px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;color:var(--dark)}
 .mmanual .ic{width:18px;height:18px}
@@ -1055,10 +1055,10 @@ N2(){ const p=S.picked;
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
   <div class="natcard">${mapBlock(148)}
     <div class="ncbody">
-      <div class="nchead"><p class="nct">حي ${p.hood}</p><span class="nccode" dir="ltr">${p.code}</span><button class="edtx" data-a="editNat">تغيير</button></div>
+      <div class="nchead"><p class="nct">حي ${p.hood}</p><span class="nccode" dir="ltr">${p.code}</span><button class="edtx" data-a="editNat">تعديل</button></div>
       <p class="ncs">${p.street}، مكة المكرمة</p>
     </div>
-    <div class="ncmeta"><span>رقم المبنى<b>${p.bno}</b></span><i></i><span>الرقم الإضافي<b>${p.add||'—'}</b></span><i></i><span>الرمز البريدي<b>${p.zip}</b></span></div></div>
+    <div class="ncmeta"><span>رقم المبنى<b>${p.bno}</b></span><span>الرمز البريدي<b>${p.zip}</b></span><span>الرقم الإضافي<b>${p.add||'—'}</b></span></div></div>
   ${floorField()}</div></div>${afterAddr()}`;
   return `<div class="sec addr">${head('أضف عنوان التوصيل','تحقّق من بيانات عنوانك، وعدّل ما يلزم.')}
   <div style="display:flex;flex-direction:column;gap:16px">${tabs()}
