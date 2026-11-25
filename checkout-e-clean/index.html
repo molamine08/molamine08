@@ -543,8 +543,8 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .sheet.tall .shead{align-items:flex-start;gap:12px}
 .leaf{position:absolute;inset:0;z-index:0;direction:ltr;background:#eef0f2}
 .map.tap .leaf{pointer-events:none}
-.leaf .leaflet-tile-pane{filter:grayscale(.92) brightness(1.06) contrast(.9)}
-.clean .leaf .leaflet-tile-pane{filter:grayscale(.95) brightness(1.16) contrast(.68)}
+
+
 .leaf .leaflet-control-attribution{font-size:11px;line-height:14px;background:rgba(255,255,255,.8)}
 .mres{position:absolute;left:8px;right:8px;top:56px;z-index:4;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.08);overflow:hidden;max-height:260px;overflow-y:auto}
 .mres button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:10px 12px;border-bottom:1px solid var(--div);text-align:right}
@@ -1276,7 +1276,7 @@ function otpSheet(){ const code = String(Math.floor(1000+Math.random()*9000)); S
 }
 function permDialog(){ openSheet(`<div class="dialog"><p class="base w7">يريد store.salla.sa معرفة موقعك</p><p class="sm c-l">نستخدم موقعك لتحديد عنوان التوصيل بدقة.</p>
   <div class="sbtns"><button class="btn" data-a="allow" style="flex:none">السماح</button><button class="btn sec" data-a="deny" style="flex:none">عدم السماح</button></div></div>`,'center'); }
-const tiles=()=>L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'});
+const tiles=()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'});
 const RIY={s:21.25,n:21.62,w:39.65,e:40.05};
 const inRiyadh=(lat,lng)=>lat>RIY.s&&lat<RIY.n&&lng>RIY.w&&lng<RIY.e;
 const strip=t=>(t||'').replace(/^حي\s+/,'').trim();
