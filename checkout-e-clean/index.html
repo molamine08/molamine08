@@ -262,16 +262,14 @@ body.clean{--bg:#f3f3f3;--fill:#f3f3f3}
 .clean .sheet{--a:12deg}
 .clean .mfull{--a:12deg}
 .clean .mfull .handle.mh{width:96px;height:20px;top:4px}
-.clean .mfull .handle.mh::before,.clean .mfull .handle.mh::after{content:"";position:absolute;top:8px;width:19px;height:5px;margin:0;border-radius:3px;background:#b3b3b3;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
-.clean .mfull .handle.mh::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
-.clean .mfull .handle.mh::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
+.clean .mfull .handle.mh::before{display:none}
+.clean .mfull .handle.mh::after{content:"";position:absolute;top:8px;left:50%;width:40px;height:5px;margin:0 0 0 -20px;border-radius:3px;background:#b3b3b3;transform:none}
 .clean .handle{width:96px;height:20px;background:none;margin:-6px auto -6px;align-self:center;cursor:pointer}
-.clean .handle::before,.clean .handle::after{content:"";position:absolute;inset:auto;top:8px;width:19px;height:5px;border-radius:3px;background:#d6d6d6;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
-.clean .handle::before{left:calc(50% - 18px);transform-origin:calc(100% - 2.5px) 50%;transform:rotate(var(--a))}
-.clean .handle::after{left:calc(50% - 1px);transform-origin:2.5px 50%;transform:rotate(calc(-1 * var(--a)))}
-/* clean sheets: no X and no divider; close with the handle, a drag down, or a tap outside */
+.clean .handle::before{display:none}
+.clean .handle::after{content:"";position:absolute;inset:auto;top:8px;left:50%;width:40px;height:5px;margin-left:-20px;border-radius:3px;background:#d6d6d6;transform:none}
+/* clean sheets: straight handle + X at top-left; no divider */
 .clean .shead{padding-bottom:0;border-bottom:0;margin-bottom:-6px;gap:12px}
-.clean .shead .xbtn,.clean .akx{display:none}
+.clean .shead:not(:has(+p)){margin-bottom:2px}
 .clean .shead .h2{font-size:20px;line-height:28px}
 .clean .xbtn{width:32px;height:32px;flex:none;border-radius:99px;background:var(--fill);font-size:20px;color:var(--dark)}
 .clean .shead+p{margin-top:0!important;font-size:14px;line-height:22px}
