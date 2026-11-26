@@ -435,6 +435,11 @@ body.kb .footer{transform:translateY(110%);visibility:hidden;pointer-events:none
 .logo{width:63px;height:20px;border-radius:4px;overflow:hidden;position:relative;flex:none}
 .logo img{position:absolute;height:242.33%;width:136.75%;left:-18.43%;top:-71.43%;max-width:none}
 .stepper{display:flex;justify-content:space-between;align-items:center;padding:13px 28px 13px;border-top:1px solid var(--div)}
+.stepper.bars{justify-content:flex-start;gap:8px;padding:12px 20px 14px}
+.stepper.bars .seg{flex:1;height:4px;border-radius:2px;background:#ededed;border:0;padding:0;transition:background .3s}
+.stepper.bars .seg.done,.stepper.bars .seg.cur{background:var(--dark)}
+.stepper.bars .seg.done{cursor:pointer}
+.stepper.bars .cnt{flex:none;margin-inline-start:8px;font-family:Inter,sans-serif;font-size:14px;line-height:18px;color:var(--light)}
 .st{display:flex;align-items:center;gap:6px;font-size:14px;line-height:1.875;color:var(--dark);white-space:nowrap}
 .st.todo{color:var(--lighter)}.st.cur{font-weight:500}
 .dot{width:20px;height:20px;border-radius:99px;border:1.5px solid var(--p);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:16px;font-weight:500;color:#fff;color:var(--p)}
@@ -910,8 +915,8 @@ function renderTop(){
     <button class="backbtn" data-a="back" aria-label="رجوع">${ic('back')}</button>
     <h1>إتمام الطلب</h1>
     <div class="logo"><img src="${IMG.miniso}" alt="MINISO"></div></div>
-  <div class="stepper">${(E?[[1,'التواصل'],[2,'العنوان'],[3,'الشحن'],[4,'الدفع']]:STEPS.map((l,i)=>[i+1,l])).map(([n,l],i)=>{const st=n<S.step?'done':n===S.step?'cur':'todo';
-    return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${i+1}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`;
+  ${CLEAN?`<div class="stepper bars">${[1,2,3,4].map(n=>{const st=n<S.step?'done':n===S.step?'cur':'todo';return `<button class="seg ${st}" aria-label="الخطوة ${n}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}></button>`}).join('')}<span class="cnt" dir="ltr">4/${S.step}</span></div>`:`<div class="stepper">${(E?[[1,'التواصل'],[2,'العنوان'],[3,'الشحن'],[4,'الدفع']]:STEPS.map((l,i)=>[i+1,l])).map(([n,l],i)=>{const st=n<S.step?'done':n===S.step?'cur':'todo';
+    return `<button class="st ${st}" ${st==='done'?`data-a="goto" data-n="${n}"`:''}><span class="dot">${st==='done'?ic('check'):`<b class="dn">${i+1}</b>`}</span><span>${l}</span></button>`}).join('')}</div>`}`;
 }
 function btnLabel(){
   if(S.step===1) return S.screen==='otp'?'تحقّق':(PHONEV2||E)?'متابعة':'تسجيل الدخول';
